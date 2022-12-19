@@ -56,6 +56,14 @@ namespace {
 			2, 4, 0,
 		};
 
+		std::vector<uint8_t> subdivisionLevels =
+		{
+			2,
+			3,
+			4,
+			5,
+		};
+
 		omm::BakerCreationDesc desc;
 		desc.type = omm::BakerType::CPU;
 		desc.enableValidation = true;
@@ -101,7 +109,7 @@ namespace {
 		bakeDesc.indexBuffer = indexBuffer.data();
 		bakeDesc.indexCount = (uint32_t)indexBuffer.size();
 		bakeDesc.indexFormat = omm::IndexFormat::I32_UINT;
-		
+		bakeDesc.subdivisionLevels = subdivisionLevels.data();
 		// Desired output config
 		bakeDesc.ommFormat = omm::OMMFormat::OC1_2_State;
 		bakeDesc.unknownStatePromotion = omm::UnknownStatePromotion::ForceOpaque;
