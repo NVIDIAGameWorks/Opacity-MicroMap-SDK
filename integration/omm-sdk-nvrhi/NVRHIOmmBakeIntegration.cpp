@@ -506,6 +506,7 @@ omm::Gpu::BakeDispatchConfigDesc NVRHIVmBakeIntegration::GetConfig(const Input& 
 
 	config.alphaTextureWidth					= params.alphaTexture ? params.alphaTexture->getDesc().width : 1;
 	config.alphaTextureHeight					= params.alphaTexture ? params.alphaTexture->getDesc().height : 1;
+	config.alphaTextureChannel					= params.alphaTextureChannel;
 	config.alphaMode							= AlphaMode::Test;
 	config.alphaCutoff							= params.alphaCutoff;
 	config.texCoordFormat						= TexCoordFormat::UV32_FLOAT;

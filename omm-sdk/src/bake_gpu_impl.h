@@ -970,10 +970,16 @@ namespace Gpu
             uint32_t ommWorkSetupGfxIdx = -1;
 
             omm_rasterize_bindings ommRasterizeBindings;
-            uint32_t ommRasterizeIdx = -1;
+            uint32_t ommRasterizeRIdx = -1;
+            uint32_t ommRasterizeGIdx = -1;
+            uint32_t ommRasterizeBIdx = -1;
+            uint32_t ommRasterizeAIdx = -1;
 
             omm_rasterize_cs_bindings ommRasterizeCsBindings;
-            uint32_t ommRasterizeCsIdx = -1;
+            uint32_t ommRasterizeRCsIdx = -1;
+            uint32_t ommRasterizeGCsIdx = -1;
+            uint32_t ommRasterizeBCsIdx = -1;
+            uint32_t ommRasterizeACsIdx = -1;
 
             omm_compress_cs_bindings ommCompressBindings;
             uint32_t ommCompressIdx = -1;

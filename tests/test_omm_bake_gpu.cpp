@@ -31,6 +31,9 @@ namespace {
 		DisableSpecialIndices			= 1u << 1,
 		Force32BitIndices				= 1u << 2,
 		DisableTexCoordDeduplication	= 1u << 3,
+		RedChannel						= 1u << 4,
+		GreenChannel					= 1u << 5,
+		BlueChannel						= 1u << 6,
 	};
 
 	class OMMBakeTestGPU : public ::testing::TestWithParam<TestSuiteConfig> {
@@ -55,6 +58,15 @@ namespace {
 		bool EnableSpecialIndices() const { return (GetParam() & TestSuiteConfig::DisableSpecialIndices) != TestSuiteConfig::DisableSpecialIndices; }
 		bool Force32BitIndices() const { return (GetParam() & TestSuiteConfig::Force32BitIndices) == TestSuiteConfig::Force32BitIndices; }
 		bool EnableTexCoordDeduplication() const { return (GetParam() & TestSuiteConfig::DisableTexCoordDeduplication) != TestSuiteConfig::DisableTexCoordDeduplication; }
+		uint GetAlphaChannelIndex() const { 
+			if ((GetParam() & TestSuiteConfig::RedChannel) == TestSuiteConfig::RedChannel)
+				return 0;
+			if ((GetParam() & TestSuiteConfig::GreenChannel) == TestSuiteConfig::GreenChannel)
+				return 1;
+			if ((GetParam() & TestSuiteConfig::BlueChannel) == TestSuiteConfig::BlueChannel)
+				return 2;
+			return 3;
+		}
 
 		omm::Debug::Stats RunVmBake(
 			float alphaCutoff,
@@ -66,6 +78,8 @@ namespace {
 			uint32_t texCoordBufferSize,
 			std::function<float(int i, int j)> texCb,
 			omm::OMMFormat format = omm::OMMFormat::OC1_4_State) {
+
+			const uint32_t alphaTextureChannel = GetAlphaChannelIndex();
 
 			nvrhi::TextureDesc desc;
 			desc.width = texSize.x;
@@ -85,16 +99,15 @@ namespace {
 				{
 					float* rgba = (float*)((uint8_t*)data + j * rowPitch + (4 * i) * sizeof(float));
 					float val = texCb(i, j);
-					rgba[0] = val;
-					rgba[1] = val;
-					rgba[2] = val;
-					rgba[3] = val;
+					rgba[0] = alphaTextureChannel == 0 ? val : 0.f;
+					rgba[1] = alphaTextureChannel == 1 ? val : 0.f;
+					rgba[2] = alphaTextureChannel == 2 ? val : 0.f;
+					rgba[3] = alphaTextureChannel == 3 ? val : 0.f;
 					imageData.push_back(val);
 				}
 			}
 
 			m_device->unmapStagingTexture(staging.Get());
-
 
 			// Upload alpha texture
 			m_commandList->open();
@@ -126,6 +139,7 @@ namespace {
 
 			NVRHIVmBakeIntegration::Input input;
 			input.alphaTexture = alphaTexture;
+			input.alphaTextureChannel = alphaTextureChannel;
 			input.alphaCutoff = 0.5f;
 			input.texCoordBuffer = vb;
 			input.texCoordStrideInBytes = sizeof(float2);
@@ -984,11 +998,18 @@ namespace {
 							TestSuiteConfig::DisableSpecialIndices,
 							TestSuiteConfig::Force32BitIndices,
 							TestSuiteConfig::DisableTexCoordDeduplication,
-
+							TestSuiteConfig::RedChannel,
+							TestSuiteConfig::BlueChannel,
+							TestSuiteConfig::GreenChannel,
+							
 							TestSuiteConfig::ComputeOnly,
 							TestSuiteConfig::ComputeOnly | TestSuiteConfig::DisableSpecialIndices, 
 							TestSuiteConfig::ComputeOnly | TestSuiteConfig::Force32BitIndices,
-							TestSuiteConfig::ComputeOnly | TestSuiteConfig::DisableTexCoordDeduplication
+							TestSuiteConfig::ComputeOnly | TestSuiteConfig::DisableTexCoordDeduplication,
+							TestSuiteConfig::ComputeOnly | TestSuiteConfig::RedChannel,
+							TestSuiteConfig::ComputeOnly | TestSuiteConfig::BlueChannel,
+							TestSuiteConfig::ComputeOnly | TestSuiteConfig::GreenChannel
+
 						));
 
 }  // namespace

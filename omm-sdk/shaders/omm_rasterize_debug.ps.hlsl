@@ -41,10 +41,11 @@ void main(
 
 	const float2 texCoord		= raster::PS_SV_Position_to_TexCoord(i_svPosition);
 
-	const float4 alpha			= t_alphaTexture.SampleLevel(s_samplers[g_GlobalConstants.SamplerIndex], texCoord.xy, 0).w;
+	const float4 color			= t_alphaTexture.SampleLevel(s_samplers[g_GlobalConstants.SamplerIndex], texCoord.xy, 0);
+	const float alpha			= color[g_GlobalConstants.AlphaTextureChannel];
 
 	//o_color = float4(alpha.rgb, 1);
-	o_color = float4(debugColor * alpha.rgb, 1);
+	o_color = float4(debugColor * alpha.xxx, 1);
 	//float NumLevels = (float)g_LocalConstants.SubdivisionLevel;
 	//o_color = float4(i_microTriIndex / NumLevels, i_microTriIndex / NumLevels, i_microTriIndex / NumLevels, 1);
 }

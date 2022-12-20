@@ -33,7 +33,7 @@ OMM_DECLARE_INPUT_RESOURCES
 OMM_DECLARE_OUTPUT_RESOURCES
 OMM_DECLARE_SUBRESOURCES
 
-#include "omm_rasterize_common.hlsli"
+#include "omm_resample_common.hlsli"
 
 namespace bird
 {
@@ -380,7 +380,18 @@ void main(uint3 tid : SV_DispatchThreadID)
     bool isOpaque = false;
     bool isTransparent = false;
     {
-        const PRECISE float alpha = t_alphaTexture.SampleLevel(s_samplers[g_GlobalConstants.SamplerIndex], microTri.p[0].xy, 0).w;
+        const PRECISE float4 color = t_alphaTexture.SampleLevel(s_samplers[g_GlobalConstants.SamplerIndex], microTri.p[0].xy, 0);
+#if IN_ALPHA_TEXTURE_CHANNEL == 0
+        const PRECISE float alpha = color.r;
+#elif IN_ALPHA_TEXTURE_CHANNEL == 1
+        const PRECISE float alpha = color.g;
+#elif IN_ALPHA_TEXTURE_CHANNEL == 2
+        const PRECISE float alpha = color.b;
+#elif IN_ALPHA_TEXTURE_CHANNEL == 3
+        const PRECISE float alpha = color.a;
+#else
+#error "unexpected value of IN_ALPHA_TEXTURE_CHANNEL"
+#endif
 
         isOpaque = g_GlobalConstants.AlphaCutoff < alpha;
         isTransparent = !isOpaque;

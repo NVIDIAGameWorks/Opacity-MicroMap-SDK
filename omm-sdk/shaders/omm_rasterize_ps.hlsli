@@ -22,7 +22,7 @@ OMM_DECLARE_OUTPUT_RESOURCES
 OMM_DECLARE_SUBRESOURCES
 
 #include "omm_rasterize_common.hlsli"
-
+#include "omm_resample_common.hlsli"
 
 void main(
 	nointerpolation in uint	     i_primitiveId	    : SV_InstanceID

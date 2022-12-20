@@ -28,9 +28,10 @@ public:
 	struct Input
 	{
 		nvrhi::TextureHandle		alphaTexture;
-		float						alphaCutoff		= 0.5f;
-		bool						bilinearFilter	= true;
-		nvrhi::SamplerAddressMode	sampleMode		= nvrhi::SamplerAddressMode::Clamp;
+		uint32_t					alphaTextureChannel = 3;
+		float						alphaCutoff			= 0.5f;
+		bool						bilinearFilter		= true;
+		nvrhi::SamplerAddressMode	sampleMode			= nvrhi::SamplerAddressMode::Clamp;
 
 		nvrhi::BufferHandle		texCoordBuffer;
 		uint32_t				texCoordBufferOffsetInBytes = 0;

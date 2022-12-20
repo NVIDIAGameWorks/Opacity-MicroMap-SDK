@@ -258,6 +258,8 @@ Result PipelineImpl::Validate(const BakeDispatchConfigDesc& config) const
         return Result::NOT_IMPLEMENTED;
     if (config.maxOutOmmArraySizeInBytes != 0xFFFFFFFF)
         return Result::NOT_IMPLEMENTED;
+    if (config.alphaTextureChannel > 3)
+        return Result::INVALID_ARGUMENT;
 
     return Result::SUCCESS;
 }
@@ -316,16 +318,52 @@ Result PipelineImpl::Create(const BakePipelineConfigDesc& config)
         ByteCodeFromName(omm_post_build_info_cs),
         m_pipelines.ommPostBuildInfoBindings.GetRanges(), m_pipelines.ommPostBuildInfoBindings.GetNumRanges());
 
-    m_pipelines.ommRasterizeIdx = m_pipelineBuilder.AddGraphicsPipeline(
+    m_pipelines.ommRasterizeRIdx = m_pipelineBuilder.AddGraphicsPipeline(
         ByteCodeFromName(omm_rasterize_vs),
         ByteCodeFromName(omm_rasterize_gs),
-        ByteCodeFromName(omm_rasterize_ps),
+        ByteCodeFromName(omm_rasterize_ps_r_ps),
         true /*ConservativeRasterization*/,
         0 /*NumRenderTargets*/,
         m_pipelines.ommRasterizeBindings.GetRanges(), m_pipelines.ommRasterizeBindings.GetNumRanges());
 
-    m_pipelines.ommRasterizeCsIdx = m_pipelineBuilder.AddComputePipeline(
-        ByteCodeFromName(omm_rasterize_cs),
+    m_pipelines.ommRasterizeGIdx = m_pipelineBuilder.AddGraphicsPipeline(
+        ByteCodeFromName(omm_rasterize_vs),
+        ByteCodeFromName(omm_rasterize_gs),
+        ByteCodeFromName(omm_rasterize_ps_g_ps),
+        true /*ConservativeRasterization*/,
+        0 /*NumRenderTargets*/,
+        m_pipelines.ommRasterizeBindings.GetRanges(), m_pipelines.ommRasterizeBindings.GetNumRanges());
+
+    m_pipelines.ommRasterizeBIdx = m_pipelineBuilder.AddGraphicsPipeline(
+        ByteCodeFromName(omm_rasterize_vs),
+        ByteCodeFromName(omm_rasterize_gs),
+        ByteCodeFromName(omm_rasterize_ps_b_ps),
+        true /*ConservativeRasterization*/,
+        0 /*NumRenderTargets*/,
+        m_pipelines.ommRasterizeBindings.GetRanges(), m_pipelines.ommRasterizeBindings.GetNumRanges());
+
+    m_pipelines.ommRasterizeAIdx = m_pipelineBuilder.AddGraphicsPipeline(
+        ByteCodeFromName(omm_rasterize_vs),
+        ByteCodeFromName(omm_rasterize_gs),
+        ByteCodeFromName(omm_rasterize_ps_a_ps),
+        true /*ConservativeRasterization*/,
+        0 /*NumRenderTargets*/,
+        m_pipelines.ommRasterizeBindings.GetRanges(), m_pipelines.ommRasterizeBindings.GetNumRanges());
+
+    m_pipelines.ommRasterizeRCsIdx = m_pipelineBuilder.AddComputePipeline(
+        ByteCodeFromName(omm_rasterize_cs_r_cs),
+        m_pipelines.ommRasterizeCsBindings.GetRanges(), m_pipelines.ommRasterizeCsBindings.GetNumRanges());
+
+    m_pipelines.ommRasterizeGCsIdx = m_pipelineBuilder.AddComputePipeline(
+        ByteCodeFromName(omm_rasterize_cs_g_cs),
+        m_pipelines.ommRasterizeCsBindings.GetRanges(), m_pipelines.ommRasterizeCsBindings.GetNumRanges());
+
+    m_pipelines.ommRasterizeBCsIdx = m_pipelineBuilder.AddComputePipeline(
+        ByteCodeFromName(omm_rasterize_cs_b_cs),
+        m_pipelines.ommRasterizeCsBindings.GetRanges(), m_pipelines.ommRasterizeCsBindings.GetNumRanges());
+
+    m_pipelines.ommRasterizeACsIdx = m_pipelineBuilder.AddComputePipeline(
+        ByteCodeFromName(omm_rasterize_cs_a_cs),
         m_pipelines.ommRasterizeCsBindings.GetRanges(), m_pipelines.ommRasterizeCsBindings.GetNumRanges());
 
     m_pipelines.ommCompressIdx = m_pipelineBuilder.AddComputePipeline(
@@ -704,6 +742,7 @@ Result PipelineImpl::GetDispatcheDesc(const BakeDispatchConfigDesc& config, cons
     cbuffer.TexCoord1Offset                            = config.texCoordOffsetInBytes;
     cbuffer.TexCoord1Stride                            = config.texCoordStrideInBytes;
     cbuffer.AlphaCutoff                                = config.alphaCutoff;
+    cbuffer.AlphaTextureChannel                        = config.alphaTextureChannel;
     cbuffer.FilterType                                 = (uint32_t)config.runtimeSamplerDesc.filter;
     cbuffer.VmArraySize                                = (uint32_t)preBuildInfo.outOmmArraySizeInBytes;
     cbuffer.VmDescSize                                 = (uint32_t)preBuildInfo.outOmmDescSizeInBytes;
@@ -864,7 +903,19 @@ Result PipelineImpl::GetDispatcheDesc(const BakeDispatchConfigDesc& config, cons
                 p.BindSubRange("IEBakeCsThreadCountBuffer", info.IEBakeCsThreadCountBuffer);
                 p.BindSubRange("SpecialIndicesStateBuffer", info.specialIndicesStateBuffer);
 
-                CBufferWriter& lCb = p.AddComputeIndirect(m_pipelines.ommRasterizeCsIdx, info.IEBakeCsBuffer, 12 * subdivisionLevel);
+                auto GetPipelineIndex = [&](uint alphaTextureChannel) {
+                    if (alphaTextureChannel == 0)
+                        return m_pipelines.ommRasterizeRCsIdx;
+                    else if (alphaTextureChannel == 1)
+                        return m_pipelines.ommRasterizeGCsIdx;
+                    else if (alphaTextureChannel == 2)
+                        return m_pipelines.ommRasterizeBCsIdx;
+                    // else  if (alphaTextureChannel == 3)
+                    OMM_ASSERT(alphaTextureChannel == 3);
+                    return m_pipelines.ommRasterizeACsIdx;
+                };
+
+                CBufferWriter& lCb = p.AddComputeIndirect(GetPipelineIndex(config.alphaTextureChannel), info.IEBakeCsBuffer, 12 * subdivisionLevel);
                 lCb.WriteDW(subdivisionLevel /*levelIt*/);
                 for (uint32_t i = 0; i < 7u; ++i)
                     lCb.WriteDW(0u /*dummy*/);
@@ -982,6 +1033,20 @@ Result PipelineImpl::GetDispatcheDesc(const BakeDispatchConfigDesc& config, cons
                 });
         }
 
+        auto GetOmmRasterizeIdx = [&](uint alphaTextureChannel) {
+            if (alphaTextureChannel == 0)
+                return m_pipelines.ommRasterizeRIdx;
+            else if (alphaTextureChannel == 1)
+                return m_pipelines.ommRasterizeGIdx;
+            else if (alphaTextureChannel == 2)
+                return m_pipelines.ommRasterizeBIdx;
+            // else  if (alphaTextureChannel == 3)
+            OMM_ASSERT(alphaTextureChannel == 3);
+            return m_pipelines.ommRasterizeAIdx;
+        };
+
+        const uint ommRasterizeIdx = GetOmmRasterizeIdx(config.alphaTextureChannel);
+
         for (uint32_t levelIt = 0; levelIt <= config.maxSubdivisionLevel; levelIt++)
         {
             SCOPED_LABEL("Level %d", levelIt);
@@ -1044,7 +1109,7 @@ Result PipelineImpl::GetDispatcheDesc(const BakeDispatchConfigDesc& config, cons
                     };
 
                     SCOPED_LABEL("Rasterize");
-                    PushBakeRasterize("Rasterize", m_pipelines.ommRasterizeIdx, m_pipelines.ommRasterizeBindings);
+                    PushBakeRasterize("Rasterize", ommRasterizeIdx, m_pipelines.ommRasterizeBindings);
 
                     const bool debug = ((uint32_t)config.bakeFlags & (uint32_t)BakeFlags::EnableNsightDebugMode) == (uint32_t)BakeFlags::EnableNsightDebugMode;
                     if (debug)

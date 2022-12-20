@@ -38,10 +38,10 @@ OMM_CONSTANTS_START(GlobalConstants)							\
 	OMM_CONSTANT(uint, TexCoord1Stride)							\
 	OMM_CONSTANT(float, AlphaCutoff)							\
 																\
+	OMM_CONSTANT(uint, AlphaTextureChannel)						\
 	OMM_CONSTANT(uint, FilterType) /* TextureFilterMode */ 		\
 	OMM_CONSTANT(uint, VmArraySize)								\
 	OMM_CONSTANT(uint, VmDescSize)								\
-	OMM_CONSTANT(uint, Pad1)									\
 																\
 	OMM_CONSTANT(float2, TexSize)								\
 	OMM_CONSTANT(float2, InvTexSize)							\

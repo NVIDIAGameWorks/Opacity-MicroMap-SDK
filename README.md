@@ -14,7 +14,7 @@ To read more about OMMs, the SDK and practical integration tips please see the [
 
 
 # Sample Application
-A sample application with the OMM Bake SDK integrated can be found here: *[OMM Bake SDK sample](X)*.
+A sample application with the OMM Bake SDK integrated can be found here: *[OMM Bake SDK sample](https://github.com/NVIDIAGameWorks/Opacity-MicroMap-Samples)*.
 
 The sample demonstrates OMMs running on D3D12 or Vulkan with both GPU and CPU baking enabled. The sample app runs raytracing with primary rays with specular and diffuse reflections with a configurable number of bounces. Use the UI to tweak the OMM format, subdivison level and other baking parameters. The sample includes a caching mechanism that is meant to illustrate the use of prebaked OMM data.
 
