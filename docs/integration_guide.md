@@ -1,17 +1,18 @@
-# NVIDIA Opacity Micro-Map Baker SDK v0.9.0
-![alt text](opacity-micromap-ampere-630x354.jpg "Title")
-![alt text](opacity-micromap-ada-630x354.jpg "Title")
+# NVIDIA Opacity Micro-Map SDK
+![shader execution without OMMs](images/header/omm_off.png)
+![shader with OMMs](images/header/omm_on.png)
 
+The images above illustrate Any Hit Shader (AHS) shader invocations without (left) and with (right) 4-state OMMs enabled.
 
 # Opacity Micro-Map fundamentals
 
 Micro-triangles are uniformly distributed over a triangle, this allows for efficient OMM state indexing via the barycentric coordiantes that fall out of the ray-triangle intersection test. An illustration of subdivision level 0, 1 and 2 is illustrated below.
 
-![alt text](subdiv/subdiv_scale.png "Title")
+![varying triangle subdivision levels](images/subdiv/subdiv_scale.png)
 
 Up to 12 subdivision levels per triangle is supported. Each subdivision level will generate N^2 subdivisions per edge, or N^4 micro-triangles in total.
 
-![alt text](bird/bird_scale.png "Title")
+![bird curve format](images/bird/bird_scale.png)
 
 An OMM block* of tightly bit-packed opacity states will be laid out in the "bird curve" pattern illustrated above. Similar to Morton space-filling curve used for textures, OMMs map micro-triangles in a "bird-curve" order (Named so due to it's resemblence to the Escher-like birds). 
 
@@ -24,10 +25,10 @@ When the ray traversal unit on GPU can trivially reject / accept hits via the T,
 \* An OMM block is set of micro-triangles accosiated with one or more triangles.
 
 ## Reuse
-OMM blocks can be reused between primitives, this is useful for high poly meshes that do internal texture coordinate instancing. This is common (and recommended, OMMs or not) pattern, re-use will be automatically detected by the SDK both pre and post baking to ensure no redundant OMM blocks are maximally re-used.
+OMM blocks can be reused between primitives which is useful for high poly meshes that do internal texture coordinate instancing. This is a common (and recommended with or without, OMMs) pattern, re-use will be automatically detected by the SDK both pre and post baking to ensure no redundant OMM blocks are maximally re-used.
 
 ## API level
-OMMs are exposed via in D3D12 and Vulkan via the ``RaytracingOpacityMicromapArray`` object type. Just like a TLAS references one or more BLASes a BLAS may also reference data in an ``RaytracingOpacityMicromapArray`` which contains the micro-triangle opacity data. The ``RaytracingOpacityMicromapArray`` is indexed with a primitive index buffer. The data to construct the ``RaytracingOpacityMicromapArray`` and corresponding BLAS index buffer is produced by the SDK.
+OMMs are exposed in D3D12 and Vulkan via the ``RaytracingOpacityMicromapArray`` object type. Just like a TLAS references one or more BLASes a BLAS may also reference data in an ``RaytracingOpacityMicromapArray`` which contains the micro-triangle opacity data. The ``RaytracingOpacityMicromapArray`` is indexed with a primitive index buffer. The data to construct the ``RaytracingOpacityMicromapArray`` and corresponding BLAS index buffer is produced by the SDK.
 
 # Integration guide checklist
 
@@ -43,7 +44,7 @@ Before integrating the baker SDK it might be useful to go over the checklist bel
 
 ## Inputs & Outputs
 
-![alt text](data_flow2.png "Title")
+![SDK input & output flow chart](images/input_output/data_flow.png)
 
 The primary input the baker needs to generate OMMs are:
 * Index Buffer - IB as used for the corresponding BLAS the OMMs will be attached to.
@@ -69,7 +70,7 @@ There are two targets, some data go straight to the BLAS build, and the rest is 
 
 <center>
 
-![alt text](OC/OC4_FO_scale.png "Title")
+![sample output from the SDK](images/order_curve/OC4_FO_scale.png)
 
 </center>
 
@@ -79,9 +80,9 @@ In 4-state mode the speedup is typically correlated to the ratio of known states
 
 $$ C = {\frac{T+O}{T+O+UT+UO}} $$ 
 
-Maximizing C (globally and per triangle) is typically done either by forcing 2-state mode (at the loss of detail) or increasing the subdivision level. Furthermore a resampling algorithm can be chosen to be more or less conservative - it's alwasy safe in terms of correctness to mark any micro-triangle as unknown and fall back to shader for final evaluation. However being overly conservative comes at the cost of coverage. For this reason the OMM SDK is designed to always optimize for coverage. The OMM SDK goes to great lenghts to achive this goal - it will analytically trace the alpha contour line formed by the alpha textures and alpha cutoff-plane as possible find the state of micro-triangles and only mark micro-triangles with a proven mixed state as unknown.
+Maximizing C (globally and per triangle) is typically done either by forcing 2-state mode (at the loss of detail) or increasing the subdivision level. Furthermore, a resampling algorithm can be chosen to be more or less conservative - it's always safe in terms of correctness to mark any micro-triangle as unknown and fall back to shader for final evaluation. However, being overly conservative comes at the cost of coverage. For this reason, the OMM SDK is designed to always optimize coverage. The OMM SDK goes to great lengths to achieve this goal - it will analytically trace the alpha contour line formed by the alpha textures and alpha cutoff-plane as possible find the state of micro-triangles and only mark micro-triangles with a proven mixed state as unknown.
 
-In other words: the OMM Bake SDK will _always_ produce the optimal coverage. 
+In other words: the OMM SDK will _always_ produce the optimal coverage. 
 
 \* OMM performance depends on many factors, OMM block size, amount of reuse and cost of AHS, etc. However when everything else is equal, there tend to be a relationship between C and the observed OMM speedup. 
 
@@ -93,7 +94,7 @@ Situations when the CPU baker is a preferred option include:
     - The application want to pre-bake OMMs offline in a pre-step. For instance on a build farm or similar.
         - Decouple the OMM producing system to the OMM consuming system.
         - The content processing doesn't have GPU access.
-        - Pre-baking is useful There's a limited set of assets that need baking, without dynamic content. The baking can complete for the entire set of assets in finite time and storage space. 
+        - Pre-baking is useful when there's a limited set of assets that need baking, without dynamic content. The baking can complete for the complete set of assets in finite time and storage space. 
     - The baking doesn't have to happen real time, for instance a limited set of assets in a loading screen or similar.
     - Quickly prototype OMMs for evaluation purposes as a stepping stone before integrating the GPU baker.
     - Note: Be mindful that OMMs consume disk space, for massive open world games it may not be practical to pre-bake all data.
@@ -107,7 +108,7 @@ Situations when the CPU baker is a preferred option include:
 The baking algorithm in the SDK is designed to optimize OMM reuse and in the case of 4-state OMMs, it will maximize the amount of known state. The end result is a highly efficient and compact ``RaytracingOpacityMicromapArray``. Below follows an explanation of the steps involed when running the baking algorithm. Some steps are exclusive to the CPU baker which does not have the requirement to run in real time.
 
 ## 1. Reuse pre-pass (CPU & GPU)
-The first step is to analyze the texture coordinates to find duplicates. If texture coordinates are bit-identical for two or more primitives the resulting OMM array data can be shared (assuming the same subdivision level and format is used). This is done by utilizing a hash table and hashing the texture coordinates and other subdivision level parameters. Once this is done the baker has distilled down a set of unique OMM blobs that need to be baked. It's not uncommon for assets to heavily instance texture coordinates within the mesh, this is good. *Note* To speed up baking make sure that "almost" similar texture coordinates are de-duplicated in the asset pipeline. The baker can not safely do this snapping step before baking (it will do it post-bake) since the texture coordinates in the AHS must also be updated.
+The first step is to analyze the texture coordinates to find duplicates. If texture coordinates are bit-identical for two or more primitives the resulting OMM array data can be shared (assuming the same subdivision level and format is used). This is done by utilizing a hash table and hashing the texture coordinates and other subdivision level parameters. Once this is done the baker has distilled down a set of unique OMM blobs that need to be baked. It is not uncommon for assets to heavily instance texture coordinates within the mesh, this is good. *Note* To speed up baking make sure that "almost" similar texture coordinates are de-duplicated in the asset pipeline. The baker can not safely do this snapping step before baking (it will do it post-bake) since the texture coordinates in the AHS must also be updated.
 
 ## 2. Determine Subdivision level (CPU & GPU)
 OMMs support up to 12 subdivision levels, where the total number of micro-trianlges per level is 4^N. The default heuristic in the SDK is to tune the subdivision level such that a micro triangle covers a given fraction of the UV-space (as expressed in pixels). It's possible to override this and force a uniform global subdivision level over all micro-triangles or to override the subidivision level per triangle. 
@@ -120,15 +121,15 @@ If all micro-trangles in an OMM block all have the same state they can be promot
 
 ## 5. Reuse post-pass (CPU, GPU:TODO)
 
-Once the baking it's done a second pass is run to find if any two OMMs have the same exact same content, and if they do, they will me merged in order to produce an even more compact representation. This can be the case for texture coordiantes that are *almost* similar, but not bit exact and not caught in *1.Reuse pre-pass*. 
+Once the baking is done a second pass is run to find if any two OMMs have the same exact same content, and if they do, they will be merged to produce an even more compact representation. This can be the case for texture coordiantes that are *almost* similar, but not bit exact and not caught in *1.Reuse pre-pass*. 
 
 ## 6. Spatial-Sort (CPU, GPU:TODO)
 
-It's recommended to sort the final OMM blocks spatially to maximize cache when doing state lookups. For this reason OMMs are sorted in morton order over the texture domain, (the texture domain is assumed to be a proxy of the relativle locations also in world space). Additionally blocks are sorted from highest subdivision level to lowest to achive natural block aligment.
+It is recommended to sort the final OMM blocks spatially to maximize cache when doing state lookups. For this reason OMMs are sorted in morton order over the texture domain, (the texture domain is assumed to be a proxy of the relativle locations also in world space). Additionally blocks are sorted from highest subdivision level to lowest to achive natural block aligment.
 
 # Subdivision Level
 
-![alt text](subdiv/anim_scale.gif "Title")
+![subdivision level animation](images/subdiv/anim_scale.gif)
 
 Subdivision level 0 to 8 visualized (0 to 65536 micro-triangles). Blue = Transparent. Green = Opaque. Yellow = Unknown.
 
@@ -136,7 +137,7 @@ What is a suitable subdivision level? Eventually a high subdivision level yeilds
 
 The SDK contains a heuristic to compute a suitable subdivision level controlled via ``float dynamicSubidivisionScale``. This controls the approximate number of texels in the alpha texutre that each each micro-triangle will cover. That way the texel size and triangle size are both used as a resolution guide. Setting ``dynamicSubidivisionScale = 0`` will force the max subdivision level if a uniform global subdivision level is required.
 
-It might make sense to scale the subdivision scale in proportion to the size of the triangle in world space (not texture space) the thinking is that the UV space coverage should be proportional to the WS size. If that's not the case, or when explicit control of the subdivision level per triangle is desired for other reasons detailed control is exposed via ``uint8_t* subdivisionLevels`` and ``IN_SUBDIVISION_LEVEL_BUFFER``.
+It might make sense to scale the subdivision scale in proportion to the size of the triangle in world space (not texture space) the thinking is that the UV space coverage should be proportional to the WS size. If that is not the case, or when explicit control of the subdivision level per triangle is desired for other reasons detailed control is exposed via ``uint8_t* subdivisionLevels`` and ``IN_SUBDIVISION_LEVEL_BUFFER``.
 
 # 4-state vs 2-state format
 
@@ -149,8 +150,8 @@ Below is an example of a triangle with resolved statates.
 
 <center>
 
-![alt text](OC/OC4_nearest_scale.png "Title")
-![alt text](OC/OC4_FO_scale.png "Title")
+![4-state nearest](images/order_curve/OC4_nearest_scale.png)
+![4-state force opaque](images/order_curve/OC4_FO_scale.png)
 
 </center>
 
@@ -180,8 +181,8 @@ In this mode micro-triangles can either be Opaque or Transparent. This mode will
         1. It will produce a smooth triangle-strip like shape. (See images below)
         2. It will produce more opaque triangles than ForceTransparent which generally improves RT perforamce.
 
-![alt text](OC/OC2_nearest_scale.png "Title")
-![alt text](OC/OC2_FO_scale.png "Title")
+![2-state with Coverage preserving promotion](images/order_curve/OC2_nearest_scale.png)
+![2-state with Coverage force opaque promotion](images/order_curve/OC2_FO_scale.png)
 
 Notice how the left image ``omm::UnknownStatePromotion::Nearest`` produces a more "jaggy" shape along the border, while still captures the overall coverage pretty closely. Often a better better option is to use any of the ``omm::UnknownStatePromotion::Force*`` modes which generally forms a smoother triangle-strip cut along the intersection line (right). So while the Nearest option produces more accurate in terms of overall coverage, the Force* options produces smoother shapes and arguably more pleasing geometry.
 
@@ -318,24 +319,24 @@ enum class TextureFormat
 
 This is by design, the expectation is that the application first does a conversion from the *runtime* format to single channel float. Refer to existing libraries, for instance [DirectXTex](https://github.com/microsoft/DirectXTex) or [detex](https://github.com/hglm/detex).
 
-![alt text](wrong_tex_data.png "Title")
+![Incorrectly setup texture data flow](images/input_output/incorrect_tex_data.png)
 
 The following _NOT_ the expected data flow. This can lead to OMM and AHS mismatch.
 
-![alt text](correct_tex_data.png "Title")
+![Correctly setup texture data flow](images/input_output/correct_tex_data.png)
 
-The image abole illustrates is the expected data flow for 4-state OMMs using a BC7 format at runtime. Depending on the texture format an additional texture decompression step may have to be performed before passing in the data to OMM Bake SDK.
+The image above illustrates the expected data flow for 4-state OMMs using a BC7 format at runtime. Depending on the texture format an additional texture decompression step may have to be performed before passing in the data to OMM SDK.
 
 For the GPU baker no special considerations have to be made as long as the ``IN_ALPHA_TEXTURE`` is the same texture format as used for the runtime shader.
 
 # MIP Mapping (4-state)
 
-Just like the case for texture compression, it's important that the OMMs match the shader version of the alpha test exactly in order to avoid artifacts. Problems can therefore arise when there's a need to change the mip frequently, or even wrose, dynamically per ray. Having OMMs baked from a given MIP and later render at higher MIP levels naively can lead to artifacts, and depending on the application even a small texture-space delta can lead to a large error. Articacts are typically noticed when tracing instance primary rays and shadow rays as they may project a tiny objects on a larger area.  
+Just like the case for texture compression, it's important that the OMMs match the shader version of the alpha test exactly to avoid artifacts. Problems can therefore arise when there is a need to change the mip frequently, or even worse, dynamically per ray. Having OMMs baked from a given MIP and later render at higher MIP levels naively can lead to artifacts, and depending on the application even a small texture-space delta can lead to a large error. Articacts are typically noticed when tracing instance primary rays and shadow rays as they may project a tiny objects on a larger area.  
 
 Note this section is not relevant when using 2-state OMMs as there's no fallback shader mechanism in place and 2-state won't in the general case exactly match the original content (by design).
 
 ## General recommendation
-Do not use dynamic mip level at all if possible. Pick a texture mip and use that at all times. It might be tempting to use ray-cones also for AHS shaders, but the benefits for raytracing are few. The quality benefit of ray cones for the purpuse of alpha testing is lacking since the pre convloution of the alpha values does not converge faster due to the binary alpha test. For primary rays it may reduce aliasing.
+Do not use dynamic mip level at all if possible. Pick a texture mip and always use that version. It might be tempting to use ray-cones also for AHS shaders, but the benefits for raytracing are few. The quality benefit of ray cones for the purpuse of alpha testing is lacking since the pre convloution of the alpha values does not converge faster due to the binary alpha test. For primary rays it may reduce aliasing.
 
 ## Strategies for _Per-Frame MIP_ (e.g texture straming)
 
@@ -343,7 +344,7 @@ Do not use dynamic mip level at all if possible. Pick a texture mip and use that
 It might not show up as a problem in practice. Make sure that there is a problem before solving it.
 
 ### 2- N BLAS & N OMMs
-One possible solution is to bake each mip level independently and store one OMM array per mip level, and build a corresponding BLAS as well. Each frame determine which BLAS to use depending on the current texture mip. The benefit of this approach is optimal perf and quality, the downside is increased memory and omm/blas building cost.
+One possible solution is to bake each mip level independently and store one OMM array per mip level, and build a corresponding BLAS as well. Each frame determines which BLAS to use depending on the current texture mip. The benefit of this approach is optimal perf and quality, the downside is increased memory and omm/blas building cost.
 ### 3 - 1 BLAS & N OMMs
 Another solution is to use a single BLAS with N independently baked OMMs and update them as needed via BLAS refit. Note that the BLAS must have the flag ``NVAPI_D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_ALLOW_OMM_UPDATE_EX`` set. Having this flag set may imply higher OMM cost and less effective use of OMMs over all. This approach uses less memory compared to 2. but may not produce as efficient BLASes.
 ### 4 - Strict coupling of geometry LOD and texture MIP
@@ -360,13 +361,13 @@ If it must be used, the baker can read multiple texture slices and produce an OM
 
 <center>
 
-![alt text](MIPMerge/myimage.gif "Title")
+![Texture MIPs animation](images/mip_merge/myimage.gif)
 ->
-![alt text](MIPMerge/merged.png "Title")
+![Texture MIPs merged to a conservative OMM block](images/mip_merge/merged.png)
 
 </center>
 
-Left animation flips throuhg each mip level from 0 -> 5 individually baked. Right image shows the intersection of all states for all texture mip levels overlaid. Notice how it's lower coverage %.
+Left animation flips throuhg each mip level from 0 -> 5 individually baked. Right image shows the intersection of all states for all texture mip levels overlaid. Notice its lower coverage %.
 
 # Integration Details
 
@@ -421,9 +422,9 @@ Then just pass in the texture handle toghether with the other baking parameters 
 OMM_API Result OMM_CALL BakeOpacityMicromap(Baker baker, const BakeInputDesc& bakeInputDesc, BakeResult* outBakeResult);
 ```
 
-This is a blocking and possible time consuming process as each micro-triangle will be effectively rasterized and compared to the texels in the texture object. A strategy to speed up the baking is to run multiple baking operations in parallel (baking tasks are thread safe, no need to create multiple Baker handles). In scenarios where that is not possible the bake flag ``EnableInternalThreads`` can be set to let the baker use internally spawned threads. Currently implemented via OpenMP.
+This is a blocking and time consuming process as each micro-triangle will be effectively rasterized and compared to the texels in the texture object. A strategy to speed up the baking is to run multiple baking operations in parallel (baking tasks are thread safe, no need to create multiple Baker handles). In scenarios where that is not possible the bake flag ``EnableInternalThreads`` can be set to let the baker use internally spawned threads. Currently implemented via OpenMP.
 
-Bake flags and their intended use case is documented in the header. Refer to the Sample app and unit tests to see examples of how the CPU baker is library is used. For instance the "MinimalSample" test below demostrate how to use the cpu baker to produce OMM data.
+Bake flags and their intended use case is documented in the header. Refer to the Sample app and unit tests to see examples of how the CPU baker is library is used. For instance, the "MinimalSample" test below demonstrate how to use the CPU baker to produce OMM data.
 
 ```cpp
 TEST(MinimalSample, CPU) 
@@ -561,7 +562,7 @@ TEST(MinimalSample, CPU)
 
 Running the code above with ``OMM_TEST_ENABLE_IMAGE_DUMP`` produces a folder "MinimalSample" with the following image:
 
-![alt text](MinimalSample/0__scale.png "Title")
+![Output from MinimalSample](images/minimal_sample/0__scale.png)
 
 # GPU baker
 
@@ -585,10 +586,10 @@ Logically it's close to the Method 1, but the integration takes place in the ful
 
 ## HOW TO RUN BAKING?
 
-*OMM Bake SDK* doesn't make any graphics API calls. The application is supposed to invoke a set of compute Dispatch(), DispatchIndirect(), DrawIndexedIndirect() (optional) calls to perform the build. Refer to ``omm-sdk-nvrhi`` for and example integration using a low level RHI.
+*OMM SDK* doesn't make any graphics API calls. The application is supposed to invoke a set of compute Dispatch(), DispatchIndirect(), DrawIndexedIndirect() (optional) calls to perform the build. Refer to ``omm-sdk-nvrhi`` for and example integration using a low level RHI.
 
 ## Step 1: Allocate static buffers
-When running the HW-raster version of the baker two statically allocated resources are nessesary to allocate upfront. ``STATIC_VERTEX_BUFFER`` and ``STATIC_INDEX_BUFFER``. These contain the topology (index buffer) and packed discrete barycentrics for the bird curve. This ensures that micro-triangles will be rasterized in bird curve order for efficiency and also is also useful for output indexing. 
+When running the HW-raster version of the baker two statically allocated resources are nessesary to allocate upfront. ``STATIC_VERTEX_BUFFER`` and ``STATIC_INDEX_BUFFER``. These contain the topology (index buffer) and packed discrete barycentrics for the bird curve. This ensures that micro-triangles will be rasterized in bird curve order for efficiency and useful for output indexing.
 
 These buffers are immutable and shared between all baking passes.
 
@@ -662,7 +663,7 @@ This fills out the memory requirement of the named OUT_* resources and the opaqu
 <span style="color: red">Warning:</span> the conservative memory allocation can quickly grow out of hand. The following is the general formula for conservative memory allocation: $$ S_{bit} = F_k 4^{N_{max}} T $$ 
 Where ${F_k}$ is the bit count per micro-triangle (either 1 or 2 bits). $N_{max}$ is the max subdivision level allowed and $T$ is the number of primitives in the mesh. 
 
-_If we for example have a mesh of $T = 50000$ primitives and max subdivision level $ N_{max} = 9$ with 4-state format. We end up with a memory footprint of $S_{mb} = 3276.8MB$ (!!!). 3+GB is _a lot_, way more than practical, even for scratch memory. If the mesh truly contains 50k unique OMM blocks, and all baked at subdivision level 9 it's probably not a good candidate for OMMs and should not be baked. However, what is more likely is that a few tex-coord pairs are re-used and instanced within the mesh. It's not uncommon for just a handful of unique tex-coord pairs being found after the resuse pre-pass have been run. Let's pretend our sample mesh had for isntance just 8 unique OMM blocks, then we'd end up using only  $0.5 MB$ in practice, which is far more practical._ 
+_If we for example have a mesh of $T = 50000$ primitives and max subdivision level $ N_{max} = 9$ with 4-state format. We end up with a memory footprint of $S_{mb} = 3276.8MB$ (!!!). 3+GB is _a lot_, way more than practical, even for scratch memory. If the mesh truly contains 50k unique OMM blocks, and all baked at subdivision level 9 it's probably not a good candidate for OMMs and should not be baked. However, what is more likely is that a few tex-coord pairs are re-used and instanced within the mesh. It's not uncommon for just a handful of unique tex-coord pairs being found after the resuse pre-pass have been run. Let's pretend our sample mesh had for isntance just 8 unique OMM blocks, then we would end up using only $0.5 MB$ in practice, which is far more practical._ 
 
 This means that baking may be preferable, but the scratch memory requirements impossible to satisfy. So how do we resolve this? There are a couple of mitication strategies to deal with the case above (listed in no particular order):
 
@@ -693,7 +694,7 @@ Assuming all OMM blocks still fit within the limited memory heuristic there's no
 The third alternative (although not yet implemented) is to expose a pre-pass function that will only run the re-use logic and then return a less conservative memory estimate that will still guarantee the optimal baking. This require the bake pass to be split up in to prepass -> readback -> bake -> readback -> ..BLAS build. This is the preferred solution as it can be used to selectively avoid baking objects with poor OMM quality altogether.
 
 ## Step 2: Dispatch
-The GPU baker has two modes, one is based on the rasterization hw of the GPU in order to parallelize the micro-triangle evaluation on multiple threads, and another version which runs on Compute workloads only.
+The GPU baker has two modes: one is based on the rasterization hardware of the GPU to parallelize the micro-triangle evaluation on multiple threads, and another version runs on Compute workloads only.
 
 The Compute-only baker is generally more efficient and has fewer requirements on the RHI in terms of supported features. It does however perform less efficiently on large micro-triangles. A large micro-triangle may sound like an oxymoron, and mostly it is. 
 
