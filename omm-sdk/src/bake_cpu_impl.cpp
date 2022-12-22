@@ -22,6 +22,9 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include <random>
 #include <array>
 #include <algorithm>
+#include <atomic>
+#include <cmath>
+#include <cstring>
 
 namespace omm
 {
@@ -670,7 +673,7 @@ namespace Cpu
                                             const int2 coord = omm::GetTexCoord<eTextureAddressMode>(pixel, p->size);
 
                                             const bool isBorder = eTextureAddressMode == TextureAddressMode::Border && (coord.x == kTexCoordBorder || coord.y == kTexCoordBorder);
-                                            const float alpha = isBorder ? p->borderAlpha : p->texture->Load<eTilingMode>(coord, p->mipIt);
+                                            const float alpha = isBorder ? p->borderAlpha : p->texture->template Load<eTilingMode>(coord, p->mipIt);
 
                                             if (p->alphaCutoff < alpha) {
                                                 p->vmState->opaque++;
@@ -882,7 +885,7 @@ namespace Cpu
                     if (L == 0)
                         continue;
 
-                    const uint32_t k = uint32_t(glm::ceil((std::logf((float)n) * d) / (c * r)));
+                    const uint32_t k = uint32_t(glm::ceil((std::log((float)n) * d) / (c * r)));
 
                     if (k == 0)
                         continue;
@@ -894,8 +897,6 @@ namespace Cpu
 
                     hashTables.resize(L, allocator);
 
-                    std::uniform_int_distribution<uint32_t> dist(0, numMicroTriangles - 1);
-
                     for (HashTable& hashTable : hashTables)
                     {
                         hashTable.workItemHashes.resize(vmWorkItems.size(), 0);
@@ -903,7 +904,9 @@ namespace Cpu
                         hashTable.layerHashToWorkItem.clear();
                         for (uint32_t& bitIndex : hashTable.bitIndices)
                         {
-                            bitIndex = dist(mt);
+                            // We're not using std::uniform_int_distribution, the output is not defined in spec and may differ between compilers
+                            const uint32_t random = mt(); // between 0..uint32 max
+                            bitIndex = random & (numMicroTriangles - 1); // random mod numMicroTriangles - 1
                         }
                     }
 
@@ -1038,8 +1041,6 @@ namespace Cpu
             static constexpr float kMergeThreshold = 0.1f; // If two OMMs differ less than kMergeThreshold % (treating all unknowns as equal) -> then we combine them.
             static constexpr uint32_t kMaxComparsions = 2048; // Covert the O(n^2) nature of the algorithm to a -> O(kN) version...
 
-            volatile uint32_t similarFound = 0;
-
             set<uint32_t> mergedWorkItems(allocator);
             for (uint32_t itA = 0; itA < vmWorkItems.size() - 1; ++itA)
             {
@@ -1092,7 +1093,6 @@ namespace Cpu
                     mergedWorkItems.insert(itA);
                     mergedWorkItems.insert(nearestIndex);
                     MergeWorkItems(workItemA /*to*/, workItemB /*from*/);
-                    similarFound++;
                 }
             }
 
@@ -1219,7 +1219,7 @@ namespace Cpu
                     const uint32_t ommCount = ommArrayHistogram.GetOmmCount(desc.ommFormat, i);
                     ommDescArrayCount += ommCount;
                     const size_t numOmmForSubDivLvl = (size_t)omm::bird::GetNumMicroTriangles(i) * ommBitCount;
-                    ommArrayDataSize += size_t(ommCount) * std::max(numOmmForSubDivLvl >> 3ull, 1ull);
+                    ommArrayDataSize += size_t(ommCount) * std::max<size_t>(numOmmForSubDivLvl >> 3ull, 1ull);
                 }
 
                 if (ommArrayDataSize > std::numeric_limits<uint32_t>::max()) // Array data > 4GB? ouch
@@ -1230,7 +1230,7 @@ namespace Cpu
                 if (ommDescArrayCount != 0)
                 {
                     res.ommArrayData.resize(ommArrayDataSize);
-                    memset(res.ommArrayData.data(), 0, res.ommArrayData.size());
+                    std::memset(res.ommArrayData.data(), 0, res.ommArrayData.size());
                     res.ommDescArray.resize(ommDescArrayCount);
 
                     uint32_t ommArrayDataOffset = 0;

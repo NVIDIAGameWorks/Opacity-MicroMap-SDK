@@ -12,6 +12,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 #include "math.h"
 #include "omm.h"
+#include "assert.h"
 
 namespace omm
 {
@@ -42,19 +43,18 @@ namespace omm
             aabb_e = { std::max(std::max(p0.x, p1.x), p2.x), std::max(std::max(p0.y, p1.y), p2.y) };
         }
 
-        union {
-            struct
-            {
-                float2 p0;
-                float2 p1;
-                float2 p2;
-            };
+        float2 getP(uint32_t index) const {
+            if (index == 0)
+                return p0;
+            else if (index == 1)
+                return p1;
+            OMM_ASSERT(index == 2);
+            return p2;
+        }
 
-            struct
-            {
-                float2 p[3];
-            };
-        };
+        float2 p0;
+        float2 p1;
+        float2 p2;
 
         float2 aabb_s;     //< Start point of the aabb
         float2 aabb_e;     //< End point of the aabb
@@ -109,22 +109,22 @@ namespace omm
     }
 
     template<TexCoordFormat texCoordFormat>
-    static float convertUvToFloat(const void* texCoords, uint32_t texCoordStrideInBytes, uint32_t index, uint32_t component);
+    inline float convertUvToFloat(const void* texCoords, uint32_t texCoordStrideInBytes, uint32_t index, uint32_t component);
 
     template<> // UV16_UNORM specialisation
-    static float convertUvToFloat<TexCoordFormat::UV16_UNORM>(const void* texCoords, uint32_t texCoordStrideInBytes, uint32_t index, uint32_t component)
+    inline float convertUvToFloat<TexCoordFormat::UV16_UNORM>(const void* texCoords, uint32_t texCoordStrideInBytes, uint32_t index, uint32_t component)
     {
         return ((float)getUvComponantStorage<uint16_t>(texCoords, texCoordStrideInBytes, index, component)) * (1.f / 65535.f);
     }
 
     template<> // UV16_FLOAT specialisation
-    static float convertUvToFloat<TexCoordFormat::UV16_FLOAT>(const void* texCoords, uint32_t texCoordStrideInBytes, uint32_t index, uint32_t component)
+    inline float convertUvToFloat<TexCoordFormat::UV16_FLOAT>(const void* texCoords, uint32_t texCoordStrideInBytes, uint32_t index, uint32_t component)
     {
         return float16ToFloat32(getUvComponantStorage<uint16_t>(texCoords, texCoordStrideInBytes, index, component));
     }
 
     template<> // UV32_FLOAT specialisation
-    static float convertUvToFloat<TexCoordFormat::UV32_FLOAT>(const void* texCoords, uint32_t texCoordStrideInBytes, uint32_t index, uint32_t component)
+    inline float convertUvToFloat<TexCoordFormat::UV32_FLOAT>(const void* texCoords, uint32_t texCoordStrideInBytes, uint32_t index, uint32_t component)
     {
         return getUvComponantStorage<float>(texCoords, texCoordStrideInBytes, index, component);
     }

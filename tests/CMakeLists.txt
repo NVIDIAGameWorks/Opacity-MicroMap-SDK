@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.10)
 
-option(OMM_ENABLE_GPU_TESTS "Build GPU tests. Require nvrhi integration layer" ON)
+if (WIN32)
+	option(OMM_ENABLE_GPU_TESTS "Build GPU tests. Require nvrhi integration layer" ON)
+else()
+	option(OMM_ENABLE_GPU_TESTS "Build GPU tests. Require nvrhi integration layer" OFF)
+endif()
 option(OMM_TEST_ENABLE_IMAGE_DUMP "Certain tests may dump the result of the baking operation. Enable this option when tests are failing and need to be debugged." OFF )
 
 if (OMM_TEST_ENABLE_IMAGE_DUMP)
@@ -28,7 +32,7 @@ if (OMM_ENABLE_GPU_TESTS)
     endif()
 endif()
 
-set(omm_tests_src_cpu util/image.h util/omm.h util/omm_histogram.h util/omm_histogram.cpp test_basic.cpp test_texture.cpp test_raster.cpp test_minimal_sample.cpp test_util.cpp test_tesselator.cpp test_omm_bake_cpu.cpp test_subdiv.cpp test_omm_indexing.cpp )
+set(omm_tests_src_cpu util/stb_lib.cpp util/image.h util/omm.h util/omm_histogram.h util/omm_histogram.cpp test_basic.cpp test_texture.cpp test_raster.cpp test_minimal_sample.cpp test_util.cpp test_tesselator.cpp test_omm_bake_cpu.cpp test_subdiv.cpp test_omm_indexing.cpp )
 add_executable(tests main.cpp ${omm_tests_src_cpu} ${omm_tests_src_gpu})
 if (OMM_ENABLE_GPU_TESTS)
     set(OMM_ENABLE_GPU_TESTS_VALUE 1)

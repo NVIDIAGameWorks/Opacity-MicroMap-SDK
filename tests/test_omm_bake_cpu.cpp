@@ -18,6 +18,9 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include <omm.h>
 #include <shared/bird.h>
 
+#include <math.h>
+#include <cmath>
+
 namespace {
 
 	enum TestSuiteConfig
@@ -530,7 +533,7 @@ namespace {
 
 			const float uv = float(i) / (float)w;
 
-			return 1.f - std::sinf(uv*15);
+			return 1.f - std::sin(uv*15);
 			});
 
 		ExpectEqual(stats, {
@@ -552,7 +555,7 @@ namespace {
 
 			const float uv = float(i) / (float)w;
 
-			return 1.f - std::sinf(uv * 15);
+			return 1.f - std::sin(uv * 15);
 			}, { .format = omm::OMMFormat::OC1_2_State });
 
 		ExpectEqual(stats, {
@@ -573,7 +576,7 @@ namespace {
 
 			const float uv = float(i) / (float)w;
 
-			return 1.f - std::sinf(uv * 15);
+			return 1.f - std::sin(uv * 15);
 			}, { .format = omm::OMMFormat::OC1_2_State });
 
 		ExpectEqual(stats, {
@@ -730,21 +733,21 @@ namespace {
 
 			float2 uv = 1.2f * float2(i, j) / float2(w, h) - 0.1f;
 
-			float2 z0 = 5.f * (uv - float2(.5, .27));
+			float2 z0 = 5.f * (uv - float2(.5f, .27f));
 			float2 col;
 			float time = 3.1f;
-			float2 c = cos(time) * float2(cos(time / 2.), sin(time / 2.));
+			float2 c = std::cos(time) * float2(std::cos(time / 2.f), std::sin(time / 2.f));
 			for (int i = 0; i < 500; i++) {
 				float2 z = multiply(z0, z0) + c;
 				float mq = dot(z, z);
-				if (mq > 4.) {
-					col = float2(float(i) / 20., 0.);
+				if (mq > 4.f) {
+					col = float2(float(i) / 20.f, 0.f);
 					break;
 				}
 				else {
 					z0 = z;
 				}
-				col = float2(mq / 2., mq / 2.);
+				col = float2(mq / 2.f, mq / 2.f);
 			}
 			
 			float alpha = std::clamp(col.x, 0.f, 1.f);

@@ -8,7 +8,6 @@ distribution of this software and related documentation without an express
 license agreement from NVIDIA CORPORATION is strictly prohibited.
 */
 
-#pragma once
 #include "omm_histogram.h"
 #include <gtest/gtest.h>
 #include <shared/bird.h>

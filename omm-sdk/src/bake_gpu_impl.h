@@ -13,7 +13,6 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include "omm.h"
 #include "std_containers.h"
 #include "shader_bindings.h"
-typedef omm::MemoryAllocatorInterface MemoryAllocatorInterface;
 #include "std_allocator.h"
 
 #include <shared/math.h>
@@ -21,6 +20,7 @@ typedef omm::MemoryAllocatorInterface MemoryAllocatorInterface;
 
 #include <map>
 #include <array>
+#include <cstring>
 
 namespace omm
 {
@@ -328,7 +328,7 @@ namespace Gpu
         {
             size_t len = strlen(src) + 1;
             char* dst = AllocateString(len);
-            return strcpy(dst, src);
+            return std::strcpy(dst, src);
         }
 
         hash_map<uint64_t, const char*> _cache;
@@ -462,7 +462,7 @@ namespace Gpu
                 , m_localCb(m_cbuffer.data()
                 , m_cbuffer.max_size())
             {
-                memset(&m_desc, 0x0, sizeof(m_desc));
+                std::memset(&m_desc, 0x0, sizeof(m_desc));
                 m_desc.type = type;
             }
 

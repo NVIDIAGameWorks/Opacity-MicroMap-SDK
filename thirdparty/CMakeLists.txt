@@ -15,9 +15,8 @@ add_subdirectory("xxHash/cmake_unofficial")
 set_property(TARGET xxhash PROPERTY FOLDER "${OMM_PROJECT_FOLDER}/Thirdparty") 
 
 # stb
-add_library(stb_lib STATIC "stb_lib.cpp" "stb")
-target_include_directories(stb_lib INTERFACE "stb")
-set_property(TARGET stb_lib PROPERTY FOLDER "${OMM_PROJECT_FOLDER}/Thirdparty") 
+add_library(stb_lib INTERFACE)
+target_include_directories(stb_lib INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/stb>)
 
 # nvrhi
 if (NOT TARGET nvrhi)
@@ -26,8 +25,15 @@ if (NOT TARGET nvrhi)
 	set(NVRHI_WITH_DX11 OFF CACHE BOOL "" FORCE)
 	set(NVRHI_WITH_VULKAN OFF CACHE BOOL "" FORCE)
 	add_subdirectory("nvrhi")
-	set_target_properties(nvrhi PROPERTIES FOLDER "${OMM_PROJECT_FOLDER}/Thirdparty")
-	set_target_properties(nvrhi_d3d12 PROPERTIES FOLDER "${OMM_PROJECT_FOLDER}/Thirdparty")
+
+	if (TARGET nvrhi)
+		set_target_properties(nvrhi PROPERTIES FOLDER "${OMM_PROJECT_FOLDER}/Thirdparty")
+	endif()
+
+	if (TARGET nvrhi_d3d12)
+		set_target_properties(nvrhi_d3d12 PROPERTIES FOLDER "${OMM_PROJECT_FOLDER}/Thirdparty")
+	endif()
+
 endif()
 
 # gtest
@@ -35,3 +41,9 @@ set(INSTALL_GTEST OFF)
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 add_subdirectory("gtest")
 set_target_properties("gmock" "gmock_main" "gtest_main" "gtest" PROPERTIES FOLDER "${OMM_PROJECT_FOLDER}/Thirdparty")
+
+# gbenchmark
+set(BENCHMARK_ENABLE_INSTALL OFF)
+set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
+add_subdirectory("gbenchmark")
+set_target_properties("benchmark" "benchmark_main" PROPERTIES FOLDER "${OMM_PROJECT_FOLDER}/Thirdparty")

@@ -11,7 +11,6 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include <omm.h>
 #include <shared/math.h>
 
-typedef omm::MemoryAllocatorInterface MemoryAllocatorInterface;
 #include "std_allocator.h"
 #include "std_containers.h"
 

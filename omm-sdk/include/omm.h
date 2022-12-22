@@ -299,7 +299,7 @@ namespace omm
             float                   alphaCutoff                 = 0.5f;
 
             // Determines how to promote mixed states
-            UnknownStatePromotion   unknownStatePromotion       = UnknownStatePromotion::Nearest;
+            UnknownStatePromotion   unknownStatePromotion       = UnknownStatePromotion::ForceOpaque;
 
             // The global OMMFormat. May be overriden by the per-triangle subdivision level setting.
             OMMFormat               ommFormat                    = OMMFormat::OC1_4_State;

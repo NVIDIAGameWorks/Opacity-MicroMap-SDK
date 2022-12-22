@@ -34,7 +34,6 @@ add_subdirectory(omm-sdk)
 add_subdirectory(integration)
 
 if (OMM_ENABLE_BENCHMARK)
-    set(BENCHMARK_ENABLE_INSTALL OFF)
     add_subdirectory(benchmark)
 endif()
 

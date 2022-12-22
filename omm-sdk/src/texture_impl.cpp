@@ -17,6 +17,8 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include <shared/bit_tricks.h>
 #include <shared/texture.h>
 
+#include <cstring>
+
 namespace omm
 {
     TextureImpl::TextureImpl(const StdAllocator<uint8_t>& stdAllocator) :
@@ -114,7 +116,7 @@ namespace omm
                     {
                        void* dst = m_data + m_mips[mipIt].dataOffset;
                        const float* src = (float*)(desc.mips[mipIt].textureData);
-                       memcpy(dst, src, sizeof(float) * m_mips[mipIt].numElements);
+                       std::memcpy(dst, src, sizeof(float) * m_mips[mipIt].numElements);
                     }
                     else
                     {
@@ -126,7 +128,7 @@ namespace omm
                         {
                             uint8_t* dst = dstBegin + rowIt * dstRowPitch;
                             const uint8_t* src = srcBegin + rowIt * srcRowPitch;
-                            memcpy(dst, src, dstRowPitch);
+                            std::memcpy(dst, src, dstRowPitch);
                         }
                     }
                 }
@@ -203,21 +205,6 @@ namespace omm
         float bd = glm::lerp<float>(b, d, weight.x);
         float bilinearValue = glm::lerp(ac, bd, weight.y);
         return bilinearValue;
-    }
-
-    template<TilingMode eTilingMode>
-    float TextureImpl::Load(const int2& texCoord, int32_t mip) const 
-    {
-        OMM_ASSERT(eTilingMode == m_tilingMode);
-        OMM_ASSERT(texCoord.x >= 0);
-        OMM_ASSERT(texCoord.y >= 0);
-        OMM_ASSERT(texCoord.x < m_mips[mip].size.x);
-        OMM_ASSERT(texCoord.y < m_mips[mip].size.y);
-        OMM_ASSERT(glm::all(glm::notEqual(texCoord, kTexCoordBorder2)));
-        OMM_ASSERT(glm::all(glm::notEqual(texCoord, kTexCoordInvalid2)));
-        const uint64_t idx = From2Dto1D<eTilingMode>(texCoord, m_mips[mip].size);
-        OMM_ASSERT(idx < m_mips[mip].numElements);
-        return ((float*)(m_data + m_mips[mip].dataOffset))[idx];
     }
 
     template<>

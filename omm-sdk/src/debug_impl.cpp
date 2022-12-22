@@ -25,6 +25,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include <filesystem>
 #include <fstream>
 #include <algorithm>
+#include <optional>
 
 namespace omm
 {

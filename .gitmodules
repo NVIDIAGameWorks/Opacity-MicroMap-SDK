@@ -8,7 +8,7 @@
 	path = benchmark/thirdparty/gbenchmark
 	url = https://github.com/google/benchmark.git
 [submodule "vm_bench/thirdparty/gbenchmark"]
-	path = benchmark/thirdparty/gbenchmark
+	path = thirdparty/gbenchmark
 	url = https://github.com/google/benchmark.git
 [submodule "thirdparty/xxHash"]
 	path = thirdparty/xxHash

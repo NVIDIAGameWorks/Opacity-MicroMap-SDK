@@ -1,5 +1,9 @@
 
-option(OMM_INTEGRATION_LAYER_NVRHI "Build nvrhi integration layer" ON)
+if (WIN32)
+	option(OMM_INTEGRATION_LAYER_NVRHI "Build nvrhi integration layer" ON)
+else()
+	option(OMM_INTEGRATION_LAYER_NVRHI "Build nvrhi integration layer" OFF)
+endif()
 
 if (OMM_INTEGRATION_LAYER_NVRHI AND NOT OMM_ENABLE_PRECOMPILED_SHADERS_DXIL)
     message(WARNING "Embedded DXIL shaders is required for NVRHI integration layer. Integration layer will be disabled (OMM_INTEGRATION_LAYER_NVRHI). To resolve make sure OMM_ENABLE_PRECOMPILED_SHADERS_DXIL is ON.")

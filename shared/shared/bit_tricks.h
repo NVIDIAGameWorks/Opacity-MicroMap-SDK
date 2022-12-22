@@ -10,7 +10,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 #pragma once
 
-#if __has_include(<immintrin.h>)
+#if __has_include(<immintrin.h>) && _WIN32
 #define IMMINTRIN_ENABLED (1)
 #include <immintrin.h>
 #else

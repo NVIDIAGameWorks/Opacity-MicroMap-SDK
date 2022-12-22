@@ -107,7 +107,7 @@ endif()
 target_link_libraries(${TARGET_NAME} omm-shared glm stb_lib xxHash::xxhash) 
 
 set_target_properties(${TARGET_NAME} PROPERTIES VERSION ${PROJECT_VERSION})
-target_include_directories(${TARGET_NAME} PUBLIC "Include" "Shaders")
+target_include_directories(${TARGET_NAME} PUBLIC "include" "shaders")
 set_property(TARGET ${TARGET_NAME} PROPERTY FOLDER "${OMM_PROJECT_FOLDER}") 
 
 if (OMM_ENABLE_PRECOMPILED_SHADERS)

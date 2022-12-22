@@ -13,7 +13,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include "bake_gpu_impl.h"
 #include "debug_impl.h"
 #include "texture_impl.h"
-#include "Version.h"
+#include "version.h"
 
 #include <array>
 
@@ -230,15 +230,21 @@ namespace Debug
 
 OMM_API Result OMM_CALL CreateOpacityMicromapBaker(const BakerCreationDesc& desc, Baker* baker)
 {
-    BakerCreationDesc modifiedBakerCreationDesc = desc;
-    CheckAndSetDefaultAllocator(modifiedBakerCreationDesc.memoryAllocatorInterface);
+    StdMemoryAllocatorInterface o = 
+    {
+        .Allocate = desc.memoryAllocatorInterface.Allocate,
+        .Reallocate = desc.memoryAllocatorInterface.Reallocate,
+        .Free = desc.memoryAllocatorInterface.Free,
+        .userArg = desc.memoryAllocatorInterface.userArg
+    };
 
-    StdAllocator<uint8_t> memoryAllocator(modifiedBakerCreationDesc.memoryAllocatorInterface);
+    CheckAndSetDefaultAllocator(o);
+    StdAllocator<uint8_t> memoryAllocator(o);
 
     if (desc.type == BakerType::CPU)
     {
         Cpu::BakerImpl* implementation = Allocate<Cpu::BakerImpl>(memoryAllocator, memoryAllocator);
-        const Result result = implementation->Create(modifiedBakerCreationDesc);
+        const Result result = implementation->Create(desc);
 
         if (result == Result::SUCCESS)
         {
@@ -251,7 +257,7 @@ OMM_API Result OMM_CALL CreateOpacityMicromapBaker(const BakerCreationDesc& desc
     else if (desc.type == BakerType::GPU)
     {
         Gpu::BakerImpl* implementation = Allocate<Gpu::BakerImpl>(memoryAllocator, memoryAllocator);
-        const Result result = implementation->Create(modifiedBakerCreationDesc);
+        const Result result = implementation->Create(desc);
 
         if (result == Result::SUCCESS)
         {

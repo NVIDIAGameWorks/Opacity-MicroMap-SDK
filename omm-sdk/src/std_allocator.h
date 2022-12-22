@@ -90,7 +90,23 @@ inline void AlignedFree(void* userArg, void* memory)
 
 #endif
 
-inline void CheckAndSetDefaultAllocator(MemoryAllocatorInterface& memoryAllocatorInterface)
+struct StdMemoryAllocatorInterface
+{
+    void* (*Allocate)(void* userArg, size_t size, size_t alignment) = nullptr;
+    void* (*Reallocate)(void* userArg, void* memory, size_t size, size_t alignment) = nullptr;
+    void (*Free)(void* userArg, void* memory) = nullptr;
+    void* userArg = nullptr;
+
+    bool operator==(const StdMemoryAllocatorInterface& o) const {
+        return 
+            Allocate == o.Allocate &&
+            Reallocate == o.Reallocate &&
+            Free == o.Free &&
+            userArg == o.userArg;
+    }
+};
+
+inline void CheckAndSetDefaultAllocator(StdMemoryAllocatorInterface& memoryAllocatorInterface)
 {
     if (memoryAllocatorInterface.Allocate != nullptr)
         return;
@@ -110,7 +126,7 @@ struct StdAllocator
     typedef std::false_type is_always_equal;
     typedef std::false_type has_no_allocator_construct;
 
-    StdAllocator(const MemoryAllocatorInterface& memoryAllocatorInterface) : m_Interface(memoryAllocatorInterface)
+    StdAllocator(const StdMemoryAllocatorInterface& memoryAllocatorInterface) : m_Interface(memoryAllocatorInterface)
     { CheckAndSetDefaultAllocator(m_Interface); }
 
     template<class U>
@@ -134,14 +150,14 @@ struct StdAllocator
     T* reallocate(T* memory, size_t n, size_t align = alignof(T)) noexcept
     { return (T*)m_Interface.Reallocate(m_Interface.userArg, memory, n * sizeof(T), align); }
 
-    const MemoryAllocatorInterface& GetInterface() const
+    const StdMemoryAllocatorInterface& GetInterface() const
     { return m_Interface; }
 
     template<typename U>
     using other = StdAllocator<U>;
 
 private:
-    MemoryAllocatorInterface m_Interface = {};
+    StdMemoryAllocatorInterface m_Interface = {};
 };
 
 template<typename T>

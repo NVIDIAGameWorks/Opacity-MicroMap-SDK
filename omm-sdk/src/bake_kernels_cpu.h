@@ -52,7 +52,7 @@ static OpacityState GetStateFromCoverage(OMMFormat vmFormat, UnknownStatePromoti
     }
     else // if (coverage.trans == 0) 
     {
-        OMM_ASSERT(coverage.trans == 0, "");
+        OMM_ASSERT(coverage.trans == 0);
         return OpacityState::Opaque;
     }
 };
@@ -62,7 +62,7 @@ static OpacityState GetStateFromCoverage(OMMFormat vmFormat, UnknownStatePromoti
 struct LevelLineIntersectionKernel
 {
     struct Params {
-        volatile OmmCoverage*    vmCoverage;
+        OmmCoverage*            vmCoverage;
         const Triangle*         triangle;
         float2                  invSize;
         int2                    size;
@@ -333,8 +333,8 @@ public:
                 for (uint32_t edge = 0; edge < 3; ++edge) {
 
                     // Transform the edge to the local coordinate system of the texel.
-                    const float2 p0 = (float2)p->size * p->triangle->p[edge % 3] - pixelf;
-                    const float2 p1 = (float2)p->size * p->triangle->p[(edge + 1) % 3] - pixelf;
+                    const float2 p0 = (float2)p->size * p->triangle->getP(edge % 3) - pixelf;
+                    const float2 p1 = (float2)p->size * p->triangle->getP((edge + 1) % 3) - pixelf;
 
                     // Hyperbolic paraboloid (3D surface) => Hyperbola (2D line)
                     // f(x, y) = a + b * x + c * y + d * x * y where f(x, y) = p->alphaCutoff =>
@@ -358,7 +358,7 @@ public:
 struct ConservativeBilinearKernel
 {
     struct Params {
-        volatile OmmCoverage*    vmCoverage;
+        OmmCoverage*            vmCoverage;
         float2                  invSize;
         int2                    size;
         const TextureImpl*      texture;
