@@ -7,8 +7,11 @@ on:
     branches:
       - main
 jobs:
-  Build-Windows:
-    runs-on: windows-latest
+  Build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       -
         name : Checkout
@@ -16,12 +19,14 @@ jobs:
         with:
           submodules: true
       -
-        name: Install dependencies
+        name: Install Windows SDK
+        if: ${{ matrix.os == 'windows-latest' }}
         uses: crazy-max/ghaction-chocolatey@v1
         with:
           args: install windows-sdk-10.0 cmake -y
       -
         name: Install Vulkan
+        if: ${{ matrix.os == 'windows-latest' }}
         run: |
           $ver = (Invoke-WebRequest -Uri "https://vulkan.lunarg.com/sdk/latest.json" | ConvertFrom-Json).windows
           echo Vulkan SDK version $ver
@@ -30,10 +35,19 @@ jobs:
           echo Downloaded
           .\VulkanSDK.exe --root C:\VulkanSDK --accept-licenses --default-answer --confirm-command install
       -
-        name: Generate CMake
+        name: CMake Config Win
+        if: ${{ matrix.os == 'windows-latest' }}
         run: |
           $Env:VULKAN_SDK = "C:/VulkanSDK/"
           $Env:Path += ";C:/VulkanSDK/Bin"
+          mkdir "build"
+          cd "build"
+          cmake .. -A x64
+          cd ..
+      -
+        name: CMake Config Ubuntu
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        run: |
           mkdir "build"
           cd "build"
           cmake .. -A x64
