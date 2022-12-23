@@ -1,23 +1,49 @@
-name: C/C++ CI
-
+name: Build Opacity Micro-Map SDK
 on:
   push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
-
+    branches:
+      - main
 jobs:
-  build:
-
-    runs-on: ubuntu-latest
-
+  Build-Windows:
+    runs-on: windows-latest
     steps:
-    - uses: actions/checkout@v3
-    - name: configure
-      run: ./configure
-    - name: make
-      run: make
-    - name: make check
-      run: make check
-    - name: make distcheck
-      run: make distcheck
+      -
+        name : Checkout
+        uses: actions/checkout@v3
+        with:
+          submodules: true
+      -
+        name: Install dependencies
+        uses: crazy-max/ghaction-chocolatey@v1
+        with:
+          args: install windows-sdk-10.0 cmake -y
+      -
+        name: Install Vulkan
+        run: |
+          $ver = (Invoke-WebRequest -Uri "https://vulkan.lunarg.com/sdk/latest.json" | ConvertFrom-Json).windows
+          echo Vulkan SDK version $ver
+          $ProgressPreference = 'SilentlyContinue'
+          Invoke-WebRequest -Uri "https://sdk.lunarg.com/sdk/download/$ver/windows/VulkanSDK-$ver-Installer.exe" -OutFile VulkanSDK.exe
+          echo Downloaded
+          .\VulkanSDK.exe --root C:\VulkanSDK --accept-licenses --default-answer --confirm-command install
+      -
+        name: Generate CMake
+        run: |
+          $Env:VULKAN_SDK = "C:/VulkanSDK/"
+          $Env:Path += ";C:/VulkanSDK/Bin"
+          mkdir "build"
+          cd "build"
+          cmake .. -A x64
+          cd ..
+      -
+        name: Build Debug
+        run: |
+          cd "build"
+          cmake --build . --config Debug
+          cd ..
+      -
+        name: Build Release
+        run: |
+          cd "build"
+          cmake --build . --config Release
+          cd ..
