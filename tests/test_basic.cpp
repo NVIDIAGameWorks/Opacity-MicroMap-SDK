@@ -159,14 +159,14 @@ namespace {
 	}
 
 	TEST_F(TextureTest, Create65536x0) {
-		vmtest::Texture tex(65536, 1, 1, [](int i, int j, int w, int h, int mip)->float {return 0.f; });
+		vmtest::Texture tex(65536, 1, 1, false /*enableZorder*/, [](int i, int j, int w, int h, int mip)->float {return 0.f; });
 
 		omm::Cpu::Texture outTexture = 0;
 		EXPECT_EQ(omm::Cpu::CreateTexture(_baker, tex.GetDesc(), &outTexture), omm::Result::SUCCESS);
 	}
 
 	TEST_F(TextureTest, Create65537x0) {
-		vmtest::Texture tex(65537, 1, 1, [](int i, int j, int w, int h, int mip)->float {return 0.f; });
+		vmtest::Texture tex(65537, 1, 1, false /*enableZorder*/, [](int i, int j, int w, int h, int mip)->float {return 0.f; });
 
 		omm::Cpu::Texture outTexture = 0;
 		EXPECT_EQ(omm::Cpu::CreateTexture(_baker, tex.GetDesc(), &outTexture), omm::Result::INVALID_ARGUMENT);

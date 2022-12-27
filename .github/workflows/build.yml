@@ -17,7 +17,7 @@ jobs:
           submodules: true
       -
         name: Install dependencies
-        uses: crazy-max/ghaction-chocolatey@v1
+        uses: crazy-max/ghaction-chocolatey@v2
         with:
           args: install windows-sdk-10.0 cmake -y
       -
@@ -50,6 +50,24 @@ jobs:
           cd "build"
           cmake --build . --config Release
           cd ..
+      -
+        name: Run Tests
+        run: |
+          cd "build/bin/Release"
+          ./tests.exe --gtest_filter=-*GPU*
+          cd ../../..
+      -
+        name: Install Release
+        run: |
+          cd "build"
+          cmake --install . --config Release
+          cd ..
+      -
+        name: Upload Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: Opacity Micro-Map SDK
+          path: build/install
           
   Build-Ubuntu:
     runs-on: ubuntu-latest
@@ -84,3 +102,9 @@ jobs:
           cd "build"
           cmake --build . --config Release
           cd ..
+      -
+         name: Test Release
+         run: |
+           cd "build"
+           cd "bin"
+           ./tests

@@ -22,6 +22,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 namespace omm
 {
     static uint32_t nextPow2(uint32_t v) {
+        v += (v == 0);
         v--;
         v |= v >> 1;
         v |= v >> 2;
