@@ -11,13 +11,13 @@ The images above illustrate Any Hit Shader (AHS) shader invocations without (lef
 Micro-triangles are uniformly distributed over a triangle, this allows for efficient OMM state indexing via the barycentric coordiantes that fall out of the ray-triangle intersection test. An illustration of subdivision level 0, 1 and 2 is illustrated below.
 
 <p align="center">
-    <img src="images/subdiv/subdiv_scale.png" alt="varying triangle subdivision levels">
+    <img src="images/subdiv/subdiv.png" width=85% height=auto  alt="varying triangle subdivision levels">
 </p>
 
 Up to 12 subdivision levels per triangle is supported. Each subdivision level will generate N^2 subdivisions per edge, or N^4 micro-triangles in total.
 
 <p align="center">
-    <img src="images/bird/bird_scale.png" alt="bird curve format">
+    <img src="images/bird/bird.png" width=30% height=auto  alt="bird curve format">
 </p>
 
 An OMM block* of tightly bit-packed opacity states will be laid out in the "bird curve" pattern illustrated above. Similar to Morton space-filling curve used for textures, OMMs map micro-triangles in a "bird-curve" order (Named so due to it's resemblence to the Escher-like birds). 
@@ -76,11 +76,9 @@ There are two targets, some data go straight to the BLAS build, and the rest is 
 
 ## Sample output
 
-<center>
-
-![sample output from the SDK](images/order_curve/OC4_FO_scale.png)
-
-</center>
+<p align="center">
+    <img src="images/order_curve/OC4_FO.png" width=45% height=auto  alt="sample output from the SDK">
+</p>
 
 Above is a visualization of opacity micro maps baked with subdivision level 5. Micro-triangle states are color coded as O (Green), T (Blue), UO (Yellow). The AHS will only be invoked on the yellow triangles, the rest will be read and resolved by the raytracing hardware directly on Ada. For pre-Ada hardware the opacity states will be resolved in software in an emulation mode. The software fallback is lightweight as indexing of the OMM block can be done trivially via barycentrics, the emulation may still produca a speedup.
 
@@ -158,12 +156,10 @@ In this mode micro-triangles can either be Opaque or Transparent, any micro-tria
 
 Below is an example of a triangle with resolved statates.
 
-<center>
-
-![4-state nearest](images/order_curve/OC4_nearest_scale.png)
-![4-state force opaque](images/order_curve/OC4_FO_scale.png)
-
-</center>
+<p align="center">
+    <img src="images/order_curve/OC4_nearest.png" width=45% height=auto  alt="4-state nearest">
+    <img src="images/order_curve/OC4_FO.png" width=45% height=auto  alt="4-state force opaque">
+</p>
 
 Yellow=Unknown Opaque. Pink=Unknown Transparent. The right image uses only Unknown Opaque.
 
@@ -192,8 +188,8 @@ In this mode micro-triangles can either be Opaque or Transparent. This mode will
         2. It will produce more opaque triangles than ForceTransparent which generally improves RT perforamce.
 
 <p align="center">
-    <img src="images/order_curve/OC2_nearest_scale.png" alt="2-state with Coverage preserving promotion">
-    <img src="images/order_curve/OC2_FO_scale.png" alt="2-state with Coverage force opaque promotion">
+    <img src="images/order_curve/OC2_nearest.png" width=45% height=auto alt="2-state with Coverage preserving promotion">
+    <img src="images/order_curve/OC2_FO.png" width=45% height=auto alt="2-state with Coverage force opaque promotion">
 </p>
 
 Notice how the left image ``omm::UnknownStatePromotion::Nearest`` produces a more "jaggy" shape along the border, while still captures the overall coverage pretty closely. Often a better better option is to use any of the ``omm::UnknownStatePromotion::Force*`` modes which generally forms a smoother triangle-strip cut along the intersection line (right). So while the Nearest option produces more accurate in terms of overall coverage, the Force* options produces smoother shapes and arguably more pleasing geometry.
@@ -371,13 +367,11 @@ Best for general performance and OMMs. If not possible, see 2.
 ### 2 - Generate conservative OMMs
 If it must be used, the baker can read multiple texture slices and produce an OMM mask that is guaranteed to conservatively cover a set of possible texture slices. Producing this overly conservative masks solves the correctness problem at the cost of reduced coverage. Use this strategy only when no other approach works as it adds baking time and lowers the runtime performance.
 
-<center>
-
-![Texture MIPs animation](images/mip_merge/myimage.gif)
-->
-![Texture MIPs merged to a conservative OMM block](images/mip_merge/merged.png)
-
-</center>
+<p align="center">
+    <img src="images/mip_merge/myimage.gif" alt="Texture MIPs animation">
+    ->
+    <img src="images/mip_merge/merged.png" alt="Texture MIPs merged to a conservative OMM block">
+</p>
 
 Left animation flips throuhg each mip level from 0 -> 5 individually baked. Right image shows the intersection of all states for all texture mip levels overlaid. Notice its lower coverage %.
 
