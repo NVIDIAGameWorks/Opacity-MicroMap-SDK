@@ -670,7 +670,7 @@ This fills out the memory requirement of the named OUT_* resources and the opaqu
 
 <span style="color: red">Warning:</span> the conservative memory allocation can quickly grow out of hand. The following is the general formula for conservative memory allocation: 
 
-$ S_{bit} = F_k 4^{N_{max}} T $ 
+$$S_{bit} = F_k 4^{N_{max}} T$$ 
 
 Where ${F_k}$ is the bit count per micro-triangle (either 1 or 2 bits). $N_{max}$ is the max subdivision level allowed and $T$ is the number of primitives in the mesh. 
 
