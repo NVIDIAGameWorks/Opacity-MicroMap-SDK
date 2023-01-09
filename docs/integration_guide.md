@@ -137,7 +137,9 @@ It is recommended to sort the final OMM blocks spatially to maximize cache when 
 
 # Subdivision Level
 
-![subdivision level animation](images/subdiv/anim_scale.gif)
+<p align="center">
+    <img src="images/subdiv/anim_scale.gif" alt="subdivision level animation">
+</p>
 
 Subdivision level 0 to 8 visualized (0 to 65536 micro-triangles). Blue = Transparent. Green = Opaque. Yellow = Unknown.
 
@@ -189,8 +191,10 @@ In this mode micro-triangles can either be Opaque or Transparent. This mode will
         1. It will produce a smooth triangle-strip like shape. (See images below)
         2. It will produce more opaque triangles than ForceTransparent which generally improves RT perforamce.
 
-![2-state with Coverage preserving promotion](images/order_curve/OC2_nearest_scale.png)
-![2-state with Coverage force opaque promotion](images/order_curve/OC2_FO_scale.png)
+<p align="center">
+    <img src="images/order_curve/OC2_nearest_scale.png" alt="2-state with Coverage preserving promotion">
+    <img src="images/order_curve/OC2_FO_scale.png" alt="2-state with Coverage force opaque promotion">
+</p>
 
 Notice how the left image ``omm::UnknownStatePromotion::Nearest`` produces a more "jaggy" shape along the border, while still captures the overall coverage pretty closely. Often a better better option is to use any of the ``omm::UnknownStatePromotion::Force*`` modes which generally forms a smoother triangle-strip cut along the intersection line (right). So while the Nearest option produces more accurate in terms of overall coverage, the Force* options produces smoother shapes and arguably more pleasing geometry.
 
@@ -570,7 +574,9 @@ TEST(MinimalSample, CPU)
 
 Running the code above with ``OMM_TEST_ENABLE_IMAGE_DUMP`` produces a folder "MinimalSample" with the following image:
 
-![Output from MinimalSample](images/minimal_sample/0__scale.png)
+<p align="center">
+    <img src="images/minimal_sample/0__scale.png" alt="[Output from MinimalSample">
+</p>
 
 # GPU baker
 
