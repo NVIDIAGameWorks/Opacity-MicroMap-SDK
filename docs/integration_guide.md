@@ -1,6 +1,8 @@
 # NVIDIA Opacity Micro-Map SDK
-![shader execution without OMMs](images/header/omm_off.png)
-![shader with OMMs](images/header/omm_on.png)
+<p align="center">
+    <img src="images/header/omm_off.png" alt="shader execution without OMMs">
+    <img src="images/header/omm_on.png" alt="shader with OMMs">
+</p>
 
 The images above illustrate Any Hit Shader (AHS) shader invocations without (left) and with (right) 4-state OMMs enabled.
 
@@ -8,11 +10,15 @@ The images above illustrate Any Hit Shader (AHS) shader invocations without (lef
 
 Micro-triangles are uniformly distributed over a triangle, this allows for efficient OMM state indexing via the barycentric coordiantes that fall out of the ray-triangle intersection test. An illustration of subdivision level 0, 1 and 2 is illustrated below.
 
-![varying triangle subdivision levels](images/subdiv/subdiv_scale.png)
+<p align="center">
+    <img src="images/subdiv/subdiv_scale.png" alt="varying triangle subdivision levels">
+</p>
 
 Up to 12 subdivision levels per triangle is supported. Each subdivision level will generate N^2 subdivisions per edge, or N^4 micro-triangles in total.
 
-![bird curve format](images/bird/bird_scale.png)
+<p align="center">
+    <img src="images/bird/bird_scale.png" alt="bird curve format">
+</p>
 
 An OMM block* of tightly bit-packed opacity states will be laid out in the "bird curve" pattern illustrated above. Similar to Morton space-filling curve used for textures, OMMs map micro-triangles in a "bird-curve" order (Named so due to it's resemblence to the Escher-like birds). 
 
@@ -44,7 +50,9 @@ Before integrating the baker SDK it might be useful to go over the checklist bel
 
 ## Inputs & Outputs
 
-![SDK input & output flow chart](images/input_output/data_flow.png)
+<p align="center">
+    <img src="images/input_output/data_flow.png" alt="SDK input & output flow chart">
+</p>
 
 The primary input the baker needs to generate OMMs are:
 * Index Buffer - IB as used for the corresponding BLAS the OMMs will be attached to.

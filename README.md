@@ -2,8 +2,10 @@
 
 # Opacity Micro-Map SDK
 
-![shader execution without OMMs](docs/images/header/omm_off_75.png)
-![shader with OMMs](docs/images/header/omm_on_75.png)
+<p align="center">
+    <img src="docs/images/header/omm_off_75.png">
+    <img src="docs/images/header/omm_on_75.png">
+</p>
 
 ## Overview
 Opacity Micro-Maps (OMMs) are used to accelerate raytracing of high detail geometry by efficiently encoding the opacity states of micro-triangles and micro meshes. This technology encodes the opacity of micro-triangles and makes it possible to trace rays, at high performance, extremely detailed scene elements such as vegetation and foliage. Traditionally high detail opacity information is constructed via alpha textures, however, for raytracing this normally involves costly alpha evaluation in shaders to generate the desired result. Opacity Micro-Maps is a solution that can either remove the need for shader invocations entirely (by approximating the original geometry), or drastically reduce the number required of shader invocations without any loss in quality. OMMs will generally be an accelerator for applications that have traditional alpha testing or alpha blending as part of the raytracing workloads.
