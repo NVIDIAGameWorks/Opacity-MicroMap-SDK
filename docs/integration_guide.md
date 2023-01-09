@@ -136,7 +136,7 @@ It is recommended to sort the final OMM blocks spatially to maximize cache when 
 # Subdivision Level
 
 <p align="center">
-    <img src="images/subdiv/anim_scale.gif" alt="subdivision level animation">
+    <img src="images/subdiv/anim.gif" width=45% height=auto  alt="subdivision level animation">
 </p>
 
 Subdivision level 0 to 8 visualized (0 to 65536 micro-triangles). Blue = Transparent. Green = Opaque. Yellow = Unknown.
@@ -569,7 +569,7 @@ TEST(MinimalSample, CPU)
 Running the code above with ``OMM_TEST_ENABLE_IMAGE_DUMP`` produces a folder "MinimalSample" with the following image:
 
 <p align="center">
-    <img src="images/minimal_sample/0__scale.png" alt="[Output from MinimalSample">
+    <img src="images/minimal_sample/0_.png"  width=50% height=auto  alt="[Output from MinimalSample">
 </p>
 
 # GPU baker
