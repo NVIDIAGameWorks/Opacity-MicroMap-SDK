@@ -368,9 +368,9 @@ Best for general performance and OMMs. If not possible, see 2.
 If it must be used, the baker can read multiple texture slices and produce an OMM mask that is guaranteed to conservatively cover a set of possible texture slices. Producing this overly conservative masks solves the correctness problem at the cost of reduced coverage. Use this strategy only when no other approach works as it adds baking time and lowers the runtime performance.
 
 <p align="center">
-    <img src="images/mip_merge/myimage.gif" alt="Texture MIPs animation">
+    <img src="images/mip_merge/myimage.gif" width=45% height=auto alt="Texture MIPs animation">
     ->
-    <img src="images/mip_merge/merged.png" alt="Texture MIPs merged to a conservative OMM block">
+    <img src="images/mip_merge/merged.png"  width=45% height=autoalt="Texture MIPs merged to a conservative OMM block">
 </p>
 
 Left animation flips throuhg each mip level from 0 -> 5 individually baked. Right image shows the intersection of all states for all texture mip levels overlaid. Notice its lower coverage %.
