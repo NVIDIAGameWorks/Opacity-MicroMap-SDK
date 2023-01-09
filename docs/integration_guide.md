@@ -668,10 +668,13 @@ struct PreBakeInfo
 
 This fills out the memory requirement of the named OUT_* resources and the opaque TRANSIENT buffers.
 
-<span style="color: red">Warning:</span> the conservative memory allocation can quickly grow out of hand. The following is the general formula for conservative memory allocation: $$ S_{bit} = F_k 4^{N_{max}} T $$ 
+<span style="color: red">Warning:</span> the conservative memory allocation can quickly grow out of hand. The following is the general formula for conservative memory allocation: 
+
+$ S_{bit} = F_k 4^{N_{max}} T $ 
+
 Where ${F_k}$ is the bit count per micro-triangle (either 1 or 2 bits). $N_{max}$ is the max subdivision level allowed and $T$ is the number of primitives in the mesh. 
 
-_If we for example have a mesh of $T = 50000$ primitives and max subdivision level $ N_{max} = 9$ with 4-state format. We end up with a memory footprint of $S_{mb} = 3276.8MB$ (!!!). 3+GB is _a lot_, way more than practical, even for scratch memory. If the mesh truly contains 50k unique OMM blocks, and all baked at subdivision level 9 it's probably not a good candidate for OMMs and should not be baked. However, what is more likely is that a few tex-coord pairs are re-used and instanced within the mesh. It's not uncommon for just a handful of unique tex-coord pairs being found after the resuse pre-pass have been run. Let's pretend our sample mesh had for isntance just 8 unique OMM blocks, then we would end up using only $0.5 MB$ in practice, which is far more practical._ 
+If we for example have a mesh of $T = 50000$ primitives and max subdivision level $ N_{max} = 9$ with 4-state format. We end up with a memory footprint of $S_{mb} = 3276.8MB$ (!!!). 3+GB is _a lot_, way more than practical, even for scratch memory. If the mesh truly contains 50k unique OMM blocks, and all baked at subdivision level 9 it's probably not a good candidate for OMMs and should not be baked. However, what is more likely is that a few tex-coord pairs are re-used and instanced within the mesh. It's not uncommon for just a handful of unique tex-coord pairs being found after the resuse pre-pass have been run. Let's pretend our sample mesh had for isntance just 8 unique OMM blocks, then we would end up using only $0.5 MB$ in practice, which is far more practical. 
 
 This means that baking may be preferable, but the scratch memory requirements impossible to satisfy. So how do we resolve this? There are a couple of mitication strategies to deal with the case above (listed in no particular order):
 
