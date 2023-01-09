@@ -1,6 +1,8 @@
 # NVIDIA Opacity Micro-Map SDK
-![shader execution without OMMs](images/header/omm_off.png)
-![shader with OMMs](images/header/omm_on.png)
+<p align="center">
+    <img src="images/header/omm_off.png" alt="shader execution without OMMs">
+    <img src="images/header/omm_on.png" alt="shader with OMMs">
+</p>
 
 The images above illustrate Any Hit Shader (AHS) shader invocations without (left) and with (right) 4-state OMMs enabled.
 
@@ -8,11 +10,15 @@ The images above illustrate Any Hit Shader (AHS) shader invocations without (lef
 
 Micro-triangles are uniformly distributed over a triangle, this allows for efficient OMM state indexing via the barycentric coordiantes that fall out of the ray-triangle intersection test. An illustration of subdivision level 0, 1 and 2 is illustrated below.
 
-![varying triangle subdivision levels](images/subdiv/subdiv_scale.png)
+<p align="center">
+    <img src="images/subdiv/subdiv.png" width=85% height=auto  alt="varying triangle subdivision levels">
+</p>
 
 Up to 12 subdivision levels per triangle is supported. Each subdivision level will generate N^2 subdivisions per edge, or N^4 micro-triangles in total.
 
-![bird curve format](images/bird/bird_scale.png)
+<p align="center">
+    <img src="images/bird/bird.png" width=30% height=auto  alt="bird curve format">
+</p>
 
 An OMM block* of tightly bit-packed opacity states will be laid out in the "bird curve" pattern illustrated above. Similar to Morton space-filling curve used for textures, OMMs map micro-triangles in a "bird-curve" order (Named so due to it's resemblence to the Escher-like birds). 
 
@@ -44,7 +50,9 @@ Before integrating the baker SDK it might be useful to go over the checklist bel
 
 ## Inputs & Outputs
 
-![SDK input & output flow chart](images/input_output/data_flow.png)
+<p align="center">
+    <img src="images/input_output/data_flow.png" alt="SDK input & output flow chart">
+</p>
 
 The primary input the baker needs to generate OMMs are:
 * Index Buffer - IB as used for the corresponding BLAS the OMMs will be attached to.
@@ -68,11 +76,9 @@ There are two targets, some data go straight to the BLAS build, and the rest is 
 
 ## Sample output
 
-<center>
-
-![sample output from the SDK](images/order_curve/OC4_FO_scale.png)
-
-</center>
+<p align="center">
+    <img src="images/order_curve/OC4_FO.png" width=45% height=auto  alt="sample output from the SDK">
+</p>
 
 Above is a visualization of opacity micro maps baked with subdivision level 5. Micro-triangle states are color coded as O (Green), T (Blue), UO (Yellow). The AHS will only be invoked on the yellow triangles, the rest will be read and resolved by the raytracing hardware directly on Ada. For pre-Ada hardware the opacity states will be resolved in software in an emulation mode. The software fallback is lightweight as indexing of the OMM block can be done trivially via barycentrics, the emulation may still produca a speedup.
 
@@ -129,7 +135,9 @@ It is recommended to sort the final OMM blocks spatially to maximize cache when 
 
 # Subdivision Level
 
-![subdivision level animation](images/subdiv/anim_scale.gif)
+<p align="center">
+    <img src="images/subdiv/anim.gif" width=45% height=auto  alt="subdivision level animation">
+</p>
 
 Subdivision level 0 to 8 visualized (0 to 65536 micro-triangles). Blue = Transparent. Green = Opaque. Yellow = Unknown.
 
@@ -148,12 +156,10 @@ In this mode micro-triangles can either be Opaque or Transparent, any micro-tria
 
 Below is an example of a triangle with resolved statates.
 
-<center>
-
-![4-state nearest](images/order_curve/OC4_nearest_scale.png)
-![4-state force opaque](images/order_curve/OC4_FO_scale.png)
-
-</center>
+<p align="center">
+    <img src="images/order_curve/OC4_nearest.png" width=45% height=auto  alt="4-state nearest">
+    <img src="images/order_curve/OC4_FO.png" width=45% height=auto  alt="4-state force opaque">
+</p>
 
 Yellow=Unknown Opaque. Pink=Unknown Transparent. The right image uses only Unknown Opaque.
 
@@ -181,8 +187,10 @@ In this mode micro-triangles can either be Opaque or Transparent. This mode will
         1. It will produce a smooth triangle-strip like shape. (See images below)
         2. It will produce more opaque triangles than ForceTransparent which generally improves RT perforamce.
 
-![2-state with Coverage preserving promotion](images/order_curve/OC2_nearest_scale.png)
-![2-state with Coverage force opaque promotion](images/order_curve/OC2_FO_scale.png)
+<p align="center">
+    <img src="images/order_curve/OC2_nearest.png" width=45% height=auto alt="2-state with Coverage preserving promotion">
+    <img src="images/order_curve/OC2_FO.png" width=45% height=auto alt="2-state with Coverage force opaque promotion">
+</p>
 
 Notice how the left image ``omm::UnknownStatePromotion::Nearest`` produces a more "jaggy" shape along the border, while still captures the overall coverage pretty closely. Often a better better option is to use any of the ``omm::UnknownStatePromotion::Force*`` modes which generally forms a smoother triangle-strip cut along the intersection line (right). So while the Nearest option produces more accurate in terms of overall coverage, the Force* options produces smoother shapes and arguably more pleasing geometry.
 
@@ -359,13 +367,11 @@ Best for general performance and OMMs. If not possible, see 2.
 ### 2 - Generate conservative OMMs
 If it must be used, the baker can read multiple texture slices and produce an OMM mask that is guaranteed to conservatively cover a set of possible texture slices. Producing this overly conservative masks solves the correctness problem at the cost of reduced coverage. Use this strategy only when no other approach works as it adds baking time and lowers the runtime performance.
 
-<center>
-
-![Texture MIPs animation](images/mip_merge/myimage.gif)
-->
-![Texture MIPs merged to a conservative OMM block](images/mip_merge/merged.png)
-
-</center>
+<p align="center">
+    <img src="images/mip_merge/myimage.gif" width=45% height=auto alt="Texture MIPs animation">
+    ->
+    <img src="images/mip_merge/merged.png"  width=45% height=autoalt="Texture MIPs merged to a conservative OMM block">
+</p>
 
 Left animation flips throuhg each mip level from 0 -> 5 individually baked. Right image shows the intersection of all states for all texture mip levels overlaid. Notice its lower coverage %.
 
@@ -562,7 +568,9 @@ TEST(MinimalSample, CPU)
 
 Running the code above with ``OMM_TEST_ENABLE_IMAGE_DUMP`` produces a folder "MinimalSample" with the following image:
 
-![Output from MinimalSample](images/minimal_sample/0__scale.png)
+<p align="center">
+    <img src="images/minimal_sample/0_.png"  width=50% height=auto  alt="[Output from MinimalSample">
+</p>
 
 # GPU baker
 
@@ -660,10 +668,13 @@ struct PreBakeInfo
 
 This fills out the memory requirement of the named OUT_* resources and the opaque TRANSIENT buffers.
 
-<span style="color: red">Warning:</span> the conservative memory allocation can quickly grow out of hand. The following is the general formula for conservative memory allocation: $$ S_{bit} = F_k 4^{N_{max}} T $$ 
+<span style="color: red">Warning:</span> the conservative memory allocation can quickly grow out of hand. The following is the general formula for conservative memory allocation: 
+
+$$S_{bit} = F_k 4^{N_{max}} T$$ 
+
 Where ${F_k}$ is the bit count per micro-triangle (either 1 or 2 bits). $N_{max}$ is the max subdivision level allowed and $T$ is the number of primitives in the mesh. 
 
-_If we for example have a mesh of $T = 50000$ primitives and max subdivision level $ N_{max} = 9$ with 4-state format. We end up with a memory footprint of $S_{mb} = 3276.8MB$ (!!!). 3+GB is _a lot_, way more than practical, even for scratch memory. If the mesh truly contains 50k unique OMM blocks, and all baked at subdivision level 9 it's probably not a good candidate for OMMs and should not be baked. However, what is more likely is that a few tex-coord pairs are re-used and instanced within the mesh. It's not uncommon for just a handful of unique tex-coord pairs being found after the resuse pre-pass have been run. Let's pretend our sample mesh had for isntance just 8 unique OMM blocks, then we would end up using only $0.5 MB$ in practice, which is far more practical._ 
+If we for example have a mesh of $T = 50000$ primitives and max subdivision level $ N_{max} = 9$ with 4-state format. We end up with a memory footprint of $S_{mb} = 3276.8MB$ (!!!). 3+GB is _a lot_, way more than practical, even for scratch memory. If the mesh truly contains 50k unique OMM blocks, and all baked at subdivision level 9 it's probably not a good candidate for OMMs and should not be baked. However, what is more likely is that a few tex-coord pairs are re-used and instanced within the mesh. It's not uncommon for just a handful of unique tex-coord pairs being found after the resuse pre-pass have been run. Let's pretend our sample mesh had for isntance just 8 unique OMM blocks, then we would end up using only $0.5 MB$ in practice, which is far more practical. 
 
 This means that baking may be preferable, but the scratch memory requirements impossible to satisfy. So how do we resolve this? There are a couple of mitication strategies to deal with the case above (listed in no particular order):
 
