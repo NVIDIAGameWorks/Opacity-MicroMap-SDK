@@ -3,8 +3,8 @@
 # Opacity Micro-Map SDK
 
 <p align="center">
-    <img width=40% height=auto src="docs/images/header/omm_off.png">
-    <img width=40% height=auto src="docs/images/header/omm_on.png">
+    <img width=45% height=auto src="docs/images/header/omm_off.png">
+    <img width=45% height=auto src="docs/images/header/omm_on.png">
 </p>
 
 The images above illustrate Any Hit Shader (AHS) shader invocations without OMMs (left) and with a 4-state OMM produced by the SDK (right).
