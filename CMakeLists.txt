@@ -25,8 +25,10 @@ endif()
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-    
-set(OMM_PROJECT_FOLDER "OMM Bake SDK")
+   
+if (NOT DEFINED OMM_PROJECT_FOLDER)
+    set(OMM_PROJECT_FOLDER "Opacity Micro-Map SDK")
+endif()
 
 add_subdirectory(thirdparty)
 add_subdirectory(shared)
