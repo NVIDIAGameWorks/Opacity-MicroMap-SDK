@@ -25,7 +25,7 @@ endif()
 
 if (OMM_ENABLE_GPU_TESTS)
 
-    set(omm_tests_src_gpu nvrhi_environment.h nvrhi_environment.cpp test_omm_bake_gpu.cpp )
+    set(omm_tests_src_gpu nvrhi/nvrhi_environment.h nvrhi/nvrhi_environment.cpp nvrhi/nvrhi_wrapper.h nvrhi/nvrhi_wrapper.cpp test_omm_bake_gpu.cpp )
 
     if (WIN32)
         set(OMM_GPU_LIBS dxgi.lib d3d12.lib nvrhi nvrhi_d3d12 omm-sdk-nvrhi )

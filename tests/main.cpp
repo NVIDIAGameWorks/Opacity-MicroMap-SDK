@@ -10,7 +10,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 #include <gtest/gtest.h>
 #if OMM_ENABLE_GPU_TESTS
-#include "nvrhi_environment.h"
+#include "nvrhi/nvrhi_environment.h"
 #endif
 
 int main(int argc, char** argv) {

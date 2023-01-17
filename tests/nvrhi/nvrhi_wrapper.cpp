@@ -8,7 +8,7 @@ distribution of this software and related documentation without an express
 license agreement from NVIDIA CORPORATION is strictly prohibited.
 */
 
-#include "omm-sdk-nvrhi/NVRHIWrapper.h"
+#include "nvrhi_wrapper.h"
 
 #include <iostream>
 

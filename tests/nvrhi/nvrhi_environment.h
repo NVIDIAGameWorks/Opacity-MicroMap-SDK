@@ -10,7 +10,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 #pragma once
 #include <gtest/gtest.h>
-#include <omm-sdk-nvrhi/NVRHIWrapper.h>
+#include "nvrhi_wrapper.h"
 
 class nvrhi_environment : public ::testing::Environment
 {
