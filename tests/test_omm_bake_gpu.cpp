@@ -12,13 +12,13 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 #include "gtest/gtest.h"
 #include "util/omm_histogram.h"
+#include "nvrhi/nvrhi_environment.h"
+#include "nvrhi/nvrhi_wrapper.h"
+#include "nvrhi/nvrhi_environment.h"
 
 #include <nvrhi/nvrhi.h>
 
-#include "nvrhi_environment.h"
-#include <omm-sdk-nvrhi/NVRHIWrapper.h>
-#include <omm-sdk-nvrhi/NVRHIOmmBakeIntegration.h>
-
+#include <omm-sdk-nvrhi.h>
 #include <omm.h>
 #include <shared/bird.h>
 
@@ -135,9 +135,9 @@ namespace {
 			}
 
 			// Upload index buffer
-			NVRHIVmBakeIntegration bake(m_device, m_commandList, true /*enable debug*/);
+			omm::GpuBakeNvrhi bake(m_device, m_commandList, true /*enable debug*/);
 
-			NVRHIVmBakeIntegration::Input input;
+			omm::GpuBakeNvrhi::Input input;
 			input.alphaTexture = alphaTexture;
 			input.alphaTextureChannel = alphaTextureChannel;
 			input.alphaCutoff = 0.5f;
@@ -153,10 +153,10 @@ namespace {
 			input.enableTexCoordDeuplication = EnableTexCoordDeduplication();
 			input.computeOnly = ComputeOnly();
 
-			NVRHIVmBakeIntegration::PreBakeInfo info;
+			omm::GpuBakeNvrhi::PreBakeInfo info;
 			bake.GetPreBakeInfo(input, info);
 
-			NVRHIVmBakeIntegration::Output res;
+			omm::GpuBakeNvrhi::Output res;
 			res.ommArrayBuffer = m_device->createBuffer({.byteSize = info.ommArrayBufferSize, .debugName  = "omArrayBuffer", .canHaveUAVs = true, .canHaveRawViews = true });
 			res.ommDescBuffer = m_device->createBuffer({ .byteSize = info.ommDescBufferSize, .debugName = "omDescBuffer", .canHaveUAVs = true, .canHaveRawViews = true });
 			res.ommIndexBuffer = m_device->createBuffer({ .byteSize = info.ommIndexBufferSize, .debugName = "omIndexBuffer", .canHaveUAVs = true, .canHaveRawViews = true });
@@ -218,8 +218,8 @@ namespace {
 			};
 
 			std::vector<uint8_t> vmPostBuildInfoData = ReadBuffer(ommPostBuildInfoBufferReadback);
-			NVRHIVmBakeIntegration::PostBuildInfo postBuildInfo;
-			NVRHIVmBakeIntegration::ReadPostBuildInfo(vmPostBuildInfoData.data(), vmPostBuildInfoData.size(), postBuildInfo);
+			omm::GpuBakeNvrhi::PostBuildInfo postBuildInfo;
+			omm::GpuBakeNvrhi::ReadPostBuildInfo(vmPostBuildInfoData.data(), vmPostBuildInfoData.size(), postBuildInfo);
 
 			std::vector<uint8_t> ommArrayBufferData = ReadBuffer(ommArrayBufferReadback, postBuildInfo.ommArrayBufferSize);
 			std::vector<uint8_t> ommIndexBufferData = ReadBuffer(ommIndexBufferReadback);

@@ -280,7 +280,7 @@ Result PipelineImpl::Create(const BakePipelineConfigDesc& config)
 #define ByteCodeSPIRV(shaderName) nullptr, 0
 #endif
 
-#define ByteCodeFromName(shaderName) { #shaderName, "main", ByteCodeDXIL(shaderName), ByteCodeSPIRV(shaderName) }
+#define ByteCodeFromName(shaderName, shaderIdentifier) { shaderName, "main", ByteCodeDXIL(shaderIdentifier), ByteCodeSPIRV(shaderIdentifier) }
 
     m_pipelineBuilder.SetAPI(config.renderAPI);
 
@@ -295,101 +295,101 @@ Result PipelineImpl::Create(const BakePipelineConfigDesc& config)
     m_pipelineBuilder.AddStaticSamplerDesc({ {omm::SamplerDesc{TextureAddressMode::Border, TextureFilterMode::Nearest} , 7} });
 
     m_pipelines.clearBufferIdx = m_pipelineBuilder.AddComputePipeline(
-        ByteCodeFromName(clear_buffer_cs),
+        ByteCodeFromName("clear_buffer.cs", clear_buffer_cs),
         m_pipelines.clearBufferBindings.GetRanges(), m_pipelines.clearBufferBindings.GetNumRanges());
 
     m_pipelines.ommInitBuffersCsIdx = m_pipelineBuilder.AddComputePipeline(
-        ByteCodeFromName(omm_init_buffers_cs_cs),
+        ByteCodeFromName("omm_init_buffers_cs.cs", omm_init_buffers_cs_cs),
         m_pipelines.ommInitBuffersCsBindings.GetRanges(), m_pipelines.ommInitBuffersCsBindings.GetNumRanges());
 
     m_pipelines.ommInitBuffersGfxIdx = m_pipelineBuilder.AddComputePipeline(
-        ByteCodeFromName(omm_init_buffers_gfx_cs),
+        ByteCodeFromName("omm_init_buffers_gfx.cs", omm_init_buffers_gfx_cs),
         m_pipelines.ommInitBuffersGfxBindings.GetRanges(), m_pipelines.ommInitBuffersGfxBindings.GetNumRanges());
 
     m_pipelines.ommWorkSetupCsIdx = m_pipelineBuilder.AddComputePipeline(
-        ByteCodeFromName(omm_work_setup_cs_cs),
+        ByteCodeFromName("omm_work_setup_cs.cs", omm_work_setup_cs_cs),
          m_pipelines.ommWorkSetupCsBindings.GetRanges(), m_pipelines.ommWorkSetupCsBindings.GetNumRanges());
 
     m_pipelines.ommWorkSetupGfxIdx = m_pipelineBuilder.AddComputePipeline(
-        ByteCodeFromName(omm_work_setup_gfx_cs),
+        ByteCodeFromName("omm_work_setup_gfx.cs", omm_work_setup_gfx_cs),
         m_pipelines.ommWorkSetupGfxBindings.GetRanges(), m_pipelines.ommWorkSetupGfxBindings.GetNumRanges());
 
     m_pipelines.ommPostBuildInfoBuffersIdx = m_pipelineBuilder.AddComputePipeline(
-        ByteCodeFromName(omm_post_build_info_cs),
+        ByteCodeFromName("omm_post_build_info.cs", omm_post_build_info_cs),
         m_pipelines.ommPostBuildInfoBindings.GetRanges(), m_pipelines.ommPostBuildInfoBindings.GetNumRanges());
 
     m_pipelines.ommRasterizeRIdx = m_pipelineBuilder.AddGraphicsPipeline(
-        ByteCodeFromName(omm_rasterize_vs),
-        ByteCodeFromName(omm_rasterize_gs),
-        ByteCodeFromName(omm_rasterize_ps_r_ps),
+        ByteCodeFromName("omm_rasterize.vs", omm_rasterize_vs),
+        ByteCodeFromName("omm_rasterize.gs", omm_rasterize_gs),
+        ByteCodeFromName("omm_rasterize_ps_r.ps", omm_rasterize_ps_r_ps),
         true /*ConservativeRasterization*/,
         0 /*NumRenderTargets*/,
         m_pipelines.ommRasterizeBindings.GetRanges(), m_pipelines.ommRasterizeBindings.GetNumRanges());
 
     m_pipelines.ommRasterizeGIdx = m_pipelineBuilder.AddGraphicsPipeline(
-        ByteCodeFromName(omm_rasterize_vs),
-        ByteCodeFromName(omm_rasterize_gs),
-        ByteCodeFromName(omm_rasterize_ps_g_ps),
+        ByteCodeFromName("omm_rasterize.vs", omm_rasterize_vs),
+        ByteCodeFromName("omm_rasterize.gs", omm_rasterize_gs),
+        ByteCodeFromName("omm_rasterize_ps_g.ps", omm_rasterize_ps_g_ps),
         true /*ConservativeRasterization*/,
         0 /*NumRenderTargets*/,
         m_pipelines.ommRasterizeBindings.GetRanges(), m_pipelines.ommRasterizeBindings.GetNumRanges());
 
     m_pipelines.ommRasterizeBIdx = m_pipelineBuilder.AddGraphicsPipeline(
-        ByteCodeFromName(omm_rasterize_vs),
-        ByteCodeFromName(omm_rasterize_gs),
-        ByteCodeFromName(omm_rasterize_ps_b_ps),
+        ByteCodeFromName("omm_rasterize.vs", omm_rasterize_vs),
+        ByteCodeFromName("omm_rasterize.gs", omm_rasterize_gs),
+        ByteCodeFromName("omm_rasterize_ps_b.ps", omm_rasterize_ps_b_ps),
         true /*ConservativeRasterization*/,
         0 /*NumRenderTargets*/,
         m_pipelines.ommRasterizeBindings.GetRanges(), m_pipelines.ommRasterizeBindings.GetNumRanges());
 
     m_pipelines.ommRasterizeAIdx = m_pipelineBuilder.AddGraphicsPipeline(
-        ByteCodeFromName(omm_rasterize_vs),
-        ByteCodeFromName(omm_rasterize_gs),
-        ByteCodeFromName(omm_rasterize_ps_a_ps),
+        ByteCodeFromName("omm_rasterize.vs", omm_rasterize_vs),
+        ByteCodeFromName("omm_rasterize.gs", omm_rasterize_gs),
+        ByteCodeFromName("omm_rasterize_ps_a.ps", omm_rasterize_ps_a_ps),
         true /*ConservativeRasterization*/,
         0 /*NumRenderTargets*/,
         m_pipelines.ommRasterizeBindings.GetRanges(), m_pipelines.ommRasterizeBindings.GetNumRanges());
 
     m_pipelines.ommRasterizeRCsIdx = m_pipelineBuilder.AddComputePipeline(
-        ByteCodeFromName(omm_rasterize_cs_r_cs),
+        ByteCodeFromName("omm_rasterize_cs_r.cs", omm_rasterize_cs_r_cs),
         m_pipelines.ommRasterizeCsBindings.GetRanges(), m_pipelines.ommRasterizeCsBindings.GetNumRanges());
 
     m_pipelines.ommRasterizeGCsIdx = m_pipelineBuilder.AddComputePipeline(
-        ByteCodeFromName(omm_rasterize_cs_g_cs),
+        ByteCodeFromName("omm_rasterize_cs_g.cs", omm_rasterize_cs_g_cs),
         m_pipelines.ommRasterizeCsBindings.GetRanges(), m_pipelines.ommRasterizeCsBindings.GetNumRanges());
 
     m_pipelines.ommRasterizeBCsIdx = m_pipelineBuilder.AddComputePipeline(
-        ByteCodeFromName(omm_rasterize_cs_b_cs),
+        ByteCodeFromName("omm_rasterize_cs_b.cs", omm_rasterize_cs_b_cs),
         m_pipelines.ommRasterizeCsBindings.GetRanges(), m_pipelines.ommRasterizeCsBindings.GetNumRanges());
 
     m_pipelines.ommRasterizeACsIdx = m_pipelineBuilder.AddComputePipeline(
-        ByteCodeFromName(omm_rasterize_cs_a_cs),
+        ByteCodeFromName("omm_rasterize_cs_a.cs", omm_rasterize_cs_a_cs),
         m_pipelines.ommRasterizeCsBindings.GetRanges(), m_pipelines.ommRasterizeCsBindings.GetNumRanges());
 
     m_pipelines.ommCompressIdx = m_pipelineBuilder.AddComputePipeline(
-        ByteCodeFromName(omm_compress_cs),
+        ByteCodeFromName("omm_compress.cs", omm_compress_cs),
         m_pipelines.ommCompressBindings.GetRanges(), m_pipelines.ommCompressBindings.GetNumRanges());
 
     m_pipelines.ommDescPatchIdx = m_pipelineBuilder.AddComputePipeline(
-        ByteCodeFromName(omm_desc_patch_cs),
+        ByteCodeFromName("omm_desc_patch.cs", omm_desc_patch_cs),
         m_pipelines.ommDescPatchBindings.GetRanges(), m_pipelines.ommDescPatchBindings.GetNumRanges());
 
     m_pipelines.ommIndexWriteIdx = m_pipelineBuilder.AddComputePipeline(
-        ByteCodeFromName(omm_index_write_cs),
+        ByteCodeFromName("omm_index_write.cs", omm_index_write_cs),
         m_pipelines.ommIndexWriteBindings.GetRanges(), m_pipelines.ommIndexWriteBindings.GetNumRanges());
 
     m_pipelines.renderTargetClearDebugIdx = m_pipelineBuilder.AddGraphicsPipeline(
-        ByteCodeFromName(omm_rasterize_debug_vs),
+        ByteCodeFromName("omm_rasterize_debug.vs", omm_rasterize_debug_vs),
         PipelineBuilder::ByteCode(),
-        ByteCodeFromName(render_target_clear_ps),
+        ByteCodeFromName("render_target_clear.ps", render_target_clear_ps),
         false /*ConservativeRasterization*/,
         1 /*NumRenderTargets*/,
         m_pipelines.renderTargetClearDebugBindings.GetRanges(), m_pipelines.renderTargetClearDebugBindings.GetNumRanges());
 
     m_pipelines.ommRasterizeDebugIdx = m_pipelineBuilder.AddGraphicsPipeline(
-        ByteCodeFromName(omm_rasterize_debug_vs),
+        ByteCodeFromName("omm_rasterize_debug.vs", omm_rasterize_debug_vs),
         PipelineBuilder::ByteCode(),
-        ByteCodeFromName(omm_rasterize_debug_ps),
+        ByteCodeFromName("omm_rasterize_debug.ps", omm_rasterize_debug_ps),
         false /*ConservativeRasterization*/,
         1 /*NumRenderTargets*/,
         m_pipelines.ommRasterizeDebugBindings.GetRanges(), m_pipelines.ommRasterizeDebugBindings.GetNumRanges());
