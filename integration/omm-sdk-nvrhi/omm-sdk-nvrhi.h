@@ -17,10 +17,10 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include <utility>
 #include <functional>
 
-class BindingCache;
-
 namespace omm
 {
+	class BindingCache;
+
 	class GpuBakeNvrhi
 	{
 	public:

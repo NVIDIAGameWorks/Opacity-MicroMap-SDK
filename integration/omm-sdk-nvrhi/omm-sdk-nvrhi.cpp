@@ -56,6 +56,8 @@ namespace
 #include <unordered_map>
 #include <list>
 #include <shared_mutex>
+namespace omm
+{
 
 /*
 BindingCache maintains a dictionary that maps binding set descriptors
@@ -142,9 +144,6 @@ public:
 	}
 	void Clear();
 };
-
-namespace omm
-{
 
 GpuBakeNvrhi::GpuBakeNvrhi(nvrhi::DeviceHandle device, nvrhi::CommandListHandle commandList, bool enableDebug, ShaderProviderCb* shaderProviderCb)
 	: m_device(device)
