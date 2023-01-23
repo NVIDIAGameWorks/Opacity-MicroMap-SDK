@@ -1,5 +1,6 @@
 import sys
 import json
+import os
 import textwrap
 
 def GetWhitespace(indent):
@@ -297,9 +298,12 @@ def BuildTypeToPrefix(prefix, layout, prefixLut):
 
 dirStr = sys.argv[1]
 
-with open(dirStr + '\\include\\omm.h', 'w') as fo:
-    header_file = open(dirStr + '\\scripts\\omm_header_c.txt', "r")
-    json_file = open(dirStr + '\\scripts\\omm.json', "r")
+hFile = os.path.join(dirStr, "include", "omm.h")
+
+with open(hFile, 'w') as fo:
+
+    header_file = open( os.path.join(dirStr, "scripts", "omm_header_c.txt"), "r")
+    json_file = open( os.path.join(dirStr, "scripts", "omm.json"), "r")
     dic = json.load(json_file)
     layout = dic["layout"]
 

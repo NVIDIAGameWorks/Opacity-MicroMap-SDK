@@ -1,5 +1,5 @@
 import sys
-import getopt
+import os
 import json
 import textwrap
 
@@ -239,11 +239,14 @@ def BuildTypeToPrefix(prefix, layout, prefixLut):
 
 dirStr = sys.argv[1]
 
-with open(dirStr + '\\include\\omm.hpp', 'w') as fo:
+hppFile = os.path.join(dirStr, "include", "omm.hpp")
+
+with open(hppFile, 'w') as fo:
     sys.stdout = fo # Change the standard output to the file we created.
-    header_file = open(dirStr + '\\scripts\\omm_header_cpp.txt', "r")
-    footer_file = open(dirStr + '\\scripts\\omm_footer_cpp.txt', "r")
-    json_file = open(dirStr + '\\scripts\\omm.json', "r")
+   
+    header_file = open( os.path.join(dirStr, "scripts", "omm_header_cpp.txt"), "r")
+    footer_file = open( os.path.join(dirStr, "scripts", "omm_footer_cpp.txt"), "r")
+    json_file = open( os.path.join(dirStr, "scripts", "omm.json"), "r")
     dic = json.load(json_file)
     layout = dic["layout"]
 
