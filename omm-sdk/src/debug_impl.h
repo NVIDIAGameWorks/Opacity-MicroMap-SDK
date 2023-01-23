@@ -15,7 +15,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 namespace omm
 {
-    OMM_API Result SaveAsImagesImpl(StdAllocator<uint8_t>& memoryAllocator, const Cpu::BakeInputDesc& bakeInputDesc, const Cpu::BakeResultDesc* res, const Debug::SaveImagesDesc& desc);
+    OMM_API ommResult SaveAsImagesImpl(StdAllocator<uint8_t>& memoryAllocator, const ommCpuBakeInputDesc& bakeInputDesc, const ommCpuBakeResultDesc* res, const ommDebugSaveImagesDesc& desc);
 
-    OMM_API Result GetStatsImpl(StdAllocator<uint8_t>& memoryAllocator, const Cpu::BakeResultDesc* res, Debug::Stats* out);
+    OMM_API ommResult GetStatsImpl(StdAllocator<uint8_t>& memoryAllocator, const ommCpuBakeResultDesc* res, ommDebugStats* out);
 }

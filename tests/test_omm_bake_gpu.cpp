@@ -77,7 +77,7 @@ namespace {
 			float* texCoords,
 			uint32_t texCoordBufferSize,
 			std::function<float(int i, int j)> texCb,
-			omm::OMMFormat format = omm::OMMFormat::OC1_4_State) {
+			omm::Format format = omm::Format::OC1_4_State) {
 
 			const uint32_t alphaTextureChannel = GetAlphaChannelIndex();
 
@@ -146,7 +146,7 @@ namespace {
 			input.indexBuffer = ib;
 			input.numIndices = indexBufferSize / sizeof(uint32_t);
 			input.globalSubdivisionLevel = subdivisionLevel;
-			input.use2State = format == omm::OMMFormat::OC1_2_State;
+			input.use2State = format == omm::Format::OC1_2_State;
 			input.dynamicSubdivisionScale = 0.f;
 			input.enableSpecialIndices = EnableSpecialIndices();
 			input.force32BitIndices = Force32BitIndices();
@@ -260,17 +260,17 @@ namespace {
 			size_t indexFormatSize = nvrhi::getFormatInfo(info.ommIndexFormat).bytesPerBlock;
 
 			omm::Cpu::BakeResultDesc resDesc;
-			resDesc.ommArrayData = ommArrayBufferData.data();
-			resDesc.ommArrayDataSize = (uint32_t)ommArrayBufferData.size();
-			resDesc.ommDescArray = (const omm::Cpu::OpacityMicromapDesc*)ommDescBufferData.data();
-			resDesc.ommDescArrayCount = (uint32_t)(ommDescBufferData.size() / sizeof(omm::Cpu::OpacityMicromapDesc));
-			resDesc.ommIndexBuffer = ommIndexBufferData.data();
-			resDesc.ommIndexCount = info.ommIndexCount;
-			resDesc.ommIndexFormat = info.ommIndexFormat == nvrhi::Format::R32_UINT ? omm::IndexFormat::I32_UINT : omm::IndexFormat::I16_UINT;
-			resDesc.ommDescArrayHistogram = (const omm::Cpu::OpacityMicromapUsageCount*)ommArrayHistogramData.data();
-			resDesc.ommDescArrayHistogramCount = (uint32_t)(ommArrayHistogramData.size() / sizeof(omm::Cpu::OpacityMicromapUsageCount));
-			resDesc.ommIndexHistogram = (const omm::Cpu::OpacityMicromapUsageCount*)ommIndexHistogramData.data();
-			resDesc.ommIndexHistogramCount = (uint32_t)(ommIndexHistogramData.size() / sizeof(omm::Cpu::OpacityMicromapUsageCount));
+			resDesc.arrayData = ommArrayBufferData.data();
+			resDesc.arrayDataSize = (uint32_t)ommArrayBufferData.size();
+			resDesc.descArray = (const omm::Cpu::OpacityMicromapDesc*)ommDescBufferData.data();
+			resDesc.descArrayCount = (uint32_t)(ommDescBufferData.size() / sizeof(omm::Cpu::OpacityMicromapDesc));
+			resDesc.indexBuffer = ommIndexBufferData.data();
+			resDesc.indexCount = info.ommIndexCount;
+			resDesc.indexFormat = info.ommIndexFormat == nvrhi::Format::R32_UINT ? omm::IndexFormat::I32_UINT : omm::IndexFormat::I16_UINT;
+			resDesc.descArrayHistogram = (const omm::Cpu::OpacityMicromapUsageCount*)ommArrayHistogramData.data();
+			resDesc.descArrayHistogramCount = (uint32_t)(ommArrayHistogramData.size() / sizeof(omm::Cpu::OpacityMicromapUsageCount));
+			resDesc.indexHistogram = (const omm::Cpu::OpacityMicromapUsageCount*)ommIndexHistogramData.data();
+			resDesc.indexHistogramCount = (uint32_t)(ommIndexHistogramData.size() / sizeof(omm::Cpu::OpacityMicromapUsageCount));
 
 			omm::Test::ValidateHistograms(&resDesc);
 
@@ -282,7 +282,7 @@ namespace {
 			uint32_t subdivisionLevel,
 			int2 texSize,
 			std::function<float(int i, int j)> tex,
-			omm::OMMFormat format = omm::OMMFormat::OC1_4_State) {
+			omm::Format format = omm::Format::OC1_4_State) {
 			uint32_t triangleIndices[] = { 0, 1, 2, 3, 1, 2 };
 			float texCoords[] = { 0.f, 0.f,	0.f, 1.f,	1.f, 0.f,	 1.f, 1.f };
 			return RunVmBake(alphaCutoff, subdivisionLevel, texSize, sizeof(triangleIndices), triangleIndices, texCoords, sizeof(texCoords), tex, format);
@@ -608,7 +608,7 @@ namespace {
 			if (glm::length(uv - 0.5f) < r)
 				return 0.f;
 			return 1.f;
-			}, omm::OMMFormat::OC1_2_State);
+			}, omm::Format::OC1_2_State);
 
 		ExpectEqual(stats, {
 			.totalOpaque = 293,
@@ -650,7 +650,7 @@ namespace {
 			const float uv = float(i) / (float)1024;
 
 			return 1.f - std::sinf(uv * 15);
-			}, omm::OMMFormat::OC1_2_State);
+			}, omm::Format::OC1_2_State);
 
 		ExpectEqual(stats, {
 			.totalOpaque = 384,
@@ -671,7 +671,7 @@ namespace {
 			const float uv = float(i) / (float)1024;
 
 			return 1.f - std::sinf(uv * 15);
-			}, omm::OMMFormat::OC1_2_State);
+			}, omm::Format::OC1_2_State);
 
 		ExpectEqual(stats, {
 			.totalOpaque = 384,
@@ -710,7 +710,7 @@ namespace {
 				return 1.f;
 			}
 
-			}, omm::OMMFormat::OC1_4_State);
+			}, omm::Format::OC1_4_State);
 
 		ExpectEqual(stats, {
 			.totalOpaque = 1212,
@@ -754,7 +754,7 @@ namespace {
 				return 1.f;
 			}
 
-			}, omm::OMMFormat::OC1_4_State);
+			}, omm::Format::OC1_4_State);
 
 		if (ComputeOnly())
 		{
@@ -810,7 +810,7 @@ namespace {
 				return 1.f;
 			}
 
-			}, omm::OMMFormat::OC1_4_State);
+			}, omm::Format::OC1_4_State);
 
 		if (ComputeOnly())
 		{
@@ -868,7 +868,7 @@ namespace {
 			float alpha = std::clamp(col.x, 0.f, 1.f);
 			return 1.f - alpha;
 
-			}, omm::OMMFormat::OC1_4_State);
+			}, omm::Format::OC1_4_State);
 
 		if (ComputeOnly())
 		{
@@ -926,7 +926,7 @@ namespace {
 			float alpha = std::clamp(col.x, 0.f, 1.f);
 			return 1.f - alpha;
 
-			}, omm::OMMFormat::OC1_4_State);
+			}, omm::Format::OC1_4_State);
 
 		if (ComputeOnly())
 		{
@@ -970,7 +970,7 @@ namespace {
 
 			return 1.f - values[x + 2 * y];
 
-			}, omm::OMMFormat::OC1_4_State);
+			}, omm::Format::OC1_4_State);
 
 		if (ComputeOnly())
 		{

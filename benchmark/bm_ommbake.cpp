@@ -18,13 +18,13 @@ CREDITS:
 #include <random>
 
 #include <benchmark/benchmark.h>
-#include <omm.h>
+#include <omm.hpp>
 #include <shared/bird.h>
 
 class OMMBake : public benchmark::Fixture {
 protected:
 	void SetUp(const ::benchmark::State& state) override {
-		omm::CreateOpacityMicromapBaker({ .type = omm::BakerType::CPU }, &_baker);
+		omm::CreateBaker({ .type = omm::BakerType::CPU }, &_baker);
 
 		omm::Cpu::TextureFlags flags = (omm::Cpu::TextureFlags)state.range(0);
 		_extraBakeFlags = (omm::Cpu::BakeFlags)state.range(1);
@@ -71,7 +71,7 @@ protected:
 
 	void TearDown(const ::benchmark::State& state) override {
 		omm::Cpu::DestroyTexture(_baker, _texture);
-		omm::DestroyOpacityMicromapBaker(_baker);
+		omm::DestroyBaker(_baker);
 	}
 
 	void RunVmBake(benchmark::State& st, bool parallel, omm::TextureFilterMode filter) {
@@ -101,12 +101,12 @@ protected:
 		st.ResumeTiming();
 
 		omm::Cpu::BakeResult res = 0;
-		omm::Cpu::BakeOpacityMicromap(_baker, desc, &res);
+		omm::Cpu::Bake(_baker, desc, &res);
 
 		st.PauseTiming();
 		const omm::Cpu::BakeResultDesc* resDesc = nullptr;
-		omm::Cpu::GetBakeResultDesc(res, resDesc);
-		volatile size_t totalSize = resDesc->ommArrayDataSize;
+		omm::Cpu::GetBakeResultDesc(res, &resDesc);
+		volatile size_t totalSize = resDesc->arrayDataSize;
 		volatile size_t totalSize2 = totalSize;
 
 		omm::Debug::Stats stats = omm::Debug::Stats{};

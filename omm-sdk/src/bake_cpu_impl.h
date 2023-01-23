@@ -40,23 +40,23 @@ namespace Cpu
         inline StdAllocator<uint8_t>& GetStdAllocator()
         { return m_stdAllocator; }
 
-        Result Create(const BakerCreationDesc& bakeCreationDesc);
-        Result BakeOpacityMicromap(const Cpu::BakeInputDesc& bakeInputDesc, Cpu::BakeResult* bakeOutput);
+        ommResult Create(const ommBakerCreationDesc& bakeCreationDesc);
+        ommResult BakeOpacityMicromap(const ommCpuBakeInputDesc& bakeInputDesc, ommCpuBakeResult* bakeOutput);
 
     private:
-        Result Validate(const Cpu::BakeInputDesc& desc);
+        ommResult Validate(const ommCpuBakeInputDesc& desc);
     private:
         StdAllocator<uint8_t> m_stdAllocator;
     };
 
     struct BakeResultImpl
     {
-        Cpu::BakeResultDesc bakeOutputDesc;
         vector<int32_t> ommIndexBuffer;
-        vector<OpacityMicromapDesc> ommDescArray;
+        vector<ommCpuOpacityMicromapDesc> ommDescArray;
         vector<uint8_t> ommArrayData;
-        vector<OpacityMicromapUsageCount> ommArrayHistogram;
-        vector<OpacityMicromapUsageCount> ommIndexHistogram;
+        vector<ommCpuOpacityMicromapUsageCount> ommArrayHistogram;
+        vector<ommCpuOpacityMicromapUsageCount> ommIndexHistogram;
+        ommCpuBakeResultDesc bakeOutputDesc = {0,};
 
         BakeResultImpl(const StdAllocator<uint8_t>& stdAllocator) :
             ommIndexBuffer(stdAllocator),
@@ -67,19 +67,19 @@ namespace Cpu
         {
         }
 
-        void Finalize(IndexFormat ommIndexFormat)
+        void Finalize(ommIndexFormat ommIndexFormat)
         {
-            bakeOutputDesc.ommArrayData                 = ommArrayData.data();
-            bakeOutputDesc.ommArrayDataSize             = (uint32_t)ommArrayData.size();
-            bakeOutputDesc.ommDescArray                 = ommDescArray.data();
-            bakeOutputDesc.ommDescArrayCount            = (uint32_t)ommDescArray.size();
-            bakeOutputDesc.ommDescArrayHistogram        = ommArrayHistogram.data();
-            bakeOutputDesc.ommDescArrayHistogramCount   = (uint32_t)ommArrayHistogram.size();
-            bakeOutputDesc.ommIndexBuffer               = ommIndexBuffer.data();
-            bakeOutputDesc.ommIndexCount                = (uint32_t)ommIndexBuffer.size();
-            bakeOutputDesc.ommIndexFormat               = ommIndexFormat;
-            bakeOutputDesc.ommIndexHistogram            = ommIndexHistogram.data();
-            bakeOutputDesc.ommIndexHistogramCount       = (uint32_t)ommIndexHistogram.size();
+            bakeOutputDesc.arrayData                 = ommArrayData.data();
+            bakeOutputDesc.arrayDataSize             = (uint32_t)ommArrayData.size();
+            bakeOutputDesc.descArray                 = ommDescArray.data();
+            bakeOutputDesc.descArrayCount            = (uint32_t)ommDescArray.size();
+            bakeOutputDesc.descArrayHistogram        = ommArrayHistogram.data();
+            bakeOutputDesc.descArrayHistogramCount   = (uint32_t)ommArrayHistogram.size();
+            bakeOutputDesc.indexBuffer               = ommIndexBuffer.data();
+            bakeOutputDesc.indexCount                = (uint32_t)ommIndexBuffer.size();
+            bakeOutputDesc.indexFormat               = ommIndexFormat;
+            bakeOutputDesc.indexHistogram            = ommIndexHistogram.data();
+            bakeOutputDesc.indexHistogramCount       = (uint32_t)ommIndexHistogram.size();
         }
     };
 
@@ -94,32 +94,35 @@ namespace Cpu
             return m_stdAllocator;
         }
 
-        inline const Cpu::BakeResultDesc& GetBakeOutputDesc() const
+        inline const ommCpuBakeResultDesc& GetBakeOutputDesc() const
         {
             return m_bakeResult.bakeOutputDesc;
         }
 
-        inline Result GetBakeResultDesc(const Cpu::BakeResultDesc*& desc)
+        inline ommResult GetBakeResultDesc(const ommCpuBakeResultDesc** desc)
         {
-            desc = &m_bakeResult.bakeOutputDesc;
-            return Result::SUCCESS;
+            if (desc == nullptr)
+                return ommResult_INVALID_ARGUMENT;
+
+            *desc = &m_bakeResult.bakeOutputDesc;
+            return ommResult_SUCCESS;
         }
 
-        Result Bake(const Cpu::BakeInputDesc& desc);
+        ommResult Bake(const ommCpuBakeInputDesc& desc);
 
     private:
-        static Result ValidateDesc(const BakeInputDesc& desc);
+        static ommResult ValidateDesc(const ommCpuBakeInputDesc& desc);
 
-        template<TilingMode eTextureFormat, TextureAddressMode eTextureAddressMode, TextureFilterMode eFilterMode>
-        Result BakeImpl(const Cpu::BakeInputDesc& desc);
+        template<TilingMode eTextureFormat, ommTextureAddressMode eTextureAddressMode, ommTextureFilterMode eFilterMode>
+        ommResult BakeImpl(const ommCpuBakeInputDesc& desc);
 
         template<class... TArgs>
-        void RegisterDispatch(TArgs... args, std::function < Result(const Cpu::BakeInputDesc& desc)> fn);
-        map<std::tuple<TilingMode, TextureAddressMode, TextureFilterMode>, std::function<Result(const Cpu::BakeInputDesc& desc)>> bakeDispatchTable;
-        Result InvokeDispatch(const Cpu::BakeInputDesc& desc);
+        void RegisterDispatch(TArgs... args, std::function < ommResult(const ommCpuBakeInputDesc& desc)> fn);
+        map<std::tuple<TilingMode, ommTextureAddressMode, ommTextureFilterMode>, std::function<ommResult(const ommCpuBakeInputDesc& desc)>> bakeDispatchTable;
+        ommResult InvokeDispatch(const ommCpuBakeInputDesc& desc);
     private:
         StdAllocator<uint8_t> m_stdAllocator;
-        Cpu::BakeInputDesc m_bakeInputDesc;
+        ommCpuBakeInputDesc m_bakeInputDesc;
         BakeResultImpl m_bakeResult;
     };
 } // namespace Cpu

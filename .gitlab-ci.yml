@@ -1,0 +1,56 @@
+variables:
+  GIT_SUBMODULE_STRATEGY: recursive
+
+default:
+  image: ubuntu:rolling
+
+before_script:
+ - apt-get update --yes
+ - apt-get install --yes cmake
+ - apt-get install --yes build-essential
+
+stages:
+  - build
+  - test
+
+build-debug-job:
+  tags:
+    - type/docker
+    - os/linux
+  stage: build
+  script:
+    - mkdir build_debug
+    - cd build_debug
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug
+    - cmake --build . --config Debug
+    - echo "Compile Debug complete."
+
+build-release-job:
+  tags:
+    - type/docker
+    - os/linux
+  stage: build
+  script:
+    - mkdir build_release
+    - cd build_release
+    - cmake .. -DCMAKE_BUILD_TYPE=Release
+    - cmake --build . --config Release
+    - echo "Compile Release complete."
+
+unit-test-job:
+  tags:
+    - type/docker
+    - os/linux
+  stage: test
+  script:
+    - mkdir build_test
+    - cd build_test
+    - cmake .. -DCMAKE_BUILD_TYPE=Release
+    - cmake --build . --config Release
+    - bin/tests --gtest_output="xml:report.xml"
+  artifacts:
+    when: always
+    paths:
+      - build_test/report.xml
+    reports:
+      junit: build_test/report.xml

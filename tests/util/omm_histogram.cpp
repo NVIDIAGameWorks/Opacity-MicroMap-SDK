@@ -19,15 +19,15 @@ namespace omm
 	{
 		void ValidateArrayHistogram(const omm::Cpu::BakeResultDesc& resDesc)
 		{
-			if (resDesc.ommIndexCount == 0)
+			if (resDesc.indexCount == 0)
 				return;
 
-			std::map<std::pair<uint32_t, omm::OMMFormat>, uint32_t> histogram;
-			for (uint32_t idx = 0; idx < resDesc.ommDescArrayCount; ++idx)
+			std::map<std::pair<uint32_t, omm::Format>, uint32_t> histogram;
+			for (uint32_t idx = 0; idx < resDesc.descArrayCount; ++idx)
 			{
-				const omm::Cpu::OpacityMicromapDesc* desc = &resDesc.ommDescArray[idx];
+				const omm::Cpu::OpacityMicromapDesc* desc = &resDesc.descArray[idx];
 
-				auto key = std::make_pair((uint32_t)desc->subdivisionLevel, (omm::OMMFormat)desc->format);
+				auto key = std::make_pair((uint32_t)desc->subdivisionLevel, (omm::Format)desc->format);
 
 				auto it = histogram.find(key);
 				if (it == histogram.end())
@@ -40,11 +40,11 @@ namespace omm
 				}
 			}
 
-			for (uint32_t i = 0; i < resDesc.ommDescArrayHistogramCount; ++i)
+			for (uint32_t i = 0; i < resDesc.descArrayHistogramCount; ++i)
 			{
-				const omm::Cpu::OpacityMicromapUsageCount& usageCount = resDesc.ommDescArrayHistogram[i];
+				const omm::Cpu::OpacityMicromapUsageCount& usageCount = resDesc.descArrayHistogram[i];
 
-				auto key = std::make_pair((uint32_t)usageCount.subdivisionLevel, (omm::OMMFormat)usageCount.format);
+				auto key = std::make_pair((uint32_t)usageCount.subdivisionLevel, (omm::Format)usageCount.format);
 
 				auto it = histogram.find(key);
 
@@ -66,22 +66,22 @@ namespace omm
 
 		void ValidateIndexHistogram(const omm::Cpu::BakeResultDesc& resDesc)
 		{
-			if (resDesc.ommIndexCount == 0)
+			if (resDesc.indexCount == 0)
 				return;
 
-			std::map<std::pair<uint32_t, omm::OMMFormat>, uint32_t> histogram;
-			for (uint32_t ommIndex = 0; ommIndex < resDesc.ommIndexCount; ++ommIndex)
+			std::map<std::pair<uint32_t, omm::Format>, uint32_t> histogram;
+			for (uint32_t ommIndex = 0; ommIndex < resDesc.indexCount; ++ommIndex)
 			{
 				int32_t idx = omm::parse::GetOmmIndexForTriangleIndex(resDesc, ommIndex);
 
 				if (idx < 0)
 					continue;
 
-				ASSERT_LT(idx, resDesc.ommDescArrayCount);
+				ASSERT_LT((uint32_t)idx, resDesc.descArrayCount);
 
-				const omm::Cpu::OpacityMicromapDesc* desc = &resDesc.ommDescArray[idx];
+				const omm::Cpu::OpacityMicromapDesc* desc = &resDesc.descArray[idx];
 
-				auto key = std::make_pair((uint32_t)desc->subdivisionLevel, (omm::OMMFormat)desc->format);
+				auto key = std::make_pair((uint32_t)desc->subdivisionLevel, (omm::Format)desc->format);
 
 				auto it = histogram.find(key);
 
@@ -95,11 +95,11 @@ namespace omm
 				}
 			}
 
-			for (uint32_t i = 0; i < resDesc.ommIndexHistogramCount; ++i)
+			for (uint32_t i = 0; i < resDesc.indexHistogramCount; ++i)
 			{
-				const omm::Cpu::OpacityMicromapUsageCount& usageCount = resDesc.ommIndexHistogram[i];
+				const omm::Cpu::OpacityMicromapUsageCount& usageCount = resDesc.indexHistogram[i];
 				
-				auto key = std::make_pair((uint32_t)usageCount.subdivisionLevel, (omm::OMMFormat)usageCount.format);
+				auto key = std::make_pair((uint32_t)usageCount.subdivisionLevel, (omm::Format)usageCount.format);
 
 				auto it = histogram.find(key);
 

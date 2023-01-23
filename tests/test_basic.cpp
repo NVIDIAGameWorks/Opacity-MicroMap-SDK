@@ -18,7 +18,7 @@ namespace {
 
 	TEST(Lib, VersionCheck) {
 
-		const omm::LibraryDesc& desc = omm::GetLibraryDesc();
+		const omm::LibraryDesc desc = omm::GetLibraryDesc();
 
 		EXPECT_EQ(desc.versionMajor, OMM_VERSION_MAJOR);
 		EXPECT_EQ(desc.versionMinor, OMM_VERSION_MINOR);
@@ -28,48 +28,48 @@ namespace {
 	TEST(Baker, DestroyNull) {
 
 		omm::Baker baker = 0;
-		EXPECT_EQ(omm::DestroyOpacityMicromapBaker(baker), omm::Result::INVALID_ARGUMENT);
+		EXPECT_EQ(omm::DestroyBaker(baker), omm::Result::INVALID_ARGUMENT);
 	}
 
 	TEST(Baker, CreateDestroy) {
 		omm::Baker baker = 0;
-		EXPECT_EQ(omm::CreateOpacityMicromapBaker({ .type = omm::BakerType::CPU }, &baker), omm::Result::SUCCESS);
+		EXPECT_EQ(omm::CreateBaker({ .type = omm::BakerType::CPU }, &baker), omm::Result::SUCCESS);
 		EXPECT_NE(baker, 0);
-		EXPECT_EQ(omm::DestroyOpacityMicromapBaker(baker), omm::Result::SUCCESS);
+		EXPECT_EQ(omm::DestroyBaker(baker), omm::Result::SUCCESS);
 	}
 
 	TEST(Baker, CreateInvalid) {
 		omm::Baker baker = 0;
-		EXPECT_EQ(omm::CreateOpacityMicromapBaker({.type = omm::BakerType::MAX_NUM}, &baker), omm::Result::INVALID_ARGUMENT);
+		EXPECT_EQ(omm::CreateBaker({.type = omm::BakerType::MAX_NUM}, &baker), omm::Result::INVALID_ARGUMENT);
 	}
 
 	TEST(Baker, CreateDestroyGPU) {
 		omm::Baker baker = 0;
-		EXPECT_EQ(omm::CreateOpacityMicromapBaker({ .type = omm::BakerType::GPU }, &baker), omm::Result::SUCCESS);
+		EXPECT_EQ(omm::CreateBaker({ .type = omm::BakerType::GPU }, &baker), omm::Result::SUCCESS);
 		EXPECT_NE(baker, 0);
-		EXPECT_EQ(omm::DestroyOpacityMicromapBaker(baker), omm::Result::SUCCESS);
+		EXPECT_EQ(omm::DestroyBaker(baker), omm::Result::SUCCESS);
 	}
 
 	TEST(Baker, StaticDataGPU) {
 		{
 			size_t byteSize = 0;
-			EXPECT_EQ(omm::Gpu::GetStaticResourceData(omm::Gpu::ResourceType::STATIC_VERTEX_BUFFER, nullptr, byteSize), omm::Result::SUCCESS);
+			EXPECT_EQ(omm::Gpu::GetStaticResourceData(omm::Gpu::ResourceType::STATIC_VERTEX_BUFFER, nullptr, &byteSize), omm::Result::SUCCESS);
 			EXPECT_NE(byteSize, 0);
 
 			std::vector<uint8_t> data(byteSize);
 			std::fill(data.begin(), data.end(), 0);
-			EXPECT_EQ(omm::Gpu::GetStaticResourceData(omm::Gpu::ResourceType::STATIC_VERTEX_BUFFER, data.data(), byteSize), omm::Result::SUCCESS);
+			EXPECT_EQ(omm::Gpu::GetStaticResourceData(omm::Gpu::ResourceType::STATIC_VERTEX_BUFFER, data.data(), &byteSize), omm::Result::SUCCESS);
 			EXPECT_NE(std::all_of(data.begin(), data.end(), [](uint8_t i) { return i == 0; }), true);
 		}
 
 		{
 			size_t byteSize = 0;
-			EXPECT_EQ(omm::Gpu::GetStaticResourceData(omm::Gpu::ResourceType::STATIC_INDEX_BUFFER, nullptr, byteSize), omm::Result::SUCCESS);
+			EXPECT_EQ(omm::Gpu::GetStaticResourceData(omm::Gpu::ResourceType::STATIC_INDEX_BUFFER, nullptr, &byteSize), omm::Result::SUCCESS);
 			EXPECT_NE(byteSize, 0);
 
 			std::vector<uint8_t> data(byteSize);
 			std::fill(data.begin(), data.end(), 0);
-			EXPECT_EQ(omm::Gpu::GetStaticResourceData(omm::Gpu::ResourceType::STATIC_INDEX_BUFFER, data.data(), byteSize), omm::Result::SUCCESS);
+			EXPECT_EQ(omm::Gpu::GetStaticResourceData(omm::Gpu::ResourceType::STATIC_INDEX_BUFFER, data.data(), &byteSize), omm::Result::SUCCESS);
 			EXPECT_NE(std::all_of(data.begin(), data.end(), [](uint8_t i) { return i == 0; }), true);
 		}
 	}
@@ -77,10 +77,10 @@ namespace {
 	class GpuTest : public ::testing::Test {
 	protected:
 		void SetUp() override {
-			EXPECT_EQ(omm::CreateOpacityMicromapBaker({ .type = omm::BakerType::GPU }, &_baker), omm::Result::SUCCESS);
+			EXPECT_EQ(omm::CreateBaker({ .type = omm::BakerType::GPU }, &_baker), omm::Result::SUCCESS);
 		}
 		void TearDown() override {
-			EXPECT_EQ(omm::DestroyOpacityMicromapBaker(_baker), omm::Result::SUCCESS);
+			EXPECT_EQ(omm::DestroyBaker(_baker), omm::Result::SUCCESS);
 		}
 		omm::Baker _baker = 0;
 	};
@@ -102,10 +102,10 @@ namespace {
 	class TextureTest : public ::testing::Test {
 	protected:
 		void SetUp() override {
-			EXPECT_EQ(omm::CreateOpacityMicromapBaker({ .type = omm::BakerType::CPU }, &_baker), omm::Result::SUCCESS);
+			EXPECT_EQ(omm::CreateBaker({ .type = omm::BakerType::CPU }, &_baker), omm::Result::SUCCESS);
 		}
 		void TearDown() override {
-			EXPECT_EQ(omm::DestroyOpacityMicromapBaker(_baker), omm::Result::SUCCESS);
+			EXPECT_EQ(omm::DestroyBaker(_baker), omm::Result::SUCCESS);
 		}
 		omm::Baker _baker = 0;
 	};

@@ -108,53 +108,53 @@ namespace omm
         return *(offset + component);
     }
 
-    template<TexCoordFormat texCoordFormat>
+    template<ommTexCoordFormat texCoordFormat>
     inline float convertUvToFloat(const void* texCoords, uint32_t texCoordStrideInBytes, uint32_t index, uint32_t component);
 
     template<> // UV16_UNORM specialisation
-    inline float convertUvToFloat<TexCoordFormat::UV16_UNORM>(const void* texCoords, uint32_t texCoordStrideInBytes, uint32_t index, uint32_t component)
+    inline float convertUvToFloat<ommTexCoordFormat_UV16_UNORM>(const void* texCoords, uint32_t texCoordStrideInBytes, uint32_t index, uint32_t component)
     {
         return ((float)getUvComponantStorage<uint16_t>(texCoords, texCoordStrideInBytes, index, component)) * (1.f / 65535.f);
     }
 
     template<> // UV16_FLOAT specialisation
-    inline float convertUvToFloat<TexCoordFormat::UV16_FLOAT>(const void* texCoords, uint32_t texCoordStrideInBytes, uint32_t index, uint32_t component)
+    inline float convertUvToFloat<ommTexCoordFormat_UV16_FLOAT>(const void* texCoords, uint32_t texCoordStrideInBytes, uint32_t index, uint32_t component)
     {
         return float16ToFloat32(getUvComponantStorage<uint16_t>(texCoords, texCoordStrideInBytes, index, component));
     }
 
     template<> // UV32_FLOAT specialisation
-    inline float convertUvToFloat<TexCoordFormat::UV32_FLOAT>(const void* texCoords, uint32_t texCoordStrideInBytes, uint32_t index, uint32_t component)
+    inline float convertUvToFloat<ommTexCoordFormat_UV32_FLOAT>(const void* texCoords, uint32_t texCoordStrideInBytes, uint32_t index, uint32_t component)
     {
         return getUvComponantStorage<float>(texCoords, texCoordStrideInBytes, index, component);
     }
 
-    static float2 FetchUV(const void* texCoords, uint32_t texCoordStrideInBytes, TexCoordFormat texCoordFormat, const uint32_t index)
+    static float2 FetchUV(const void* texCoords, uint32_t texCoordStrideInBytes, ommTexCoordFormat texCoordFormat, const uint32_t index)
     {
         const uint32_t* texCoords32 = (const uint32_t*)texCoords;
         switch (texCoordFormat)
         {
-        case TexCoordFormat::UV16_UNORM:
+        case ommTexCoordFormat_UV16_UNORM:
             return {
-                convertUvToFloat<TexCoordFormat::UV16_UNORM>(texCoords, texCoordStrideInBytes, index, 0),
-                convertUvToFloat<TexCoordFormat::UV16_UNORM>(texCoords, texCoordStrideInBytes, index, 1)
+                convertUvToFloat<ommTexCoordFormat_UV16_UNORM>(texCoords, texCoordStrideInBytes, index, 0),
+                convertUvToFloat<ommTexCoordFormat_UV16_UNORM>(texCoords, texCoordStrideInBytes, index, 1)
             };
-        case TexCoordFormat::UV16_FLOAT:
+        case ommTexCoordFormat_UV16_FLOAT:
             return {
-                convertUvToFloat<TexCoordFormat::UV16_FLOAT>(texCoords, texCoordStrideInBytes, index, 0),
-                convertUvToFloat<TexCoordFormat::UV16_FLOAT>(texCoords, texCoordStrideInBytes, index, 1)
+                convertUvToFloat<ommTexCoordFormat_UV16_FLOAT>(texCoords, texCoordStrideInBytes, index, 0),
+                convertUvToFloat<ommTexCoordFormat_UV16_FLOAT>(texCoords, texCoordStrideInBytes, index, 1)
             };
-        case TexCoordFormat::UV32_FLOAT:
+        case ommTexCoordFormat_UV32_FLOAT:
             return {
-                convertUvToFloat<TexCoordFormat::UV32_FLOAT>(texCoords, texCoordStrideInBytes, index, 0),
-                convertUvToFloat<TexCoordFormat::UV32_FLOAT>(texCoords, texCoordStrideInBytes, index, 1)
+                convertUvToFloat<ommTexCoordFormat_UV32_FLOAT>(texCoords, texCoordStrideInBytes, index, 0),
+                convertUvToFloat<ommTexCoordFormat_UV32_FLOAT>(texCoords, texCoordStrideInBytes, index, 1)
             };
         default:
             return { 0,0 };
         }
     }
 
-    static Triangle FetchUVTriangle(const void* texCoords, uint32_t texCoordStrideInBytes, TexCoordFormat texCoordFormat, const uint32_t index[3])
+    static Triangle FetchUVTriangle(const void* texCoords, uint32_t texCoordStrideInBytes, ommTexCoordFormat texCoordFormat, const uint32_t index[3])
     {
         Triangle t = Triangle(
             FetchUV(texCoords, texCoordStrideInBytes, texCoordFormat, index[0]),
@@ -163,9 +163,9 @@ namespace omm
         return t;
     }
 
-    static void GetUInt32Indices(IndexFormat indexFormat, const void* indices, size_t triIndexIndex, uint32_t outIndices[3])
+    static void GetUInt32Indices(ommIndexFormat indexFormat, const void* indices, size_t triIndexIndex, uint32_t outIndices[3])
     {
-        if (indexFormat == IndexFormat::I16_UINT)
+        if (indexFormat == ommIndexFormat_I16_UINT)
         {
             outIndices[0] = ((const uint16_t*)indices)[triIndexIndex + 0];
             outIndices[1] = ((const uint16_t*)indices)[triIndexIndex + 1];

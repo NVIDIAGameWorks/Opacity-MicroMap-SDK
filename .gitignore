@@ -43,6 +43,9 @@ build.ninja
 compile_commands.json
 *.log
 
+# gitlab
+.gitlab-ci.yml
+
 # Output files
 bin/
 install/

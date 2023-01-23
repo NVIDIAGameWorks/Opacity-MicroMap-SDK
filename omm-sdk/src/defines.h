@@ -12,8 +12,8 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 #define RETURN_STATUS_IF_FAILED(expr)           \
 do {                                            \
-    Result sts##__COUNTER__ = expr;             \
-    if (sts##__COUNTER__ != Result::SUCCESS)    \
+    ommResult sts##__COUNTER__ = expr;          \
+    if (sts##__COUNTER__ != ommResult_SUCCESS)  \
         return sts##__COUNTER__;                \
 } while(false)
 

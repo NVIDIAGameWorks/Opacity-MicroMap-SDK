@@ -15,45 +15,47 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 namespace omm
 {
 
-struct OmmCoverage {
+struct OmmCoverage 
+{
     uint32_t opaque = 0;
     uint32_t trans = 0;
 };
 
-static OpacityState GetStateFromCoverage(OMMFormat vmFormat, UnknownStatePromotion mode, const OmmCoverage& coverage)
+static ommOpacityState GetStateFromCoverage(ommFormat vmFormat, ommUnknownStatePromotion mode, const OmmCoverage& coverage)
 {
     const bool isUnknown = coverage.opaque != 0 && coverage.trans != 0;
     if (isUnknown)
     {
-        if (vmFormat == OMMFormat::OC1_4_State)
+        if (vmFormat == ommFormat_OC1_4_State)
         {
-            if (mode == UnknownStatePromotion::ForceOpaque)
-                return OpacityState::UnknownOpaque;
-            else if (mode == UnknownStatePromotion::ForceTransparent)
-                return OpacityState::UnknownTransparent;
-            OMM_ASSERT(mode == UnknownStatePromotion::Nearest);
-            return coverage.opaque >= coverage.trans ? OpacityState::UnknownOpaque : OpacityState::UnknownTransparent;
+            if (mode == ommUnknownStatePromotion_ForceOpaque)
+                return ommOpacityState_UnknownOpaque;
+            else if (mode == ommUnknownStatePromotion_ForceTransparent)
+                return ommOpacityState_UnknownTransparent;
+            OMM_ASSERT(mode == ommUnknownStatePromotion_Nearest);
+            return coverage.opaque >= coverage.trans ? ommOpacityState_UnknownOpaque : ommOpacityState_UnknownTransparent;
         }
-        else // if (vmFormat == OMMFormat::OC1_2_State)
+        else // if (vmFormat == ommFormat_OC1_2_State)
         {
-            OMM_ASSERT(vmFormat == OMMFormat::OC1_2_State);
+            OMM_ASSERT(vmFormat == ommFormat_OC1_2_State);
 
-            if (mode == UnknownStatePromotion::ForceOpaque)
-                return OpacityState::Opaque;
-            else if (mode == UnknownStatePromotion::ForceTransparent)
-                return OpacityState::Transparent;
-            OMM_ASSERT(mode == UnknownStatePromotion::Nearest);
-            return coverage.opaque >= coverage.trans ? OpacityState::Opaque : OpacityState::Transparent;
+            if (mode == ommUnknownStatePromotion_ForceOpaque)
+                return ommOpacityState_Opaque;
+            else if (mode == ommUnknownStatePromotion_ForceTransparent)
+                return ommOpacityState_Transparent;
+            OMM_ASSERT(mode == ommUnknownStatePromotion_Nearest);
+            return coverage.opaque >= coverage.trans ? ommOpacityState_Opaque : ommOpacityState_Transparent;
         }
+            return coverage.opaque >= coverage.trans ? ommOpacityState_UnknownOpaque : ommOpacityState_UnknownTransparent;
     }
     else if (coverage.opaque == 0) 
     {
-        return OpacityState::Transparent;
+        return ommOpacityState_Transparent;
     }
     else // if (coverage.trans == 0) 
     {
         OMM_ASSERT(coverage.trans == 0);
-        return OpacityState::Opaque;
+        return ommOpacityState_Opaque;
     }
 };
 
@@ -233,7 +235,7 @@ private:
     }
 public:
 
-    template<TextureAddressMode eTextureAddressMode, TilingMode eTilingMode>
+    template<ommTextureAddressMode eTextureAddressMode, TilingMode eTilingMode>
     static void run(int2 pixel, float3* bc, Coverage coverage, void* ctx)
     {
         // We add +0.5 here in order to compensate for the raster offset.
@@ -244,7 +246,7 @@ public:
         omm::GatherTexCoord4<eTextureAddressMode>(glm::floor(pixelf), p->size, coord);
 
         auto IsBorder = [](int2 coord) {
-            return eTextureAddressMode == TextureAddressMode::Border && (coord.x == kTexCoordBorder || coord.y == kTexCoordBorder);
+            return eTextureAddressMode == ommTextureAddressMode_Border && (coord.x == kTexCoordBorder || coord.y == kTexCoordBorder);
         };
 
         float4 gatherRed;
@@ -367,7 +369,7 @@ struct ConservativeBilinearKernel
         uint32_t                mipLevel;
     };
 
-    template<TextureAddressMode eTextureAddressMode, TilingMode eTilingMode>
+    template<ommTextureAddressMode eTextureAddressMode, TilingMode eTilingMode>
     static void run(int2 pixel, float3* bc, Coverage coverage, void* ctx)
     {
         // We add +0.5 here in order to compensate for the raster offset.
@@ -378,7 +380,7 @@ struct ConservativeBilinearKernel
         omm::GatherTexCoord4<eTextureAddressMode>(glm::floor(pixelf), p->size, coord);
 
         auto IsBorder = [](int2 coord) {
-            return eTextureAddressMode == TextureAddressMode::Border && (coord.x == kTexCoordBorder || coord.y == kTexCoordBorder);
+            return eTextureAddressMode == ommTextureAddressMode_Border && (coord.x == kTexCoordBorder || coord.y == kTexCoordBorder);
         };
 
         float4 gatherRed;

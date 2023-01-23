@@ -23,11 +23,11 @@ namespace bird // is the word
 		return 1 << (numSubdivisionLevels << 1u);
 	}
 
-	static constexpr inline uint32_t GetBitCount(OMMFormat vmFormat) {
-		OMM_ASSERT(vmFormat != OMMFormat::INVALID);
-		static_assert((uint32_t)OMMFormat::OC1_2_State == 1);
-		static_assert((uint32_t)OMMFormat::OC1_4_State == 2);
-		static_assert((uint32_t)OMMFormat::MAX_NUM == 3);
+	static constexpr inline uint32_t GetBitCount(ommFormat vmFormat) {
+		OMM_ASSERT(vmFormat != ommFormat_INVALID);
+		static_assert((uint32_t)ommFormat_OC1_2_State == 1);
+		static_assert((uint32_t)ommFormat_OC1_4_State == 2);
+		static_assert((uint32_t)ommFormat_MAX_NUM == 3);
 		return (uint32_t)vmFormat;
 	}
 

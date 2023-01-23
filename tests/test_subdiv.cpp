@@ -24,7 +24,7 @@ namespace {
 	class BakeSubDiv : public ::testing::Test {
 	protected:
 		void SetUp() override {
-			EXPECT_EQ(omm::CreateOpacityMicromapBaker({ .type = omm::BakerType::CPU }, &_baker), omm::Result::SUCCESS);
+			EXPECT_EQ(omm::CreateBaker({ .type = omm::BakerType::CPU }, &_baker), omm::Result::SUCCESS);
 		}
 
 		void TearDown() override {
@@ -32,7 +32,7 @@ namespace {
 				EXPECT_EQ(omm::Cpu::DestroyTexture(_baker, tex), omm::Result::SUCCESS);
 			}
 
-			EXPECT_EQ(omm::DestroyOpacityMicromapBaker(_baker), omm::Result::SUCCESS);
+			EXPECT_EQ(omm::DestroyBaker(_baker), omm::Result::SUCCESS);
 		}
 
 		omm::Cpu::Texture CreateTexture(const omm::Cpu::TextureDesc& desc) {
@@ -52,11 +52,11 @@ namespace {
 			uint32_t numSubDivLvl4 = 0;
 		};
 
-		void ValidateDesc(omm::OMMFormat vmFormat, const omm::Cpu::BakeResultDesc& desc, uint32_t triangleCount) {
+		void ValidateDesc(omm::Format vmFormat, const omm::Cpu::BakeResultDesc& desc, uint32_t triangleCount) {
 
 			static constexpr uint32_t kMaxNumSubDivLvl = 5;
 			uint32_t numSubDivLvl[kMaxNumSubDivLvl] = { 0, };
-			for (uint32_t i = 0; i < desc.ommDescArrayCount; ++i) {
+			for (uint32_t i = 0; i < desc.descArrayCount; ++i) {
 				int32_t subDivLvl = omm::parse::GetTriangleStates(i, desc, nullptr);
 				EXPECT_GE(subDivLvl, 0);
 				EXPECT_LE(subDivLvl, 4);
@@ -64,12 +64,12 @@ namespace {
 			}
 
 			uint32_t numUsageSubDivLvl[kMaxNumSubDivLvl] = { 0, };
-			for (uint32_t i = 0; i < desc.ommDescArrayHistogramCount; ++i) {
-				int32_t subDivLvl = desc.ommDescArrayHistogram[i].subdivisionLevel;
+			for (uint32_t i = 0; i < desc.descArrayHistogramCount; ++i) {
+				int32_t subDivLvl = desc.descArrayHistogram[i].subdivisionLevel;
 				EXPECT_GE(subDivLvl, 0);
 				EXPECT_LE(subDivLvl, 4);
-				EXPECT_EQ(vmFormat, (omm::OMMFormat)desc.ommDescArrayHistogram[i].format);
-				numUsageSubDivLvl[subDivLvl] += desc.ommDescArrayHistogram[i].count;
+				EXPECT_EQ(vmFormat, (omm::Format)desc.descArrayHistogram[i].format);
+				numUsageSubDivLvl[subDivLvl] += desc.descArrayHistogram[i].count;
 			}
 
 			for (uint32_t i = 0; i < kMaxNumSubDivLvl; ++i) {
@@ -160,14 +160,14 @@ namespace {
 			desc.dynamicSubdivisionScale = 0.f;
 			omm::Cpu::BakeResult res = 0;
 
-			EXPECT_EQ(omm::Cpu::BakeOpacityMicromap(_baker, desc, &res), omm::Result::SUCCESS);
+			EXPECT_EQ(omm::Cpu::Bake(_baker, desc, &res), omm::Result::SUCCESS);
 			EXPECT_NE(res, 0);
 
 			const omm::Cpu::BakeResultDesc* resDesc = nullptr;
-			EXPECT_EQ(omm::Cpu::GetBakeResultDesc(res, resDesc), omm::Result::SUCCESS);
+			EXPECT_EQ(omm::Cpu::GetBakeResultDesc(res, &resDesc), omm::Result::SUCCESS);
 			EXPECT_NE(resDesc, nullptr);
 
-			ValidateDesc(desc.ommFormat, *resDesc, triangleCount);
+			ValidateDesc(desc.format, *resDesc, triangleCount);
 
 			return;
 
@@ -223,22 +223,22 @@ namespace {
 			// NOTE: these rules are not enforced by the DX spec,
 			// so the vm blob might still be valid, but not too efficient.
 			int32_t subDivLvl = -1;
-			for (uint32_t i = 0; i < resDesc->ommDescArrayCount; ++i)
+			for (uint32_t i = 0; i < resDesc->descArrayCount; ++i)
 			{
-				const int32_t vmIdx = omm::parse::GetOmmIndexForTriangleIndex(*resDesc, i);
-				EXPECT_GE(vmIdx, 0);
-				if (vmIdx >= 0) {
-					const omm::Cpu::OpacityMicromapDesc& vmDesc = resDesc->ommDescArray[vmIdx];
+				const int32_t ommIdx = omm::parse::GetOmmIndexForTriangleIndex(*resDesc, i);
+				EXPECT_GE(ommIdx, 0);
+				if (ommIdx >= 0) {
+					const omm::Cpu::OpacityMicromapDesc& ommDesc = resDesc->descArray[ommIdx];
 
-					EXPECT_LE(subDivLvl, vmDesc.subdivisionLevel) << "VMs are not sorted by subdiv level.";
-					subDivLvl = std::max(subDivLvl, (int32_t)vmDesc.subdivisionLevel);
+					EXPECT_LE(subDivLvl, ommDesc.subdivisionLevel) << "OMMs are not sorted by subdiv level.";
+					subDivLvl = std::max(subDivLvl, (int32_t)ommDesc.subdivisionLevel);
 
 					static constexpr uint32_t kCacheLineSize = 128u;
 					static constexpr uint32_t kCacheLineBitSize = kCacheLineSize << 3u;
-					const uint32_t vmBitSize = omm::parse::GetOmmBitSize(vmDesc);
+					const uint32_t vmBitSize = omm::parse::GetOmmBitSize(ommDesc);
 					if (vmBitSize % kCacheLineBitSize == 0)
 					{
-						EXPECT_EQ(vmDesc.offset % kCacheLineSize, 0) << "VM idx:" << vmIdx << " has unexpected alignment" << vmDesc.offset;
+						EXPECT_EQ(ommDesc.offset % kCacheLineSize, 0) << "VM idx:" << ommIdx << " has unexpected alignment" << ommDesc.offset;
 					}
 				}
 			}

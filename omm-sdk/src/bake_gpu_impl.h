@@ -59,7 +59,7 @@ namespace Gpu
         };
         static inline const Handle kInvalidHandle = { 0xFFFFFFFu, 0xFFFFFFFu };
 
-        Result Allocate(size_t size, uint32_t alignment, Handle& handle)
+        ommResult Allocate(size_t size, uint32_t alignment, Handle& handle)
         {
             OMM_ASSERT(size < std::numeric_limits<uint32_t>::max());
             uint32_t size32 = math::Align<uint32_t>((uint32_t)size, alignment);
@@ -68,7 +68,7 @@ namespace Gpu
             handle.size = size32;
             OMM_ASSERT((uint64_t)m_offset + size < std::numeric_limits<uint32_t>::max());
             m_offset += size32;
-            return Result::SUCCESS;
+            return ommResult_SUCCESS;
         }
 
         uint32_t GetBufferOffset(Handle handle) const
@@ -92,7 +92,7 @@ namespace Gpu
 
     struct BufferResource {
         const char* debugName;
-        ResourceType type;
+        ommGpuResourceType type;
         uint32_t indexInPool;
         BufferHeapAlloc allocator;
 
@@ -117,12 +117,12 @@ namespace Gpu
             }
         };
 
-        Result Allocate(size_t size, uint32_t alignment, SubRange& out)
+        ommResult Allocate(size_t size, uint32_t alignment, SubRange& out)
         {
             BufferHeapAlloc::Handle handle;
             RETURN_STATUS_IF_FAILED(allocator.Allocate(size, alignment, handle));
             out = { handle, this };
-            return Result::SUCCESS;
+            return ommResult_SUCCESS;
         }
     };
 
@@ -136,8 +136,8 @@ namespace Gpu
             const unsigned char* spirv;
             size_t spirvSize;
 
-            const unsigned char* GetByteCode(RenderAPI api) const { return api == RenderAPI::DX12 ? dxil : spirv; }
-            size_t GetByteCodeSize(RenderAPI api) const { return api == RenderAPI::DX12 ? dxilSize : spirvSize; }
+            const unsigned char* GetByteCode(ommGpuRenderAPI api) const { return api == ommGpuRenderAPI_DX12 ? dxil : spirv; }
+            size_t GetByteCodeSize(ommGpuRenderAPI api) const { return api == ommGpuRenderAPI_DX12 ? dxilSize : spirvSize; }
         };
 
         PipelineBuilder(const StdAllocator<uint8_t>& stdAllocator)
@@ -160,22 +160,22 @@ namespace Gpu
             _desc.descriptorSetDesc.descriptorRangeMaxNumPerPipeline = 0;
         }
 
-        void SetAPI(RenderAPI api) {
+        void SetAPI(ommGpuRenderAPI api) {
             _API = api;
         }
 
-        const PipelineDesc& GetPipeline(uint32_t pipelineIndex) const
+        const ommGpuPipelineDesc& GetPipeline(uint32_t pipelineIndex) const
         {
             return _pipelines[pipelineIndex];
         }
 
         void AddStaticSamplerDesc(
-            std::initializer_list<StaticSamplerDesc> ranges)
+            std::initializer_list<ommGpuStaticSamplerDesc> ranges)
         {
             _staticSamplers.insert(_staticSamplers.end(), ranges.begin(), ranges.end());
         }
 
-        uint32_t GetStaticSamplerIndex(const SamplerDesc& desc)
+        uint32_t GetStaticSamplerIndex(const ommSamplerDesc& desc)
         {
             OMM_ASSERT(_staticSamplers.size() < 16); // Keep linear search small.
 
@@ -192,15 +192,15 @@ namespace Gpu
         }
 
         uint32_t AddComputePipeline(const ByteCode& bytecode,
-            const DescriptorRangeDesc* ranges, uint32_t numRanges)
+            const ommGpuDescriptorRangeDesc* ranges, uint32_t numRanges)
         {
-            PipelineDesc desc;
-            desc.type = PipelineType::Compute;
+            ommGpuPipelineDesc desc;
+            desc.type = ommGpuPipelineType_Compute;
             desc.compute.computeShader.data = bytecode.GetByteCode(_API);
             desc.compute.computeShader.size = bytecode.GetByteCodeSize(_API);
             desc.compute.shaderFileName = bytecode.name;
             desc.compute.shaderEntryPointName = bytecode.entryPoint;
-            desc.compute.descriptorRanges = (const DescriptorRangeDesc*)_ranges.size();
+            desc.compute.descriptorRanges = (const ommGpuDescriptorRangeDesc*)_ranges.size();
             desc.compute.descriptorRangeNum = (uint32_t)numRanges;
             _pipelines.push_back(desc);
 
@@ -215,10 +215,10 @@ namespace Gpu
             const ByteCode& ps,
             bool ConservativeRasterization,
             uint32_t NumRenderTargets,
-            const DescriptorRangeDesc* ranges, uint32_t numRanges)
+            const ommGpuDescriptorRangeDesc* ranges, uint32_t numRanges)
         {
-            PipelineDesc desc;
-            desc.type = PipelineType::Graphics;
+            ommGpuPipelineDesc desc;
+            desc.type = ommGpuPipelineType_Graphics;
             desc.graphics.vertexShaderFileName = vs.name;
             desc.graphics.vertexShaderEntryPointName = vs.entryPoint;
             desc.graphics.vertexShader.data = vs.GetByteCode(_API);
@@ -231,8 +231,8 @@ namespace Gpu
             desc.graphics.pixelShader.size = ps.GetByteCodeSize(_API);
             desc.graphics.pixelShaderFileName = ps.name;
             desc.graphics.pixelShaderEntryPointName = ps.entryPoint;
-            desc.graphics.rasterState.conservativeRasterization = ConservativeRasterization;
-            desc.graphics.descriptorRanges = (const DescriptorRangeDesc*)_ranges.size();
+            desc.graphics.conservativeRasterization = ConservativeRasterization;
+            desc.graphics.descriptorRanges = (const ommGpuDescriptorRangeDesc*)_ranges.size();
             desc.graphics.descriptorRangeNum = (uint32_t)numRanges;
             desc.graphics.numRenderTargets = NumRenderTargets;
             _pipelines.push_back(desc);
@@ -244,16 +244,16 @@ namespace Gpu
 
         void Finalize()
         {
-            for (PipelineDesc& desc : _pipelines)
+            for (ommGpuPipelineDesc& desc : _pipelines)
             {
                 switch (desc.type)
                 {
-                case PipelineType::Compute:
+                case ommGpuPipelineType_Compute:
                 {
                     desc.compute.descriptorRanges = &_ranges[(uint64_t)desc.compute.descriptorRanges];
                     break;
                 }
-                case PipelineType::Graphics:
+                case ommGpuPipelineType_Graphics:
                 {
                     desc.graphics.descriptorRanges = &_ranges[(uint64_t)desc.graphics.descriptorRanges];
                     break;
@@ -276,11 +276,11 @@ namespace Gpu
             _desc.descriptorSetDesc.descriptorRangeMaxNumPerPipeline = 3;
         }
 
-        RenderAPI _API = RenderAPI::MAX_NUM;
-        vector<PipelineDesc> _pipelines;
-        vector<DescriptorRangeDesc> _ranges;
-        vector<StaticSamplerDesc> _staticSamplers;
-        BakePipelineInfoDesc _desc;
+        ommGpuRenderAPI _API = ommGpuRenderAPI_MAX_NUM;
+        vector<ommGpuPipelineDesc> _pipelines;
+        vector<ommGpuDescriptorRangeDesc> _ranges;
+        vector<ommGpuStaticSamplerDesc> _staticSamplers;
+        ommGpuBakePipelineInfoDesc _desc;
     };
 
     struct StringCache
@@ -360,7 +360,7 @@ namespace Gpu
             _bufferMappings.insert(std::make_pair(std::make_pair(const_hash(identifier), identifier), subRange.resourceRef));
         }
 
-        void Bind(const char* identifier, ResourceType type, uint32_t indexInPool)
+        void Bind(const char* identifier, ommGpuResourceType type, uint32_t indexInPool)
         {
             if (_enableValidation && !_binding.HasResourceBinding(identifier))
             {
@@ -438,16 +438,16 @@ namespace Gpu
         const std::pair<ResourceBinding, const BufferResource*>* GetBuffers() const { return _flattenedBindings.data(); }
         const uint32_t GetNumBuffers() const { return (uint32_t)_flattenedBindings.size(); }
 
-        const std::pair<ResourceBinding, std::pair<ResourceType, uint32_t>>* GetResources() const { return _flattenedResources.data(); }
+        const std::pair<ResourceBinding, std::pair<ommGpuResourceType, uint32_t>>* GetResources() const { return _flattenedResources.data(); }
         const uint32_t GetNumResources() const { return (uint32_t)_flattenedResources.size(); }
 
     private:
         const StdAllocator<uint8_t>& _stdAllocator;
         vector<std::pair<ResourceBinding, const BufferResource*>> _flattenedBindings;
-        vector<std::pair<ResourceBinding, std::pair<ResourceType, uint32_t>>> _flattenedResources;
+        vector<std::pair<ResourceBinding, std::pair<ommGpuResourceType, uint32_t>>> _flattenedResources;
         map<std::pair<uint32_t, const char*>, const BufferResource*> _bufferMappings;
-        map<std::pair<uint32_t, const char*>, std::pair<ResourceType, uint32_t>> _resourceMappings;
-        map<std::pair<uint32_t, const char*>, ResourceType> _mappings;
+        map<std::pair<uint32_t, const char*>, std::pair<ommGpuResourceType, uint32_t>> _resourceMappings;
+        map<std::pair<uint32_t, const char*>, ommGpuResourceType> _mappings;
         const ShaderBindings& _binding;
         bool _enableValidation;
     };
@@ -456,7 +456,7 @@ namespace Gpu
     {
         struct PassConfig
         {
-            PassConfig(const StdAllocator<uint8_t>& stdAllocator, DispatchType type, const ShaderBindings& binding, bool enableValidation)
+            PassConfig(const StdAllocator<uint8_t>& stdAllocator, ommGpuDispatchType type, const ShaderBindings& binding, bool enableValidation)
                 : m_bindingSet(stdAllocator, binding, enableValidation)
                 , m_subRange(stdAllocator)
                 , m_localCb(m_cbuffer.data()
@@ -468,28 +468,28 @@ namespace Gpu
 
             void SetLabel(const char* label)
             {
-                OMM_ASSERT(m_desc.type == DispatchType::BeginLabel);
+                OMM_ASSERT(m_desc.type == ommGpuDispatchType_BeginLabel);
                 m_desc.beginLabel.debugName = label;
             }
 
             bool IsGraphics() const {
-                return m_desc.type == DispatchType::DrawIndexedIndirect;
+                return m_desc.type == ommGpuDispatchType_DrawIndexedIndirect;
             }
 
             bool IsDrawIndirect() const {
-                return m_desc.type == DispatchType::DrawIndexedIndirect;
+                return m_desc.type == ommGpuDispatchType_DrawIndexedIndirect;
             }
 
             bool IsCompute() const {
-                return m_desc.type == DispatchType::Compute || m_desc.type == DispatchType::ComputeIndirect;
+                return m_desc.type == ommGpuDispatchType_Compute || m_desc.type == ommGpuDispatchType_ComputeIndirect;
             }
 
             bool IsComputeDirect() const {
-                return m_desc.type == DispatchType::Compute;
+                return m_desc.type == ommGpuDispatchType_Compute;
             }
 
             bool IsComputeIndirect() const {
-                return m_desc.type == DispatchType::ComputeIndirect;
+                return m_desc.type == ommGpuDispatchType_ComputeIndirect;
             }
 
             void UseGlobalCbuffer() {
@@ -502,47 +502,47 @@ namespace Gpu
                 m_bindingSet.Bind(identifier, subRange);
             }
 
-            void BindResource(const char* identifier, ResourceType type, uint32_t indexInPool = 0)
+            void BindResource(const char* identifier, ommGpuResourceType type, uint32_t indexInPool = 0)
             {
                 m_bindingSet.Bind(identifier, type, indexInPool);
             }
 
-            void BindRawBufferWrite(ResourceType type, uint16_t indexInPool, uint32_t bindingSlot) {
-                m_rawBufferWrite[m_rawBufferWriteCount++] = { {DescriptorType::RawBufferWrite, type, (uint16_t)indexInPool, 0, 0}, bindingSlot };
+            void BindRawBufferWrite(ommGpuResourceType type, uint16_t indexInPool, uint32_t bindingSlot) {
+                m_rawBufferWrite[m_rawBufferWriteCount++] = { {ommGpuDescriptorType_RawBufferWrite, type, (uint16_t)indexInPool, 0, 0}, bindingSlot };
             }
 
             void BindRawBufferWrite(BufferResource resource, uint32_t bindingSlot) {
-                m_rawBufferWrite[m_rawBufferWriteCount++] = { {DescriptorType::RawBufferWrite, resource.type, (uint16_t)resource.indexInPool, 0, 0}, bindingSlot };
+                m_rawBufferWrite[m_rawBufferWriteCount++] = { {ommGpuDescriptorType_RawBufferWrite, resource.type, (uint16_t)resource.indexInPool, 0, 0}, bindingSlot };
             }
 
-            void BindRawBufferRead(ResourceType type, uint16_t indexInPool, uint32_t bindingSlot) {
-                m_rawBufferRead[m_rawBufferReadCount++] = { {DescriptorType::RawBufferRead, type, (uint16_t)indexInPool, 0, 0}, bindingSlot };
+            void BindRawBufferRead(ommGpuResourceType type, uint16_t indexInPool, uint32_t bindingSlot) {
+                m_rawBufferRead[m_rawBufferReadCount++] = { {ommGpuDescriptorType_RawBufferRead, type, (uint16_t)indexInPool, 0, 0}, bindingSlot };
             }
 
             void BindRawBufferRead(BufferResource resource, uint32_t bindingSlot) {
-                m_rawBufferRead[m_rawBufferReadCount++] = { {DescriptorType::RawBufferRead, resource.type, (uint16_t)resource.indexInPool, 0, 0}, bindingSlot };
+                m_rawBufferRead[m_rawBufferReadCount++] = { {ommGpuDescriptorType_RawBufferRead, resource.type, (uint16_t)resource.indexInPool, 0, 0}, bindingSlot };
             }
 
             void BindBufferRead(BufferResource resource, uint32_t bindingSlot) {
-                m_bufferRead[m_bufferReadCount++] = { {DescriptorType::BufferRead, resource.type, (uint16_t)resource.indexInPool, 0, 0}, bindingSlot };
+                m_bufferRead[m_bufferReadCount++] = { {ommGpuDescriptorType_BufferRead, resource.type, (uint16_t)resource.indexInPool, 0, 0}, bindingSlot };
             }
 
-            void BindBufferRead(ResourceType type, uint16_t indexInPool, uint32_t bindingSlot) {
-                m_bufferRead[m_bufferReadCount++] = { {DescriptorType::BufferRead, type, (uint16_t)indexInPool, 0, 0}, bindingSlot };
+            void BindBufferRead(ommGpuResourceType type, uint16_t indexInPool, uint32_t bindingSlot) {
+                m_bufferRead[m_bufferReadCount++] = { {ommGpuDescriptorType_BufferRead, type, (uint16_t)indexInPool, 0, 0}, bindingSlot };
             }
 
-            void BindTextureRead(ResourceType type, uint16_t indexInPool, uint32_t bindingSlot) {
-                m_textureRead[m_textureReadCount++] = { {DescriptorType::TextureRead, type, (uint16_t)indexInPool, 0, 1}, bindingSlot };
+            void BindTextureRead(ommGpuResourceType type, uint16_t indexInPool, uint32_t bindingSlot) {
+                m_textureRead[m_textureReadCount++] = { {ommGpuDescriptorType_TextureRead, type, (uint16_t)indexInPool, 0, 1}, bindingSlot };
             }
 
-            void BindIB(ResourceType type, uint32_t offsetInBytes) {
+            void BindIB(ommGpuResourceType type, uint32_t offsetInBytes) {
                 OMM_ASSERT(IsGraphics());
                 m_desc.drawIndexedIndirect.indexBuffer.type = type;
                 m_desc.drawIndexedIndirect.indexBuffer.indexInPool = 0;
                 m_desc.drawIndexedIndirect.indexBufferOffset = offsetInBytes;
             }
 
-            void BindVB(ResourceType type, uint32_t offsetInBytes) {
+            void BindVB(ommGpuResourceType type, uint32_t offsetInBytes) {
                 OMM_ASSERT(IsGraphics());
                 m_desc.drawIndexedIndirect.vertexBuffer.type = type;
                 m_desc.drawIndexedIndirect.vertexBuffer.indexInPool = 0;
@@ -574,7 +574,7 @@ namespace Gpu
             {
                 OMM_ASSERT(IsComputeIndirect());
                 m_desc.computeIndirect.pipelineIndex = pipelineIndex;
-                m_desc.computeIndirect.indirectArg.stateNeeded = DescriptorType::MAX_NUM;
+                m_desc.computeIndirect.indirectArg.stateNeeded = ommGpuDescriptorType_MAX_NUM;
                 m_desc.computeIndirect.indirectArg.indexInPool = indirectArgBuffer.resourceRef->indexInPool;
                 m_desc.computeIndirect.indirectArg.type = indirectArgBuffer.resourceRef->type;
                 m_desc.computeIndirect.indirectArg.mipNum = 0;
@@ -590,7 +590,7 @@ namespace Gpu
             {
                 OMM_ASSERT(IsDrawIndirect());
                 m_desc.drawIndexedIndirect.pipelineIndex = pipelineIndex;
-                m_desc.drawIndexedIndirect.indirectArg.stateNeeded = DescriptorType::MAX_NUM;
+                m_desc.drawIndexedIndirect.indirectArg.stateNeeded = ommGpuDescriptorType_MAX_NUM;
                 m_desc.drawIndexedIndirect.indirectArg.indexInPool = indirectArgBuffer.resourceRef->indexInPool;
                 m_desc.drawIndexedIndirect.indirectArg.type = indirectArgBuffer.resourceRef->type;
                 m_desc.drawIndexedIndirect.indirectArg.mipNum = 0;
@@ -601,13 +601,13 @@ namespace Gpu
 
             vector<std::pair<uint32_t, BufferResource::SubRange>> m_subRange;
 
-            std::array<std::pair<Resource, uint32_t>, 4> m_textureRead;
+            std::array<std::pair<ommGpuResource, uint32_t>, 4> m_textureRead;
             uint32_t m_textureReadCount = 0;
-            std::array<std::pair<Resource, uint32_t>, 32> m_rawBufferRead;
+            std::array<std::pair<ommGpuResource, uint32_t>, 32> m_rawBufferRead;
             uint32_t m_rawBufferReadCount = 0;
-            std::array<std::pair<Resource, uint32_t>, 32> m_rawBufferWrite;
+            std::array<std::pair<ommGpuResource, uint32_t>, 32> m_rawBufferWrite;
             uint32_t m_rawBufferWriteCount = 0;
-            std::array<std::pair<Resource, uint32_t>, 32> m_bufferRead;
+            std::array<std::pair<ommGpuResource, uint32_t>, 32> m_bufferRead;
             uint32_t m_bufferReadCount = 0;
 
             RuntimeBindingSet m_bindingSet;
@@ -615,24 +615,24 @@ namespace Gpu
             CBufferWriter m_localCb;
 
             bool m_useGlobalIndexBuffer = false;
-            DispatchDesc m_desc;
+            ommGpuDispatchDesc m_desc;
         };
 
         void ValidateDescRanges(const PassConfig& cfg, uint32_t pipelineIndex)
         {
-            const PipelineDesc& pipeline = _pipelines.GetPipeline(pipelineIndex);
+            const ommGpuPipelineDesc& pipeline = _pipelines.GetPipeline(pipelineIndex);
 
-            const DescriptorRangeDesc* descriptorRanges = nullptr;
+            const ommGpuDescriptorRangeDesc* descriptorRanges = nullptr;
             uint32_t descriptorRangeNum = 0;
             switch (pipeline.type)
             {
-            case PipelineType::Compute:
+            case ommGpuPipelineType_Compute:
             {
                 descriptorRanges = pipeline.compute.descriptorRanges;
                 descriptorRangeNum = pipeline.compute.descriptorRangeNum;
                 break;
             }
-            case PipelineType::Graphics:
+            case ommGpuPipelineType_Graphics:
             {
                 descriptorRanges = pipeline.graphics.descriptorRanges;
                 descriptorRangeNum = pipeline.graphics.descriptorRangeNum;
@@ -652,14 +652,14 @@ namespace Gpu
 
             for (uint32_t i = 0; i < descriptorRangeNum; ++i)
             {
-                const DescriptorRangeDesc& range = descriptorRanges[i];
-                if (range.descriptorType == DescriptorType::TextureRead)
+                const ommGpuDescriptorRangeDesc& range = descriptorRanges[i];
+                if (range.descriptorType == ommGpuDescriptorType_TextureRead)
                     OMM_ASSERT(range.descriptorNum == cfg.m_textureReadCount);
-                if (range.descriptorType == DescriptorType::RawBufferRead)
+                if (range.descriptorType == ommGpuDescriptorType_RawBufferRead)
                     OMM_ASSERT(range.descriptorNum == cfg.m_rawBufferReadCount);
-                if (range.descriptorType == DescriptorType::RawBufferWrite)
+                if (range.descriptorType == ommGpuDescriptorType_RawBufferWrite)
                     OMM_ASSERT(range.descriptorNum == cfg.m_rawBufferWriteCount);
-                if (range.descriptorType == DescriptorType::BufferRead)
+                if (range.descriptorType == ommGpuDescriptorType_BufferRead)
                     OMM_ASSERT(range.descriptorNum == cfg.m_bufferReadCount);
             }
         }
@@ -681,7 +681,7 @@ namespace Gpu
             _globalCbufferData.insert(_globalCbufferData.end(), cbuffer, cbuffer + size);
         }
 
-        void PushPass(const char* pass, DispatchType type, const ShaderBindings& binding, std::function<void(PassConfig&)> fillConfigCb) {
+        void PushPass(const char* pass, ommGpuDispatchType type, const ShaderBindings& binding, std::function<void(PassConfig&)> fillConfigCb) {
             PassConfig dt(_stdAllocator, type, binding, _enableValidation);
             fillConfigCb(dt);
             // Copy to shared memory structs etc.
@@ -702,15 +702,15 @@ namespace Gpu
         }
 
         void PushLabel(const char* label) {
-            DispatchDesc desc;
-            desc.type = DispatchType::BeginLabel;
+            ommGpuDispatchDesc desc;
+            desc.type = ommGpuDispatchType_BeginLabel;
             desc.beginLabel.debugName = _strings.GetString(label);
             _dispatches.push_back(desc);
         }
 
         void PopLabel() {
-            DispatchDesc desc;
-            desc.type = DispatchType::EndLabel;
+            ommGpuDispatchDesc desc;
+            desc.type = ommGpuDispatchType_EndLabel;
             _dispatches.push_back(desc);
         }
 
@@ -778,12 +778,12 @@ namespace Gpu
                 }
             }
 
-            DispatchDesc dispatch = cfg.m_desc;
+            ommGpuDispatchDesc dispatch = cfg.m_desc;
 
             size_t resourcesStart = _resources.size();
             size_t resourceNum = (size_t)cfg.m_textureReadCount + cfg.m_rawBufferReadCount + cfg.m_rawBufferWriteCount + cfg.m_bufferReadCount;
 
-            auto SortFn = [](const std::pair<Resource, uint32_t>& a, const std::pair<Resource, uint32_t>& b) {
+            auto SortFn = [](const std::pair<ommGpuResource, uint32_t>& a, const std::pair<ommGpuResource, uint32_t>& b) {
                 return a.second < b.second;
             };
 
@@ -810,11 +810,11 @@ namespace Gpu
 
             switch (dispatch.type)
             {
-            case DispatchType::Compute:
+            case ommGpuDispatchType_Compute:
             {
-                ComputeDesc& compute = dispatch.compute;
+                ommGpuComputeDesc& compute = dispatch.compute;
                 compute.name = pass;
-                compute.resources = (const Resource*)resourcesStart;
+                compute.resources = (const ommGpuResource*)resourcesStart;
                 compute.resourceNum = (uint32_t)resourceNum;
                 compute.localConstantBufferData = (const uint8_t*)localCbStart;
                 compute.localConstantBufferDataSize = (uint32_t)cfg.m_localCb.GetSize();
@@ -823,11 +823,11 @@ namespace Gpu
 
                 break;
             }
-            case DispatchType::ComputeIndirect:
+            case ommGpuDispatchType_ComputeIndirect:
             {
-                ComputeIndirectDesc& compute = dispatch.computeIndirect;
+                ommGpuComputeIndirectDesc& compute = dispatch.computeIndirect;
                 compute.name = pass;
-                compute.resources = (const Resource*)resourcesStart;
+                compute.resources = (const ommGpuResource*)resourcesStart;
                 compute.resourceNum = (uint32_t)resourceNum;
                 compute.localConstantBufferData = (const uint8_t*)localCbStart;
                 compute.localConstantBufferDataSize = (uint32_t)cfg.m_localCb.GetSize();
@@ -836,11 +836,11 @@ namespace Gpu
 
                 break;
             }
-            case DispatchType::DrawIndexedIndirect:
+            case ommGpuDispatchType_DrawIndexedIndirect:
             {
-                DrawIndexedIndirectDesc& draw = dispatch.drawIndexedIndirect;
+                ommGpuDrawIndexedIndirectDesc& draw = dispatch.drawIndexedIndirect;
                 draw.name = pass;
-                draw.resources = (const Resource*)resourcesStart;
+                draw.resources = (const ommGpuResource*)resourcesStart;
                 draw.resourceNum = (uint32_t)resourceNum;
                 draw.localConstantBufferData = (const uint8_t*)localCbStart;
                 draw.localConstantBufferDataSize = (uint32_t)cfg.m_localCb.GetSize();
@@ -856,27 +856,27 @@ namespace Gpu
 
         void Finalize()
         {
-            for (DispatchDesc& desc : _dispatches)
+            for (ommGpuDispatchDesc& desc : _dispatches)
             {
                 switch (desc.type)
                 {
-                case DispatchType::Compute:
+                case ommGpuDispatchType_Compute:
                 {
-                    ComputeDesc& compute = desc.compute;
+                    ommGpuComputeDesc& compute = desc.compute;
                     compute.resources = &_resources[reinterpret_cast<uint64_t>(compute.resources)];
                     compute.localConstantBufferData = &_localCbufferData[reinterpret_cast<uint64_t>(compute.localConstantBufferData)];
                     break;
                 }
-                case DispatchType::ComputeIndirect:
+                case ommGpuDispatchType_ComputeIndirect:
                 {
-                    ComputeIndirectDesc& compute = desc.computeIndirect;
+                    ommGpuComputeIndirectDesc& compute = desc.computeIndirect;
                     compute.resources = &_resources[reinterpret_cast<uint64_t>(compute.resources)];
                     compute.localConstantBufferData = &_localCbufferData[reinterpret_cast<uint64_t>(compute.localConstantBufferData)];
                     break;
                 }
-                case DispatchType::DrawIndexedIndirect:
+                case ommGpuDispatchType_DrawIndexedIndirect:
                 {
-                    DrawIndexedIndirectDesc& draw = desc.drawIndexedIndirect;
+                    ommGpuDrawIndexedIndirectDesc& draw = desc.drawIndexedIndirect;
                     draw.resources = &_resources[reinterpret_cast<uint64_t>(draw.resources)];
                     draw.localConstantBufferData = &_localCbufferData[reinterpret_cast<uint64_t>(draw.localConstantBufferData)];
                     break;
@@ -892,18 +892,18 @@ namespace Gpu
 
         const StdAllocator<uint8_t>& _stdAllocator;
         const PipelineBuilder& _pipelines;
-        vector<DispatchDesc> _dispatches;
-        vector<Resource> _resources;
+        vector<ommGpuDispatchDesc> _dispatches;
+        vector<ommGpuResource> _resources;
         vector<uint8_t> _localCbufferData;
         vector<uint8_t> _globalCbufferData;
-        BakeDispatchChain _result;
+        ommGpuBakeDispatchChain _result;
         StringCache& _strings;
         bool _enableValidation;
     };
 
     struct OmmStaticBuffers
     {
-        static Result GetStaticResourceData(ResourceType resource, uint8_t* data, size_t& byteSize);
+        static ommResult GetStaticResourceData(ommGpuResourceType resource, uint8_t* data, size_t* byteSize);
     };
 
     class PipelineImpl
@@ -926,21 +926,21 @@ namespace Gpu
         {
             return m_stdAllocator;
         }
-        static Result Validate(const BakePipelineConfigDesc& config);
-        Result Validate(const BakeDispatchConfigDesc& config) const;
-        Result Create(const BakePipelineConfigDesc& config);
-        Result GetPipelineDesc(const BakePipelineInfoDesc*& outPipelineDesc);
-        Result GetPreBakeInfo(const BakeDispatchConfigDesc& config, PreBakeInfo* outPreBuildInfo);
-        Result GetDispatcheDesc(const BakeDispatchConfigDesc& dispatchConfig, const BakeDispatchChain*& outDispatchDesc);
+        static ommResult Validate(const ommGpuBakePipelineConfigDesc& config);
+        ommResult Validate(const ommGpuBakeDispatchConfigDesc& config) const;
+        ommResult Create(const ommGpuBakePipelineConfigDesc& config);
+        ommResult GetPipelineDesc(const ommGpuBakePipelineInfoDesc** outPipelineDesc);
+        ommResult GetPreBakeInfo(const ommGpuBakeDispatchConfigDesc& config, ommGpuPreBakeInfo* outPreBuildInfo);
+        ommResult GetDispatcheDesc(const ommGpuBakeDispatchConfigDesc& dispatchConfig, const ommGpuBakeDispatchChain** outDispatchDesc);
 
     private:
-        Result ConfigurePipeline(const BakePipelineConfigDesc& config);
+        ommResult ConfigurePipeline(const ommGpuBakePipelineConfigDesc& config);
 
         static constexpr uint32_t kHashTableEntrySize = sizeof(uint32_t) * 2;
 
-        BakePipelineConfigDesc m_config;
+        ommGpuBakePipelineConfigDesc m_config;
         StdAllocator<uint8_t> m_stdAllocator;
-        vector<BufferDesc> m_scratchBufferDescs;
+        vector<ommGpuBufferDesc> m_scratchBufferDescs;
         PipelineBuilder m_pipelineBuilder;
         StringCache m_strings;
         PassBuilder m_passBuilder;
@@ -1040,7 +1040,7 @@ namespace Gpu
             bool MayContain4StateFormats = false;
         };
 
-        Result GetPreDispatchInfo(const BakeDispatchConfigDesc& config, PreDispatchInfo& outInfo);
+        ommResult GetPreDispatchInfo(const ommGpuBakeDispatchConfigDesc& config, PreDispatchInfo& outInfo);
     };
 
     class BakerImpl
@@ -1056,14 +1056,14 @@ namespace Gpu
         inline StdAllocator<uint8_t>& GetStdAllocator()
         { return m_stdAllocator; }
 
-        Result Create(const BakerCreationDesc& bakeCreationDesc);
+        ommResult Create(const ommBakerCreationDesc& bakeCreationDesc);
 
-        Result CreatePipeline(const BakePipelineConfigDesc& config, Pipeline* outPipeline);
-        Result DestroyPipeline(Pipeline pipeline);
+        ommResult CreatePipeline(const ommGpuBakePipelineConfigDesc& config, ommGpuPipeline* outPipeline);
+        ommResult DestroyPipeline(ommGpuPipeline pipeline);
 
     private:
         StdAllocator<uint8_t> m_stdAllocator;
-        BakerCreationDesc m_bakeCreationDesc;
+        ommBakerCreationDesc m_bakeCreationDesc;
     };
 } // namespace Gpu
 } // namespace omm
