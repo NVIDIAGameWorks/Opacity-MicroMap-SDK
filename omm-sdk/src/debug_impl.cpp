@@ -492,7 +492,7 @@ namespace omm
                 stats.totalFullyUnknownOpaque++;
             }
             else {
-                OMM_ASSERT(vmIdx < (int32_t)resDesc.ommDescArrayCount);
+                OMM_ASSERT(vmIdx < (int32_t)resDesc.descArrayCount);
                 // Calculate later
             }
         }
@@ -509,7 +509,7 @@ namespace omm
         descStats.resize(resDesc.descArrayCount);
         for (uint32_t i = 0; i < resDesc.descArrayCount; ++i)
         {
-            OMM_ASSERT(i < resDesc.ommDescArrayCount);
+            OMM_ASSERT(i < resDesc.descArrayCount);
 
             const ommCpuOpacityMicromapDesc& vmDesc = resDesc.descArray[i];
             const uint8_t* ommArrayData = (const uint8_t*)((const char*)resDesc.arrayData) + vmDesc.offset;
