@@ -510,7 +510,7 @@ namespace omm
       // code");
       enum class GraphicsPipelineDescVersion
       {
-         VERSION = 1,
+         VERSION = 2,
       };
 
       // Config specification not declared in the GraphicsPipelineDesc is meant to be hard-coded and may only change in future

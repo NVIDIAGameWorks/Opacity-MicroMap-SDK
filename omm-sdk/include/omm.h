@@ -608,7 +608,7 @@ inline ommGpuGraphicsPipelineInputElementDesc ommGpuGraphicsPipelineInputElement
 
 typedef enum ommGpuGraphicsPipelineDescVersion
 {
-   ommGpuGraphicsPipelineDescVersion_VERSION = 1,
+   ommGpuGraphicsPipelineDescVersion_VERSION = 2,
 } ommGpuGraphicsPipelineDescVersion;
 
 // Config specification not declared in the GraphicsPipelineDesc is meant to be hard-coded and may only change in future

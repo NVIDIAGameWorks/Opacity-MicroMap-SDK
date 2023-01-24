@@ -407,7 +407,7 @@ void GpuBakeNvrhi::SetupPipelines(
 		case omm::Gpu::PipelineType::Graphics:
 		{
 			const omm::Gpu::GraphicsPipelineDesc& gfx = pipeline.graphics;
-			// static_assert(omm::Gpu::GraphicsPipelineDesc::VERSION == 1, "New GFX pipeline version detected, update integration code.");
+			static_assert((uint32_t)omm::Gpu::GraphicsPipelineDescVersion::VERSION == 2, "New GFX pipeline version detected, update integration code.");
 
 			nvrhi::ShaderHandle vertex;
 			if (shaderProviderCb)
@@ -463,7 +463,6 @@ void GpuBakeNvrhi::SetupPipelines(
 				desc.elementStride = sizeof(uint32_t);
 				static_assert(omm::Gpu::GraphicsPipelineInputElementDesc::format == omm::Gpu::BufferFormat::R32_UINT);
 				desc.arraySize = 1;
-				//static_assert(omm::Gpu::GraphicsPipelineInputElementDesc::count == 1);
 				desc.bufferIndex = 0;
 				static_assert(omm::Gpu::GraphicsPipelineInputElementDesc::inputSlot == 0);
 				desc.offset = 0;
@@ -473,12 +472,6 @@ void GpuBakeNvrhi::SetupPipelines(
 
 			nvrhi::GraphicsPipelineHandle pipeline;
 			{
-				//assert(omm::Gpu::GraphicsPipelineDesc::RasterState::cullMode == omm::Gpu::RasterCullMode::None);
-				//static_assert(omm::Gpu::GraphicsPipelineDesc::topology == omm::Gpu::PrimitiveTopology::TriangleList);
-				//static_assert(omm::Gpu::GraphicsPipelineDesc::DepthState::depthTestEnable == false);
-				//static_assert(omm::Gpu::GraphicsPipelineDesc::DepthState::depthWriteEnable == false);
-				//static_assert(omm::Gpu::GraphicsPipelineDesc::DepthState::stencilEnable == false);
-
 				nvrhi::GraphicsPipelineDesc gfxDesc;
 				gfxDesc.primType = nvrhi::PrimitiveType::TriangleList;
 				gfxDesc.renderState.depthStencilState.disableDepthTest();
