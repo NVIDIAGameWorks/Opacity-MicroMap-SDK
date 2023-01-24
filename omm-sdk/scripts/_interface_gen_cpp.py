@@ -11,9 +11,10 @@ def GetWhitespace(indent):
 
 def WriteComment(inComment, ind):
     ws = GetWhitespace(ind)
-    comment = textwrap.fill(inComment, 120)
-    for line in comment.splitlines():
-        print(ws + "// " + line)
+    for manualLine in inComment.splitlines():
+        autoLine = textwrap.fill(manualLine, 120)
+        for line in autoLine.splitlines():
+            print(ws + "// " + line)
 
 def intersection(lst1, lst2):
     lst3 = [value for value in lst1 if value not in lst2]
@@ -46,6 +47,9 @@ def WriteEnum(dic, obj, ind):
     maxLen = 0
     for val in values:
         maxLen = max(len(val["name"]), maxLen)
+
+    if obj.get("comment"):
+        WriteComment(obj["comment"], ind)
 
     print(ws + declLine)
     print(ws + "{")

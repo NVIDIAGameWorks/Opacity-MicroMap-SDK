@@ -16,7 +16,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 #define OMM_VERSION_MAJOR 0
 #define OMM_VERSION_MINOR 9
-#define OMM_VERSION_BUILD 0
+#define OMM_VERSION_BUILD 1
 
 #if defined(_MSC_VER)
     #define OMM_CALL __fastcall

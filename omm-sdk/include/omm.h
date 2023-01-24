@@ -16,7 +16,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 #define OMM_VERSION_MAJOR 0
 #define OMM_VERSION_MINOR 9
-#define OMM_VERSION_BUILD 0
+#define OMM_VERSION_BUILD 1
 
 #if defined(_MSC_VER)
     #define OMM_CALL __fastcall
@@ -92,9 +92,8 @@ typedef enum ommFormat
 
 typedef enum ommUnknownStatePromotion
 {
-   // Will either be UO or UT depending on the coverage. If the micro-triangle is "mostly" opaque it will
-   // be UO (4-state) or O (2-state). If the micro-triangle is "mostly" transparent it will be UT
-   // (4-state) or T (2-state)
+   // Will either be UO or UT depending on the coverage. If the micro-triangle is "mostly" opaque it will be UO (4-state) or O
+   // (2-state). If the micro-triangle is "mostly" transparent it will be UT (4-state) or T (2-state)
    ommUnknownStatePromotion_Nearest,
    // All unknown states get promoted to O in 2-state mode, or UO in 4-state mode
    ommUnknownStatePromotion_ForceOpaque,
@@ -222,8 +221,8 @@ typedef enum ommCpuTextureFormat
 typedef enum ommCpuTextureFlags
 {
    ommCpuTextureFlags_None,
-   // Controls the internal memory layout of the texture. does not change the expected input format, it
-   // does affect the baking performance and memory footprint of the texture object.
+   // Controls the internal memory layout of the texture. does not change the expected input format, it does affect the baking
+   // performance and memory footprint of the texture object.
    ommCpuTextureFlags_DisableZOrder = 1u << 0,
 } ommCpuTextureFlags;
 OMM_DEFINE_ENUM_FLAG_OPERATORS(ommCpuTextureFlags);
@@ -235,36 +234,34 @@ typedef enum ommCpuBakeFlags
    // Baker will use internal threads to run the baking process in parallel.
    ommCpuBakeFlags_EnableInternalThreads        = 1u << 0,
 
-   // Will disable the use of special indices in case the OMM-state is uniform, Only set this flag for
-   // debug purposes. Note: This is prevents promotion of fully known OMMs to use special indices, however
-   // for invalid & degenerate UV triangles special indices may still be set.
+   // Will disable the use of special indices in case the OMM-state is uniform, Only set this flag for debug purposes.
+   // Note: This prevents promotion of fully known OMMs to use special indices, however for invalid & degenerate UV triangles
+   // special indices may still be set.
    ommCpuBakeFlags_DisableSpecialIndices        = 1u << 1,
 
    // Force 32-bit index format in ommIndexFormat
    ommCpuBakeFlags_Force32BitIndices            = 1u << 2,
 
-   // Will disable reuse of OMMs and instead produce duplicates omm-array data. Generally only needed for
-   // debug purposes.
+   // Will disable reuse of OMMs and instead produce duplicates omm-array data. Generally only needed for debug purposes.
    ommCpuBakeFlags_DisableDuplicateDetection    = 1u << 3,
 
-   // This enables merging of "similar" OMMs where similarity is measured using hamming distance. UT and
-   // UO are considered identical. Pros: normally reduces resulting OMM size drastically, especially when
-   // there's overlapping UVs. Cons: The merging comes at the cost of coverage. The resulting OMM Arrays
-   // will have lower fraction of known states. For large working sets it can be quite CPU heavy to
+   // This enables merging of "similar" OMMs where similarity is measured using hamming distance.
+   // UT and UO are considered identical.
+   // Pros: normally reduces resulting OMM size drastically, especially when there's overlapping UVs.
+   // Cons: The merging comes at the cost of coverage.
+   // The resulting OMM Arrays will have lower fraction of known states. For large working sets it can be quite CPU heavy to
    // compute.
    ommCpuBakeFlags_EnableNearDuplicateDetection = 1u << 4,
 
-   // Workload validation is a safety mechanism that will let the SDK reject workloads that become
-   // unreasonably large, which may lead to long baking times. When this flag is set the bake operation
-   // may return error WORKLOAD_TOO_BIG
+   // Workload validation is a safety mechanism that will let the SDK reject workloads that become unreasonably large, which
+   // may lead to long baking times. When this flag is set the bake operation may return error WORKLOAD_TOO_BIG
    ommCpuBakeFlags_EnableWorkloadValidation     = 1u << 5,
 } ommCpuBakeFlags;
 OMM_DEFINE_ENUM_FLAG_OPERATORS(ommCpuBakeFlags);
 
-// The baker supports conservativle baking from a MIP array when the runtime wants to pick freely
-// between texture levels at runtime without the need to update the OMM data. _However_ baking from mip
-// level 0 only is recommended in the general case for best performance the integration guide contains
-// more in depth discussion on the topic
+// The baker supports conservativle baking from a MIP array when the runtime wants to pick freely between texture levels at
+// runtime without the need to update the OMM data. _However_ baking from mip level 0 only is recommended in the general
+// case for best performance the integration guide contains more in depth discussion on the topic
 typedef struct ommCpuTextureMipDesc
 {
    uint32_t    width;
@@ -315,31 +312,34 @@ typedef struct ommCpuBakeInputDesc
    ommIndexFormat           indexFormat;
    const void*              indexBuffer;
    uint32_t                 indexCount;
-   // Configure the target resolution when running dynamic subdivision level. <= 0: disabled. > 0: The
-   // subdivision level be chosen such that a single micro-triangle covers approximatley a
-   // dynamicSubdivisionScale * dynamicSubdivisionScale texel area.
+   // Configure the target resolution when running dynamic subdivision level.
+   // <= 0: disabled.
+   // > 0: The subdivision level be chosen such that a single micro-triangle covers approximatley a dynamicSubdivisionScale *
+   // dynamicSubdivisionScale texel area.
    float                    dynamicSubdivisionScale;
-   // Rejection threshold [0,1]. Unless OMMs achive a rate of at least rejectionThreshold known states
-   // OMMs will be discarded for the primitive. Use this to weed out "poor" OMMs.
+   // Rejection threshold [0,1]. Unless OMMs achive a rate of at least rejectionThreshold known states OMMs will be discarded
+   // for the primitive. Use this to weed out "poor" OMMs.
    float                    rejectionThreshold;
    // The alpha cutoff value. texture > alphaCutoff ? Opaque : Transparent
    float                    alphaCutoff;
    // The global Format. May be overriden by the per-triangle subdivision level setting.
    ommFormat                format;
-   // Use Formats to control format on a per triangle granularity. If Format is set to Format::INVALID the
-   // global setting will be used instead.
+   // Use Formats to control format on a per triangle granularity. If Format is set to Format::INVALID the global setting will
+   // be used instead.
    const ommFormat*         formats;
    // Determines how to promote mixed states
    ommUnknownStatePromotion unknownStatePromotion;
-   // Micro triangle count is 4^N, where N is the subdivision level. maxSubdivisionLevel level must be in
-   // range [0, 12]. When dynamicSubdivisionScale is enabled maxSubdivisionLevel is the max subdivision
-   // level allowed. When dynamicSubdivisionScale is disabled maxSubdivisionLevel is the subdivision level
-   // applied uniformly to all triangles.
+   // Micro triangle count is 4^N, where N is the subdivision level.
+   // maxSubdivisionLevel level must be in range [0, 12].
+   // When dynamicSubdivisionScale is enabled maxSubdivisionLevel is the max subdivision level allowed.
+   // When dynamicSubdivisionScale is disabled maxSubdivisionLevel is the subdivision level applied uniformly to all
+   // triangles.
    uint8_t                  maxSubdivisionLevel;
    ommBool                  enableSubdivisionLevelBuffer;
-   // [optional] Use subdivisionLevels to control subdivision on a per triangle granularity.  val:+14
-   // - reserved for future use. val:13      - use global value specified in 'subdivisionLevel. val:0-12
-   // - per triangle subdivision level'
+   // [optional] Use subdivisionLevels to control subdivision on a per triangle granularity.
+   // +14 - reserved for future use.
+   // 13 - use global value specified in 'subdivisionLevel.
+   // [0,12] - per triangle subdivision level'
    const uint8_t*           subdivisionLevels;
 } ommCpuBakeInputDesc;
 
@@ -395,16 +395,15 @@ typedef struct ommCpuBakeResultDesc
    uint32_t                               arrayDataSize;
    const ommCpuOpacityMicromapDesc*       descArray;
    uint32_t                               descArrayCount;
-   // The histogram of all omm data referenced by 'ommDescArray', can be used as 'pOMMUsageCounts' for the
-   // OMM build in D3D12
+   // The histogram of all omm data referenced by 'ommDescArray', can be used as 'pOMMUsageCounts' for the OMM build in D3D12
    const ommCpuOpacityMicromapUsageCount* descArrayHistogram;
    uint32_t                               descArrayHistogramCount;
    // Below is used for BLAS build input in DX/VK
    const void*                            indexBuffer;
    uint32_t                               indexCount;
    ommIndexFormat                         indexFormat;
-   // Same as ommDescArrayHistogram but usage count equals the number of references by ommIndexBuffer. Can
-   // be used as 'pOMMUsageCounts' for the BLAS OMM attachment in D3D12
+   // Same as ommDescArrayHistogram but usage count equals the number of references by ommIndexBuffer. Can be used as
+   // 'pOMMUsageCounts' for the BLAS OMM attachment in D3D12
    const ommCpuOpacityMicromapUsageCount* indexHistogram;
    uint32_t                               indexHistogramCount;
 } ommCpuBakeResultDesc;
@@ -436,24 +435,23 @@ typedef enum ommGpuResourceType
    ommGpuResourceType_IN_ALPHA_TEXTURE,
    ommGpuResourceType_IN_TEXCOORD_BUFFER,
    ommGpuResourceType_IN_INDEX_BUFFER,
-   // (Optional) R8, Values must be in range [-2, 12]. Positive values to enforce specific subdibision
-   // level for the primtive. -1 to use global subdivision level. -2 to use automatic subduvision level
-   // based on tunable texel-area heuristic
+   // (Optional) R8, Values must be in range [-2, 12].
+   // Positive values to enforce specific subdibision level for the primtive.
+   // -1 to use global subdivision level.
+   // -2 to use automatic subduvision level based on tunable texel-area heuristic
    ommGpuResourceType_IN_SUBDIVISION_LEVEL_BUFFER,
    // Used directly as argument for OMM build in DX/VK
    ommGpuResourceType_OUT_OMM_ARRAY_DATA,
    // Used directly as argument for OMM build in DX/VK
    ommGpuResourceType_OUT_OMM_DESC_ARRAY,
-   // Used directly as argument for OMM build in DX/VK. (Read back to CPU to query memory requirements
-   // during OMM Array build)
+   // Used directly as argument for OMM build in DX/VK. (Read back to CPU to query memory requirements during OMM Array build)
    ommGpuResourceType_OUT_OMM_DESC_ARRAY_HISTOGRAM,
    // Used directly as argument for OMM build in DX/VK
    ommGpuResourceType_OUT_OMM_INDEX_BUFFER,
-   // Used directly as argument for OMM build in DX/VK. (Read back to CPU to query memory requirements
-   // during OMM Blas build)
+   // Used directly as argument for OMM build in DX/VK. (Read back to CPU to query memory requirements during OMM Blas build)
    ommGpuResourceType_OUT_OMM_INDEX_HISTOGRAM,
-   // (Optional, enabled if EnablePostBuildInfo is set). Read back the PostBakeInfo struct containing the
-   // actual sizes of ARRAY_DATA and DESC_ARRAY.
+   // (Optional, enabled if EnablePostBuildInfo is set). Read back the PostBakeInfo struct containing the actual sizes of
+   // ARRAY_DATA and DESC_ARRAY.
    ommGpuResourceType_OUT_POST_BAKE_INFO,
    // Can be reused after baking
    ommGpuResourceType_TRANSIENT_POOL_BUFFER,
@@ -522,22 +520,23 @@ typedef enum ommGpuBakeFlags
 {
    ommGpuBakeFlags_None                         = 0,
 
-   // Baking will only be done using compute shaders and no gfx involvement (drawIndirect or graphics
-   // PSOs). (Beta) Will become default mode in the future. + Useful for async workloads + Less memory
-   // hungry + Faster baking on low texel ratio to micro-triangle ratio (=rasterizing small triangles) -
-   // May looses efficency when resampling large triangles (tail-effect). Potential mitigation is to batch
-   // multiple bake jobs. However this is generally not a big problem.
+   // Baking will only be done using compute shaders and no gfx involvement (drawIndirect or graphics PSOs). (Beta)
+   // Will become default mode in the future.
+   // + Useful for async workloads
+   // + Less memory hungry
+   // + Faster baking on low texel ratio to micro-triangle ratio (=rasterizing small triangles)
+   // - May looses efficency when resampling large triangles (tail-effect). Potential mitigation is to batch multiple bake
+   // jobs. However this is generally not a big problem.
    ommGpuBakeFlags_ComputeOnly                  = 1u << 0,
 
    // Baking will also output post build info. (OUT_POST_BUILD_INFO).
    ommGpuBakeFlags_EnablePostBuildInfo          = 1u << 1,
 
-   // Will disable the use of special indices in case the OMM-state is uniform. Only set this flag for
-   // debug purposes.
+   // Will disable the use of special indices in case the OMM-state is uniform. Only set this flag for debug purposes.
    ommGpuBakeFlags_DisableSpecialIndices        = 1u << 2,
 
-   // If texture coordinates are known to be unique tex cooord deduplication can be disabled to save
-   // processing time and free up scratch memory.
+   // If texture coordinates are known to be unique tex cooord deduplication can be disabled to save processing time and free
+   // up scratch memory.
    ommGpuBakeFlags_DisableTexCoordDeduplication = 1u << 3,
 
    // Force 32-bit indices in OUT_OMM_INDEX_BUFFER
@@ -582,22 +581,46 @@ typedef struct ommGpuComputePipelineDesc
    const char*                      shaderEntryPointName;
    const ommGpuDescriptorRangeDesc* descriptorRanges;
    uint32_t                         descriptorRangeNum;
-   // if "true" all constant buffers share same "ConstantBufferDesc" description. if "false" this pipeline
-   // doesn't have a constant buffer
+   // if "true" all constant buffers share same "ConstantBufferDesc" description. if "false" this pipeline doesn't have a
+   // constant buffer
    ommBool                          hasConstantData;
 } ommGpuComputePipelineDesc;
 
+typedef struct ommGpuGraphicsPipelineInputElementDesc
+{
+   const char*        semanticName;
+   ommGpuBufferFormat format;
+   uint32_t           inputSlot;
+   uint32_t           semanticIndex;
+   ommBool            isPerInstanced;
+} ommGpuGraphicsPipelineInputElementDesc;
 
-// The graphics pipeline desc structs defines dynamically only a subset of the available raster states,
-// what is not defined dynamically is defined in this header via documentation (or constexpr
-// variables). Keep in mind that the constexpr fields may change to become non-constexpr in future
-// releases, for this reason it's recommended to add static asserts in integration code to catch it if
-// it changes. Statically asserting on the GraphicsPipelineDesc::VERSION or individual options is
-// recommended. The purpose of doing this is to keep the integration code as minimal as possible, while
-// still keeping the door open for future extensions. For instance,
-// static_assert(GraphicsPipelineDesc::VERSION == 1, "Graphics pipeline state version changed, update
-// integration code"); or just specific settings; static_assert(GraphicsPipelineDesc::DepthTestEnable
-// == false, "Graphics pipeline state version changed, update integration code");
+inline ommGpuGraphicsPipelineInputElementDesc ommGpuGraphicsPipelineInputElementDescDefault()
+{
+   ommGpuGraphicsPipelineInputElementDesc v;
+   v.semanticName    = "POSITION";
+   v.format          = ommGpuBufferFormat_R32_UINT;
+   v.inputSlot       = 0;
+   v.semanticIndex   = 0;
+   v.isPerInstanced  = 0;
+   return v;
+}
+
+typedef enum ommGpuGraphicsPipelineDescVersion
+{
+   ommGpuGraphicsPipelineDescVersion_VERSION = 1,
+} ommGpuGraphicsPipelineDescVersion;
+
+// Config specification not declared in the GraphicsPipelineDesc is meant to be hard-coded and may only change in future
+// SDK versions.
+// When SDK updates the spec of GraphicsPipelineDesc GraphicsPipelineVersion::VERSION will be updated.
+// It's recommended to keep a static_assert(GraphicsPipelineVersion::VERSION == X) in the client integration layer to be
+// notified of changes.
+// Stenci state = disabled
+// BlendState = disabled
+// Primitive topology = triangle list
+// Input element = count 1, see GraphicsPipelineInputElementDesc
+// Fill mode = solid
 typedef struct ommGpuGraphicsPipelineDesc
 {
    ommGpuShaderBytecode             vertexShader;
@@ -614,8 +637,8 @@ typedef struct ommGpuGraphicsPipelineDesc
    uint32_t                         descriptorRangeNum;
    // if NumRenderTargets = 0 a null RTV is implied.
    uint32_t                         numRenderTargets;
-   // if "true" all constant buffers share same "ConstantBufferDesc" description. if "false" this pipeline
-   // doesn't have a constant buffer
+   // if "true" all constant buffers share same "ConstantBufferDesc" description. if "false" this pipeline doesn't have a
+   // constant buffer
    ommBool                          hasConstantData;
 } ommGpuGraphicsPipelineDesc;
 
@@ -654,8 +677,7 @@ typedef struct ommGpuViewport
 typedef struct ommGpuComputeDesc
 {
    const char*           name;
-   // concatenated resources for all "DescriptorRangeDesc" descriptions in DenoiserDesc::pipelines[
-   // pipelineIndex ]
+   // concatenated resources for all "DescriptorRangeDesc" descriptions in DenoiserDesc::pipelines[ pipelineIndex ]
    const ommGpuResource* resources;
    uint32_t              resourceNum;
    // "root constants" in DX12
@@ -669,8 +691,7 @@ typedef struct ommGpuComputeDesc
 typedef struct ommGpuComputeIndirectDesc
 {
    const char*           name;
-   // concatenated resources for all "DescriptorRangeDesc" descriptions in DenoiserDesc::pipelines[
-   // pipelineIndex ]
+   // concatenated resources for all "DescriptorRangeDesc" descriptions in DenoiserDesc::pipelines[ pipelineIndex ]
    const ommGpuResource* resources;
    uint32_t              resourceNum;
    // "root constants" in DX12
@@ -684,8 +705,7 @@ typedef struct ommGpuComputeIndirectDesc
 typedef struct ommGpuDrawIndexedIndirectDesc
 {
    const char*           name;
-   // concatenated resources for all "DescriptorRangeDesc" descriptions in DenoiserDesc::pipelines[
-   // pipelineIndex ]
+   // concatenated resources for all "DescriptorRangeDesc" descriptions in DenoiserDesc::pipelines[ pipelineIndex ]
    const ommGpuResource* resources;
    uint32_t              resourceNum;
    // "root constants" in DX12
@@ -749,8 +769,7 @@ inline ommGpuBakePipelineConfigDesc ommGpuBakePipelineConfigDescDefault()
 typedef struct ommGpuBakeDispatchConfigDesc
 {
    ommGpuBakeFlags           bakeFlags;
-   // RuntimeSamplerDesc describes the texture sampler that will be used in the runtime alpha test shader
-   // code.
+   // RuntimeSamplerDesc describes the texture sampler that will be used in the runtime alpha test shader code.
    ommSamplerDesc            runtimeSamplerDesc;
    ommAlphaMode              alphaMode;
    //  The texture dimensions of IN_ALPHA_TEXTURE
@@ -769,23 +788,21 @@ typedef struct ommGpuBakeDispatchConfigDesc
    uint32_t                  indexStrideInBytes;
    // The alpha cutoff value. texture > alphaCutoff ? Opaque : Transparent.
    float                     alphaCutoff;
-   // Configure the target resolution when running dynamic subdivision level. <= 0: disabled. > 0: The
-   // subdivision level be chosen such that a single micro-triangle covers approximatley a
-   // dynamicSubdivisionScale * dynamicSubdivisionScale texel area.
+   // Configure the target resolution when running dynamic subdivision level. <= 0: disabled. > 0: The subdivision level be
+   // chosen such that a single micro-triangle covers approximatley a dynamicSubdivisionScale * dynamicSubdivisionScale texel
+   // area.
    float                     dynamicSubdivisionScale;
    // The global Format. May be overriden by the per-triangle config.
    ommFormat                 globalFormat;
-   // Micro triangle count is 4^N, where N is the subdivision level. Subdivision level must be in range
-   // [0, MaxSubdivisionLevel]. The global subdivisionLevel. May be overriden by the per-triangle
-   // subdivision level setting. The subdivision level to allow in dynamic mode and value is used to
-   // allocate appropriate scratch memory.
+   // Micro triangle count is 4^N, where N is the subdivision level. Subdivision level must be in range [0,
+   // MaxSubdivisionLevel]. The global subdivisionLevel. May be overriden by the per-triangle subdivision level setting. The
+   // subdivision level to allow in dynamic mode and value is used to allocate appropriate scratch memory.
    uint8_t                   globalSubdivisionLevel;
    uint8_t                   maxSubdivisionLevel;
    uint8_t                   enableSubdivisionLevelBuffer;
    uint32_t                  maxOutOmmArraySizeInBytes;
-   // Target scratch memory budget, The SDK will try adjust the sum of the transient pool buffers to match
-   // this value. Higher budget more efficiently executes the baking operation. May return
-   // INSUFFICIENT_SCRATCH_MEMORY if set too low.
+   // Target scratch memory budget, The SDK will try adjust the sum of the transient pool buffers to match this value. Higher
+   // budget more efficiently executes the baking operation. May return INSUFFICIENT_SCRATCH_MEMORY if set too low.
    ommGpuScratchMemoryBudget maxScratchMemorySize;
 } ommGpuBakeDispatchConfigDesc;
 
@@ -833,11 +850,11 @@ typedef struct ommGpuPreBakeInfo
    // Format of outOmmIndexBuffer
    ommIndexFormat outOmmIndexBufferFormat;
    uint32_t       outOmmIndexCount;
-   // Min required size of OUT_OMM_ARRAY_DATA. GetPreBakeInfo returns most conservative estimation while
-   // less conservative number can be obtained via BakePrepass
+   // Min required size of OUT_OMM_ARRAY_DATA. GetPreBakeInfo returns most conservative estimation while less conservative
+   // number can be obtained via BakePrepass
    uint32_t       outOmmArraySizeInBytes;
-   // Min required size of OUT_OMM_DESC_ARRAY. GetPreBakeInfo returns most conservative estimation while
-   // less conservative number can be obtained via BakePrepass
+   // Min required size of OUT_OMM_DESC_ARRAY. GetPreBakeInfo returns most conservative estimation while less conservative
+   // number can be obtained via BakePrepass
    uint32_t       outOmmDescSizeInBytes;
    // Min required size of OUT_OMM_INDEX_BUFFER
    uint32_t       outOmmIndexBufferSizeInBytes;
@@ -868,9 +885,9 @@ typedef struct ommGpuBakeDispatchChain
    uint32_t                  globalCBufferDataSize;
 } ommGpuBakeDispatchChain;
 
-// Global immutable resources. These contain the static immutable resources being shared acroess all
-// bake calls.  Currently it's the specific IB and VB that represents a tesselated triangle arranged in
-// bird curve order, for different subdivision levels.
+// Global immutable resources. These contain the static immutable resources being shared acroess all bake calls.  Currently
+// it's the specific IB and VB that represents a tesselated triangle arranged in bird curve order, for different
+// subdivision levels.
 OMM_API ommResult ommGpuGetStaticResourceData(ommGpuResourceType resource, uint8_t* data, size_t* outByteSize);
 
 OMM_API ommResult ommGpuCreatePipeline(ommBaker baker, const ommGpuBakePipelineConfigDesc* pipelineCfg, ommGpuPipeline* outPipeline);
@@ -883,17 +900,16 @@ OMM_API ommResult ommGpuGetPipelineDesc(ommGpuPipeline pipeline, const ommGpuBak
 // Returns the scratch and output memory requirements of the baking operation.
 OMM_API ommResult ommGpuGetPreBakeInfo(ommGpuPipeline pipeline, const ommGpuBakeDispatchConfigDesc* config, ommGpuPreBakeInfo* outPreBuildInfo);
 
-// Returns the dispatch order to perform the baking operation. Once complete the OUT_OMM_* resources
-// will be written to and can be consumed by the application.
+// Returns the dispatch order to perform the baking operation. Once complete the OUT_OMM_* resources will be written to and
+// can be consumed by the application.
 OMM_API ommResult ommGpuBake(ommGpuPipeline pipeline, const ommGpuBakeDispatchConfigDesc* config, const ommGpuBakeDispatchChain** outDispatchDesc);
 
 typedef struct ommDebugSaveImagesDesc
 {
    const char* path;
    const char* filePostfix;
-   // The default behaviour is to dump the entire alpha texture with the OMM-triangle in it. Enabling
-   // detailedCutout will generate cropped version zoomed in on the OMM, and supersampled for detailed
-   // analysis
+   // The default behaviour is to dump the entire alpha texture with the OMM-triangle in it. Enabling detailedCutout will
+   // generate cropped version zoomed in on the OMM, and supersampled for detailed analysis
    ommBool     detailedCutout;
    // Only dump index 0.
    ommBool     dumpOnlyFirstOMM;

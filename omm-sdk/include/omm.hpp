@@ -179,8 +179,8 @@ namespace omm
          // Baker will use internal threads to run the baking process in parallel.
          EnableInternalThreads        = 1u << 0,
 
-         // Will disable the use of special indices in case the OMM-state is uniform, Only set this flag for debug purposes. Note:
-         // This is prevents promotion of fully known OMMs to use special indices, however for invalid & degenerate UV triangles
+         // Will disable the use of special indices in case the OMM-state is uniform, Only set this flag for debug purposes.
+         // Note: This prevents promotion of fully known OMMs to use special indices, however for invalid & degenerate UV triangles
          // special indices may still be set.
          DisableSpecialIndices        = 1u << 1,
 
@@ -190,10 +190,12 @@ namespace omm
          // Will disable reuse of OMMs and instead produce duplicates omm-array data. Generally only needed for debug purposes.
          DisableDuplicateDetection    = 1u << 3,
 
-         // This enables merging of "similar" OMMs where similarity is measured using hamming distance. UT and UO are considered
-         // identical. Pros: normally reduces resulting OMM size drastically, especially when there's overlapping UVs. Cons: The
-         // merging comes at the cost of coverage. The resulting OMM Arrays will have lower fraction of known states. For large
-         // working sets it can be quite CPU heavy to compute.
+         // This enables merging of "similar" OMMs where similarity is measured using hamming distance.
+         // UT and UO are considered identical.
+         // Pros: normally reduces resulting OMM size drastically, especially when there's overlapping UVs.
+         // Cons: The merging comes at the cost of coverage.
+         // The resulting OMM Arrays will have lower fraction of known states. For large working sets it can be quite CPU heavy to
+         // compute.
          EnableNearDuplicateDetection = 1u << 4,
 
          // Workload validation is a safety mechanism that will let the SDK reject workloads that become unreasonably large, which
@@ -235,9 +237,10 @@ namespace omm
          IndexFormat           indexFormat                   = IndexFormat::MAX_NUM;
          const void*           indexBuffer                   = nullptr;
          uint32_t              indexCount                    = 0;
-         // Configure the target resolution when running dynamic subdivision level. <= 0: disabled. > 0: The subdivision level be
-         // chosen such that a single micro-triangle covers approximatley a dynamicSubdivisionScale * dynamicSubdivisionScale texel
-         // area.
+         // Configure the target resolution when running dynamic subdivision level.
+         // <= 0: disabled.
+         // > 0: The subdivision level be chosen such that a single micro-triangle covers approximatley a dynamicSubdivisionScale *
+         // dynamicSubdivisionScale texel area.
          float                 dynamicSubdivisionScale       = 2;
          // Rejection threshold [0,1]. Unless OMMs achive a rate of at least rejectionThreshold known states OMMs will be discarded
          // for the primitive. Use this to weed out "poor" OMMs.
@@ -251,13 +254,17 @@ namespace omm
          const Format*         formats                       = nullptr;
          // Determines how to promote mixed states
          UnknownStatePromotion unknownStatePromotion         = UnknownStatePromotion::ForceOpaque;
-         // Micro triangle count is 4^N, where N is the subdivision level. maxSubdivisionLevel level must be in range [0, 12]. When
-         // dynamicSubdivisionScale is enabled maxSubdivisionLevel is the max subdivision level allowed. When
-         // dynamicSubdivisionScale is disabled maxSubdivisionLevel is the subdivision level applied uniformly to all triangles.
+         // Micro triangle count is 4^N, where N is the subdivision level.
+         // maxSubdivisionLevel level must be in range [0, 12].
+         // When dynamicSubdivisionScale is enabled maxSubdivisionLevel is the max subdivision level allowed.
+         // When dynamicSubdivisionScale is disabled maxSubdivisionLevel is the subdivision level applied uniformly to all
+         // triangles.
          uint8_t               maxSubdivisionLevel           = 8;
          bool                  enableSubdivisionLevelBuffer  = false;
-         // [optional] Use subdivisionLevels to control subdivision on a per triangle granularity.  val:+14     - reserved for
-         // future use. val:13      - use global value specified in 'subdivisionLevel. val:0-12    - per triangle subdivision level'
+         // [optional] Use subdivisionLevels to control subdivision on a per triangle granularity.
+         // +14 - reserved for future use.
+         // 13 - use global value specified in 'subdivisionLevel.
+         // [0,12] - per triangle subdivision level'
          const uint8_t*        subdivisionLevels             = nullptr;
       };
 
@@ -333,8 +340,10 @@ namespace omm
          IN_ALPHA_TEXTURE,
          IN_TEXCOORD_BUFFER,
          IN_INDEX_BUFFER,
-         // (Optional) R8, Values must be in range [-2, 12]. Positive values to enforce specific subdibision level for the primtive.
-         // -1 to use global subdivision level. -2 to use automatic subduvision level based on tunable texel-area heuristic
+         // (Optional) R8, Values must be in range [-2, 12].
+         // Positive values to enforce specific subdibision level for the primtive.
+         // -1 to use global subdivision level.
+         // -2 to use automatic subduvision level based on tunable texel-area heuristic
          IN_SUBDIVISION_LEVEL_BUFFER,
          // Used directly as argument for OMM build in DX/VK
          OUT_OMM_ARRAY_DATA,
@@ -416,10 +425,13 @@ namespace omm
       {
          None                         = 0,
 
-         // Baking will only be done using compute shaders and no gfx involvement (drawIndirect or graphics PSOs). (Beta) Will
-         // become default mode in the future. + Useful for async workloads + Less memory hungry + Faster baking on low texel ratio
-         // to micro-triangle ratio (=rasterizing small triangles) - May looses efficency when resampling large triangles (tail-
-         // effect). Potential mitigation is to batch multiple bake jobs. However this is generally not a big problem.
+         // Baking will only be done using compute shaders and no gfx involvement (drawIndirect or graphics PSOs). (Beta)
+         // Will become default mode in the future.
+         // + Useful for async workloads
+         // + Less memory hungry
+         // + Faster baking on low texel ratio to micro-triangle ratio (=rasterizing small triangles)
+         // - May looses efficency when resampling large triangles (tail-effect). Potential mitigation is to batch multiple bake
+         // jobs. However this is generally not a big problem.
          ComputeOnly                  = 1u << 0,
 
          // Baking will also output post build info. (OUT_POST_BUILD_INFO).
@@ -491,12 +503,26 @@ namespace omm
       // The graphics pipeline desc structs defines dynamically only a subset of the available raster states, what is not defined
       // dynamically is defined in this header via documentation (or constexpr variables). Keep in mind that the constexpr fields
       // may change to become non-constexpr in future releases, for this reason it's recommended to add static asserts in
-      // integration code to catch it if it changes. Statically asserting on the GraphicsPipelineDesc::VERSION or individual
-      // options is recommended. The purpose of doing this is to keep the integration code as minimal as possible, while still
-      // keeping the door open for future extensions. For instance, static_assert(GraphicsPipelineDesc::VERSION == 1, "Graphics
-      // pipeline state version changed, update integration code"); or just specific settings;
-      // static_assert(GraphicsPipelineDesc::DepthTestEnable == false, "Graphics pipeline state version changed, update
-      // integration code");
+      // integration code to catch it if it changes.
+      // Statically asserting on the GraphicsPipelineVersion::VERSION. The purpose of doing this is to keep the integration code
+      // as minimal as possible, while still keeping the door open for future extensions. For instance,
+      // static_assert(GraphicsPipelineVersion::VERSION == 1, "Graphics pipeline state version changed, update integration
+      // code");
+      enum class GraphicsPipelineDescVersion
+      {
+         VERSION = 1,
+      };
+
+      // Config specification not declared in the GraphicsPipelineDesc is meant to be hard-coded and may only change in future
+      // SDK versions.
+      // When SDK updates the spec of GraphicsPipelineDesc GraphicsPipelineVersion::VERSION will be updated.
+      // It's recommended to keep a static_assert(GraphicsPipelineVersion::VERSION == X) in the client integration layer to be
+      // notified of changes.
+      // Stenci state = disabled
+      // BlendState = disabled
+      // Primitive topology = triangle list
+      // Input element = count 1, see GraphicsPipelineInputElementDesc
+      // Fill mode = solid
       struct GraphicsPipelineDesc
       {
          ShaderBytecode             vertexShader;

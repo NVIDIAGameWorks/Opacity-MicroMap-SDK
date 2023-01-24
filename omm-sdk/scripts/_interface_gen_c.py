@@ -9,14 +9,13 @@ def GetWhitespace(indent):
         s = s + "   "
     return s
 
-def GetComment(inComment, ind):
-    ws = GetWhitespace(ind)
-    comment = textwrap.fill(inComment, 100)
-    comment = textwrap.indent(comment, ws + "// ")
-    return comment
-
 def WriteComment(inComment, ind):
-    print(GetComment(inComment, ind))
+    ws = GetWhitespace(ind)
+    comment = ""
+    for manualLine in inComment.splitlines():
+        autoLine = textwrap.fill(manualLine, 120)
+        for line in autoLine.splitlines():
+            print(ws + "// " + line)
 
 def GetNameWithPrefix(prefixLut, key, name):
     if prefixLut.get(key):

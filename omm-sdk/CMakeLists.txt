@@ -9,6 +9,7 @@ option(OMM_CROSSCOMPILE_AARCH64 "cross compilation for aarch64" OFF)
 option(OMM_CROSSCOMPILE_X86_64 "cross compilation for x86_64" OFF)
 option(OMM_SHADER_DEBUG_INFO "enable embedded shader debug info" OFF)
 option(OMM_INSTALL "Generate install rules for OMM" ON)
+option(OMM_ENABLE_INTEFACE_GEN "Enable interface generation script. Only required for SDK development." ON)
 
 if (OMM_ENABLE_OPENMP)
 find_package(OpenMP)
@@ -114,31 +115,33 @@ if (OMM_ENABLE_PRECOMPILED_SHADERS)
     add_dependencies(${TARGET_NAME} Shaders)
 endif()
 
-find_package(Python COMPONENTS Interpreter)
+if (OMM_ENABLE_INTEFACE_GEN)
+    find_package(Python COMPONENTS Interpreter)
 
-if (Python_Interpreter_FOUND)
+    if (Python_Interpreter_FOUND)
 
-    add_custom_target(
-     GenInterfaceH ALL
-     COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/_interface_gen_c.py ${CMAKE_CURRENT_SOURCE_DIR}
-     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/scripts/omm.json
-     COMMENT "Generating Interface H"
-    )
+        add_custom_target(
+         GenInterfaceH ALL
+         COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/_interface_gen_c.py ${CMAKE_CURRENT_SOURCE_DIR}
+         DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/scripts/omm.json
+         COMMENT "Generating Interface H"
+        )
 
-    add_custom_target(
-     GenInterfaceHPP ALL
-     COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/_interface_gen_cpp.py ${CMAKE_CURRENT_SOURCE_DIR}
-     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/scripts/omm.json
-     COMMENT "Generating Interface HPP"
-    )
+        add_custom_target(
+         GenInterfaceHPP ALL
+         COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/_interface_gen_cpp.py ${CMAKE_CURRENT_SOURCE_DIR}
+         DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/scripts/omm.json
+         COMMENT "Generating Interface HPP"
+        )
     
-    set_property(TARGET GenInterfaceH PROPERTY FOLDER "${OMM_PROJECT_FOLDER}/CustomScripts") 
-    set_property(TARGET GenInterfaceHPP PROPERTY FOLDER "${OMM_PROJECT_FOLDER}/CustomScripts") 
+        set_property(TARGET GenInterfaceH PROPERTY FOLDER "${OMM_PROJECT_FOLDER}/CustomScripts") 
+        set_property(TARGET GenInterfaceHPP PROPERTY FOLDER "${OMM_PROJECT_FOLDER}/CustomScripts") 
 
-    add_dependencies(${TARGET_NAME} GenInterfaceH GenInterfaceHPP)
+        add_dependencies(${TARGET_NAME} GenInterfaceH GenInterfaceHPP)
 
-else()
-    message(WARNING "Python not found. Interface generator will be disabled.")
+    else()
+        message(WARNING "Python not found. Interface generator will be disabled.")
+    endif()
 endif()
 
 if (OMM_ENABLE_PRECOMPILED_SHADERS)
