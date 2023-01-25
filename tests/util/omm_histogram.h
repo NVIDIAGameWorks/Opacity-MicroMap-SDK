@@ -10,7 +10,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 #pragma once
 #include <gtest/gtest.h>
-#include <omm.h>
+#include <omm.hpp>
 
 namespace omm
 {

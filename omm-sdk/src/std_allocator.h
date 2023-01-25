@@ -17,17 +17,17 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #if _WIN32
 #include <malloc.h>
 
-inline void* AlignedMalloc(void* userArg, size_t size, size_t alignment)
+inline void* AlignedMalloc(void* UserArg, size_t size, size_t alignment)
 {
     return _aligned_malloc(size, alignment);
 }
 
-inline void* AlignedRealloc(void* userArg, void* memory, size_t size, size_t alignment)
+inline void* AlignedRealloc(void* UserArg, void* memory, size_t size, size_t alignment)
 {
     return _aligned_realloc(memory, size, alignment);
 }
 
-inline void AlignedFree(void* userArg, void* memory)
+inline void AlignedFree(void* UserArg, void* memory)
 {
     _aligned_free(memory);
 }
@@ -42,7 +42,7 @@ inline uint8_t* AlignMemory(uint8_t* memory, size_t alignment)
     return (uint8_t*)((size_t(memory) + alignment - 1) & ~(alignment - 1));
 }
 
-inline void* AlignedMalloc(void* userArg, size_t size, size_t alignment)
+inline void* AlignedMalloc(void* UserArg, size_t size, size_t alignment)
 {
     uint8_t* memory = (uint8_t*)malloc(size + sizeof(uint8_t*) + alignment - 1);
 
@@ -56,10 +56,10 @@ inline void* AlignedMalloc(void* userArg, size_t size, size_t alignment)
     return alignedMemory;
 }
 
-inline void* AlignedRealloc(void* userArg, void* memory, size_t size, size_t alignment)
+inline void* AlignedRealloc(void* UserArg, void* memory, size_t size, size_t alignment)
 {
     if (memory == nullptr)
-        return AlignedMalloc(userArg, size, alignment);
+        return AlignedMalloc(UserArg, size, alignment);
 
     uint8_t** memoryHeader = (uint8_t**)memory - 1;
     uint8_t* oldMemory = *memoryHeader;
@@ -78,7 +78,7 @@ inline void* AlignedRealloc(void* userArg, void* memory, size_t size, size_t ali
     return alignedMemory;
 }
 
-inline void AlignedFree(void* userArg, void* memory)
+inline void AlignedFree(void* UserArg, void* memory)
 {
     if (memory == nullptr)
         return;
@@ -95,14 +95,14 @@ struct StdMemoryAllocatorInterface
     void* (*Allocate)(void* userArg, size_t size, size_t alignment) = nullptr;
     void* (*Reallocate)(void* userArg, void* memory, size_t size, size_t alignment) = nullptr;
     void (*Free)(void* userArg, void* memory) = nullptr;
-    void* userArg = nullptr;
+    void* UserArg = nullptr;
 
     bool operator==(const StdMemoryAllocatorInterface& o) const {
         return 
             Allocate == o.Allocate &&
             Reallocate == o.Reallocate &&
             Free == o.Free &&
-            userArg == o.userArg;
+            UserArg == o.UserArg;
     }
 };
 
@@ -141,14 +141,14 @@ struct StdAllocator
 
     T* allocate(size_t n, size_t align = alignof(T)) noexcept
     {
-        return (T*)m_Interface.Allocate(m_Interface.userArg, n * sizeof(T), align);
+        return (T*)m_Interface.Allocate(m_Interface.UserArg, n * sizeof(T), align);
     }
 
     void deallocate(T* memory, size_t) noexcept
-    { m_Interface.Free(m_Interface.userArg, memory); }
+    { m_Interface.Free(m_Interface.UserArg, memory); }
 
     T* reallocate(T* memory, size_t n, size_t align = alignof(T)) noexcept
-    { return (T*)m_Interface.Reallocate(m_Interface.userArg, memory, n * sizeof(T), align); }
+    { return (T*)m_Interface.Reallocate(m_Interface.UserArg, memory, n * sizeof(T), align); }
 
     const StdMemoryAllocatorInterface& GetInterface() const
     { return m_Interface; }
@@ -219,7 +219,7 @@ template<typename T, typename... Args>
 inline T* Allocate(StdAllocator<uint8_t>& allocator, Args&&... args)
 {
     const auto& lowLevelAllocator = allocator.GetInterface();
-    T* object = (T*)lowLevelAllocator.Allocate(lowLevelAllocator.userArg, sizeof(T), alignof(T));
+    T* object = (T*)lowLevelAllocator.Allocate(lowLevelAllocator.UserArg, sizeof(T), alignof(T));
 
     new (object) T(std::forward<Args>(args)...);
     return object;
@@ -229,7 +229,7 @@ template<typename T, typename... Args>
 inline T* AllocateArray(StdAllocator<uint8_t>& allocator, size_t arraySize, Args&&... args)
 {
     const auto& lowLevelAllocator = allocator.GetInterface();
-    T* array = (T*)lowLevelAllocator.Allocate(lowLevelAllocator.userArg, arraySize * sizeof(T), alignof(T));
+    T* array = (T*)lowLevelAllocator.Allocate(lowLevelAllocator.UserArg, arraySize * sizeof(T), alignof(T));
 
     for (size_t i = 0; i < arraySize; i++)
         new (array + i) T(std::forward<Args>(args)...);
@@ -246,7 +246,7 @@ inline void Deallocate(StdAllocator<uint8_t>& allocator, T* object)
     object->~T();
 
     const auto& lowLevelAllocator = allocator.GetInterface();
-    lowLevelAllocator.Free(lowLevelAllocator.userArg, object);
+    lowLevelAllocator.Free(lowLevelAllocator.UserArg, object);
 }
 
 template<typename T>
@@ -259,7 +259,7 @@ inline void DeallocateArray(StdAllocator<uint8_t>& allocator, T* array, size_t a
         (array + i)->~T();
 
     const auto& lowLevelAllocator = allocator.GetInterface();
-    lowLevelAllocator.Free(lowLevelAllocator.userArg, array);
+    lowLevelAllocator.Free(lowLevelAllocator.UserArg, array);
 }
 
 //==============================================================================================================================

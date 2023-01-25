@@ -165,11 +165,11 @@ void GpuBakeNvrhi::InitStaticBuffers(nvrhi::CommandListHandle commandList)
 {
 	{
 		size_t size = 0;
-		omm::Result res = omm::Gpu::GetStaticResourceData(omm::Gpu::ResourceType::STATIC_VERTEX_BUFFER, nullptr, size);
+		omm::Result res = omm::Gpu::GetStaticResourceData(omm::Gpu::ResourceType::STATIC_VERTEX_BUFFER, nullptr, &size);
 		assert(res == omm::Result::SUCCESS);
 
 		std::vector<uint8_t> vertexData(size);
-		res = omm::Gpu::GetStaticResourceData(omm::Gpu::ResourceType::STATIC_VERTEX_BUFFER, vertexData.data(), size);
+		res = omm::Gpu::GetStaticResourceData(omm::Gpu::ResourceType::STATIC_VERTEX_BUFFER, vertexData.data(), &size);
 		assert(res == omm::Result::SUCCESS);
 
 		nvrhi::BufferDesc bufferDesc;
@@ -186,11 +186,11 @@ void GpuBakeNvrhi::InitStaticBuffers(nvrhi::CommandListHandle commandList)
 
 	{
 		size_t size = 0;
-		omm::Result res = omm::Gpu::GetStaticResourceData(omm::Gpu::ResourceType::STATIC_INDEX_BUFFER, nullptr, size);
+		omm::Result res = omm::Gpu::GetStaticResourceData(omm::Gpu::ResourceType::STATIC_INDEX_BUFFER, nullptr, &size);
 		assert(res == omm::Result::SUCCESS);
 
 		std::vector<uint8_t> indexData(size);
-		res = omm::Gpu::GetStaticResourceData(omm::Gpu::ResourceType::STATIC_INDEX_BUFFER, indexData.data(), size);
+		res = omm::Gpu::GetStaticResourceData(omm::Gpu::ResourceType::STATIC_INDEX_BUFFER, indexData.data(), &size);
 		assert(res == omm::Result::SUCCESS);
 
 		nvrhi::BufferDesc bufferDesc;
@@ -251,7 +251,7 @@ void GpuBakeNvrhi::InitBaker(ShaderProviderCb* shaderProviderCb)
 		desc.type = omm::BakerType::GPU;
 		desc.enableValidation = true;
 
-		omm::Result res = omm::CreateOpacityMicromapBaker(desc, &m_baker);
+		omm::Result res = omm::CreateBaker(desc, &m_baker);
 		assert(res == omm::Result::SUCCESS);
 	}
 
@@ -260,7 +260,7 @@ void GpuBakeNvrhi::InitBaker(ShaderProviderCb* shaderProviderCb)
 		desc.type = omm::BakerType::CPU;
 		desc.enableValidation = true;
 
-		omm::Result res = omm::CreateOpacityMicromapBaker(desc, &m_cpuBaker);
+		omm::Result res = omm::CreateBaker(desc, &m_cpuBaker);
 		assert(res == omm::Result::SUCCESS);
 	}
 
@@ -272,7 +272,7 @@ void GpuBakeNvrhi::InitBaker(ShaderProviderCb* shaderProviderCb)
 		assert(res == omm::Result::SUCCESS);
 
 		const omm::Gpu::BakePipelineInfoDesc* desc;
-		res = omm::Gpu::GetPipelineDesc(m_pipeline, desc);
+		res = omm::Gpu::GetPipelineDesc(m_pipeline, &desc);
 		assert(res == omm::Result::SUCCESS);
 
 		SetupPipelines(desc, shaderProviderCb);
@@ -288,10 +288,10 @@ void GpuBakeNvrhi::DestroyBaker()
 	omm::Result res = omm::Gpu::DestroyPipeline(m_baker, m_pipeline);
 	assert(res == omm::Result::SUCCESS);
 
-	res = omm::DestroyOpacityMicromapBaker(m_baker);
+	res = omm::DestroyBaker(m_baker);
 	assert(res == omm::Result::SUCCESS);
 
-	res = omm::DestroyOpacityMicromapBaker(m_cpuBaker);
+	res = omm::DestroyBaker(m_cpuBaker);
 	assert(res == omm::Result::SUCCESS);
 }
 
@@ -407,7 +407,7 @@ void GpuBakeNvrhi::SetupPipelines(
 		case omm::Gpu::PipelineType::Graphics:
 		{
 			const omm::Gpu::GraphicsPipelineDesc& gfx = pipeline.graphics;
-			static_assert(omm::Gpu::GraphicsPipelineDesc::VERSION == 1, "New GFX pipeline version detected, update integration code.");
+			static_assert((uint32_t)omm::Gpu::GraphicsPipelineDescVersion::VERSION == 2, "New GFX pipeline version detected, update integration code.");
 
 			nvrhi::ShaderHandle vertex;
 			if (shaderProviderCb)
@@ -458,27 +458,20 @@ void GpuBakeNvrhi::SetupPipelines(
 			nvrhi::InputLayoutHandle inputLayout;
 			{
 				nvrhi::VertexAttributeDesc desc;
-				desc.name = omm::Gpu::GraphicsPipelineDesc::InputElementDesc::semanticName;
+				desc.name = omm::Gpu::GraphicsPipelineInputElementDesc::semanticName;
 				desc.format = nvrhi::Format::R32_UINT;
 				desc.elementStride = sizeof(uint32_t);
-				static_assert(omm::Gpu::GraphicsPipelineDesc::InputElementDesc::format == omm::Gpu::BufferFormat::R32_UINT);
+				static_assert(omm::Gpu::GraphicsPipelineInputElementDesc::format == omm::Gpu::BufferFormat::R32_UINT);
 				desc.arraySize = 1;
-				static_assert(omm::Gpu::GraphicsPipelineDesc::inputElementDescCount == 1);
 				desc.bufferIndex = 0;
-				static_assert(omm::Gpu::GraphicsPipelineDesc::InputElementDesc::inputSlot == 0);
+				static_assert(omm::Gpu::GraphicsPipelineInputElementDesc::inputSlot == 0);
 				desc.offset = 0;
-				static_assert(omm::Gpu::GraphicsPipelineDesc::InputElementDesc::semanticIndex == 0);
+				static_assert(omm::Gpu::GraphicsPipelineInputElementDesc::semanticIndex == 0);
 				inputLayout = m_device->createInputLayout(&desc, 1 /*attributeCount*/, vertex);
 			}
 
 			nvrhi::GraphicsPipelineHandle pipeline;
 			{
-				static_assert(omm::Gpu::GraphicsPipelineDesc::RasterState::cullMode == omm::Gpu::RasterCullMode::None);
-				static_assert(omm::Gpu::GraphicsPipelineDesc::topology == omm::Gpu::PrimitiveTopology::TriangleList);
-				static_assert(omm::Gpu::GraphicsPipelineDesc::DepthState::depthTestEnable == false);
-				static_assert(omm::Gpu::GraphicsPipelineDesc::DepthState::depthWriteEnable == false);
-				static_assert(omm::Gpu::GraphicsPipelineDesc::DepthState::stencilEnable == false);
-
 				nvrhi::GraphicsPipelineDesc gfxDesc;
 				gfxDesc.primType = nvrhi::PrimitiveType::TriangleList;
 				gfxDesc.renderState.depthStencilState.disableDepthTest();
@@ -489,7 +482,7 @@ void GpuBakeNvrhi::SetupPipelines(
 				gfxDesc.PS = pixel;
 				gfxDesc.bindingLayouts = { layout };
 				gfxDesc.inputLayout = inputLayout;
-				gfxDesc.renderState.rasterState.conservativeRasterEnable = gfx.rasterState.conservativeRasterization;
+				gfxDesc.renderState.rasterState.conservativeRasterEnable = gfx.conservativeRasterization;
 				gfxDesc.renderState.rasterState.cullMode = nvrhi::RasterCullMode::None;
 				gfxDesc.renderState.rasterState.frontCounterClockwise = true;
 				gfxDesc.renderState.rasterState.enableScissor(); // <- This is to prevent the framebuffer from implicitly setting the scissor rect...
@@ -540,10 +533,8 @@ omm::Gpu::BakeDispatchConfigDesc GpuBakeNvrhi::GetConfig(const Input& params)
 	config.texCoordStrideInBytes				= params.texCoordStrideInBytes;
 	config.indexFormat							= IndexFormat::I32_UINT;
 	config.indexCount							= (uint32_t)params.numIndices;
-	config.globalOMMFormat						= params.use2State ? OMMFormat::OC1_2_State : OMMFormat::OC1_4_State;
-	config.supportedOMMFormats[0]				= params.use2State ? OMMFormat::OC1_2_State : OMMFormat::OC1_4_State;
-	config.numSupportedOMMFormats				= 1;
-	config.maxScratchMemorySize					= params.minimalMemoryMode ? Gpu::ScratchMemoryBudget::MB_4 : Gpu::ScratchMemoryBudget::HighMemory;
+	config.globalFormat							= params.use2State ? Format::OC1_2_State : Format::OC1_4_State;
+	config.maxScratchMemorySize					= params.minimalMemoryMode ? Gpu::ScratchMemoryBudget::MB_4 : Gpu::ScratchMemoryBudget::MB_256;
 	config.maxSubdivisionLevel					= params.globalSubdivisionLevel;
 	config.globalSubdivisionLevel				= params.globalSubdivisionLevel;
 	config.dynamicSubdivisionScale				= params.dynamicSubdivisionScale;
@@ -611,7 +602,7 @@ void GpuBakeNvrhi::RunBake(
 	ReserveScratchBuffers(preBuildInfo);
 
 	const omm::Gpu::BakeDispatchChain* dispatchDesc = nullptr;
-	res = Gpu::Bake(m_pipeline, config, dispatchDesc);
+	res = Gpu::Bake(m_pipeline, config, &dispatchDesc);
 	assert(res == omm::Result::SUCCESS);
 
 	ExecuteBakeOperation(commandList, params, result, dispatchDesc);
@@ -799,7 +790,7 @@ void GpuBakeNvrhi::ExecuteBakeOperation(
 	};
 
 	const omm::Gpu::BakePipelineInfoDesc* pipelineDesc;
-	omm::Result res = omm::Gpu::GetPipelineDesc(m_pipeline, pipelineDesc);
+	omm::Result res = omm::Gpu::GetPipelineDesc(m_pipeline, &pipelineDesc);
 	assert(res == omm::Result::SUCCESS);
 
 	assert(m_globalCBuffer && m_globalCBuffer->getDesc().byteSize >= pipelineDesc->globalConstantBufferDesc.maxDataSize);
@@ -988,16 +979,16 @@ void GpuBakeNvrhi::DumpDebug(
 	const omm::IndexFormat ommIndexBufferFormat = indexBufferFormat == nvrhi::Format::R32_UINT ? omm::IndexFormat::I32_UINT : omm::IndexFormat::I16_UINT;
 
 	omm::Cpu::BakeResultDesc result;
-	result.ommArrayData = ommArrayBuffer.data();
-	result.ommArrayDataSize = (uint32_t)ommArrayBuffer.size();
-	result.ommDescArray = (const omm::Cpu::OpacityMicromapDesc*)ommDescBuffer.data();
-	result.ommDescArrayCount = (uint32_t)(ommDescBuffer.size() / sizeof(omm::Cpu::OpacityMicromapDesc));
-	result.ommIndexBuffer = ommIndexBuffer.data();
-	result.ommIndexFormat = ommIndexBufferFormat;
-	result.ommDescArrayHistogramCount = (uint32_t)(ommDescArrayHistogramBuffer.size() / sizeof(omm::Cpu::OpacityMicromapUsageCount));
-	result.ommDescArrayHistogram = (const omm::Cpu::OpacityMicromapUsageCount*)ommDescArrayHistogramBuffer.data();
-	result.ommIndexHistogramCount = (uint32_t)(ommIndexHistogramBuffer.size() / sizeof(omm::Cpu::OpacityMicromapUsageCount));
-	result.ommIndexHistogram = (const omm::Cpu::OpacityMicromapUsageCount*)ommIndexHistogramBuffer.data();
+	result.arrayData = ommArrayBuffer.data();
+	result.arrayDataSize = (uint32_t)ommArrayBuffer.size();
+	result.descArray = (const omm::Cpu::OpacityMicromapDesc*)ommDescBuffer.data();
+	result.descArrayCount = (uint32_t)(ommDescBuffer.size() / sizeof(omm::Cpu::OpacityMicromapDesc));
+	result.indexBuffer = ommIndexBuffer.data();
+	result.indexFormat = ommIndexBufferFormat;
+	result.descArrayHistogramCount = (uint32_t)(ommDescArrayHistogramBuffer.size() / sizeof(omm::Cpu::OpacityMicromapUsageCount));
+	result.descArrayHistogram = (const omm::Cpu::OpacityMicromapUsageCount*)ommDescArrayHistogramBuffer.data();
+	result.indexHistogramCount = (uint32_t)(ommIndexHistogramBuffer.size() / sizeof(omm::Cpu::OpacityMicromapUsageCount));
+	result.indexHistogram = (const omm::Cpu::OpacityMicromapUsageCount*)ommIndexHistogramBuffer.data();
 
 	omm::Cpu::TextureMipDesc mip;
 	mip.width = width;

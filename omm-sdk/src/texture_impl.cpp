@@ -34,37 +34,37 @@ namespace omm
         Deallocate();
     }
 
-    Result TextureImpl::Validate(const Cpu::TextureDesc& desc) {
+    ommResult TextureImpl::Validate(const ommCpuTextureDesc& desc) {
         if (desc.mipCount == 0)
-            return Result::INVALID_ARGUMENT;
-        if (desc.format == Cpu::TextureFormat::MAX_NUM)
-            return Result::INVALID_ARGUMENT;
+            return ommResult_INVALID_ARGUMENT;
+        if (desc.format == ommCpuTextureFormat_MAX_NUM)
+            return ommResult_INVALID_ARGUMENT;
 
         for (uint32_t i = 0; i < desc.mipCount; ++i)
         {
             if (!desc.mips[i].textureData)
-                return Result::INVALID_ARGUMENT;
+                return ommResult_INVALID_ARGUMENT;
             if (desc.mips[i].width == 0)
-                return Result::INVALID_ARGUMENT;
+                return ommResult_INVALID_ARGUMENT;
             if (desc.mips[i].height == 0)
-                return Result::INVALID_ARGUMENT;
+                return ommResult_INVALID_ARGUMENT;
             if (desc.mips[i].width > kMaxDim.x)
-                return Result::INVALID_ARGUMENT;
+                return ommResult_INVALID_ARGUMENT;
             if (desc.mips[i].height > kMaxDim.y)
-                return Result::INVALID_ARGUMENT;
+                return ommResult_INVALID_ARGUMENT;
         }
 
-        return Result::SUCCESS;
+        return ommResult_SUCCESS;
     }
 
-    Result TextureImpl::Create(const Cpu::TextureDesc& desc)
+    ommResult TextureImpl::Create(const ommCpuTextureDesc& desc)
     {
         RETURN_STATUS_IF_FAILED(Validate(desc));
 
         Deallocate();
 
         m_mips.resize(desc.mipCount);
-        m_tilingMode = !!((uint32_t)desc.flags & (uint32_t)Cpu::TextureFlags::DisableZOrder) ? TilingMode::Linear : TilingMode::MortonZ;
+        m_tilingMode = !!((uint32_t)desc.flags & (uint32_t)ommCpuTextureFlags_DisableZOrder) ? TilingMode::Linear : TilingMode::MortonZ;
 
         size_t totalSize = 0;
         for (uint32_t mipIt = 0; mipIt < desc.mipCount; ++mipIt)
@@ -74,7 +74,7 @@ namespace omm
             m_mips[mipIt].rcpSize = 1.f / (float2)m_mips[mipIt].size;
             m_mips[mipIt].dataOffset = totalSize;
 
-            if (desc.format == Cpu::TextureFormat::FP32)
+            if (desc.format == ommCpuTextureFormat_FP32)
             {
                 if (m_tilingMode == TilingMode::Linear)
                 {
@@ -88,13 +88,13 @@ namespace omm
                 else
                 {
                     OMM_ASSERT(false);
-                    return Result::INVALID_ARGUMENT;
+                    return ommResult_INVALID_ARGUMENT;
                 }
             }
             else
             {
                 OMM_ASSERT(false);
-                return Result::INVALID_ARGUMENT;
+                return ommResult_INVALID_ARGUMENT;
             }
 
             totalSize += sizeof(float) * m_mips[mipIt].numElements;
@@ -105,7 +105,7 @@ namespace omm
 
         for (uint32_t mipIt = 0; mipIt < desc.mipCount; ++mipIt)
         {
-            if (desc.format == Cpu::TextureFormat::FP32)
+            if (desc.format == ommCpuTextureFormat_FP32)
             {
                 if (m_tilingMode == TilingMode::Linear)
                 {
@@ -155,17 +155,17 @@ namespace omm
                 else
                 {
                     OMM_ASSERT(false);
-                    return Result::INVALID_ARGUMENT;
+                    return ommResult_INVALID_ARGUMENT;
                 }
             }
             else
             {
                 OMM_ASSERT(false);
-                return Result::INVALID_ARGUMENT;
+                return ommResult_INVALID_ARGUMENT;
             }
         }
 
-        return Result::SUCCESS;
+        return ommResult_SUCCESS;
     }
 
     void TextureImpl::Deallocate()
@@ -188,7 +188,7 @@ namespace omm
         return 0.f;
     }
 
-    float TextureImpl::Bilinear(omm::TextureAddressMode mode, const float2& p, int32_t mip) const 
+    float TextureImpl::Bilinear(ommTextureAddressMode mode, const float2& p, int32_t mip) const 
     {
         float2 pixel = p * (float2)(m_mips[mip].size)-0.5f;
         float2 pixelFloor = glm::floor(pixel);

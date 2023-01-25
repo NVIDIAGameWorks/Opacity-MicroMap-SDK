@@ -29,10 +29,10 @@ void ShaderBindings::BindSubResource(const SubResourceBinding& subresource) {
 
 void ShaderBindings::FinaliseBindings()
 {
-    Gpu::DescriptorRangeDesc textureRead        = { Gpu::DescriptorType::TextureRead,       0xFFFFFFFF, 0 };
-    Gpu::DescriptorRangeDesc bufferRead         = { Gpu::DescriptorType::BufferRead,        0xFFFFFFFF, 0 };
-    Gpu::DescriptorRangeDesc rawBufferRead      = { Gpu::DescriptorType::RawBufferRead,     0xFFFFFFFF, 0 };
-    Gpu::DescriptorRangeDesc rawBufferWrite     = { Gpu::DescriptorType::RawBufferWrite,    0xFFFFFFFF, 0 };
+    ommGpuDescriptorRangeDesc textureRead        = { ommGpuDescriptorType_TextureRead,       0xFFFFFFFF, 0 };
+    ommGpuDescriptorRangeDesc bufferRead         = { ommGpuDescriptorType_BufferRead,        0xFFFFFFFF, 0 };
+    ommGpuDescriptorRangeDesc rawBufferRead      = { ommGpuDescriptorType_RawBufferRead,     0xFFFFFFFF, 0 };
+    ommGpuDescriptorRangeDesc rawBufferWrite     = { ommGpuDescriptorType_RawBufferWrite,    0xFFFFFFFF, 0 };
 
     for (auto& [_, binding] : resources)
     {
@@ -117,7 +117,7 @@ bool  ShaderBindings::HasResourceBinding(uint32_t resourceNameHash) const
     return resources.end() != it;
 }
 
-const Gpu::DescriptorRangeDesc* ShaderBindings::GetRanges() const
+const ommGpuDescriptorRangeDesc* ShaderBindings::GetRanges() const
 {
     return ranges.data();
 }

@@ -24,7 +24,7 @@ namespace {
 	class BakeIndexing : public ::testing::Test {
 	protected:
 		void SetUp() override {
-			EXPECT_EQ(omm::CreateOpacityMicromapBaker({ .type = omm::BakerType::CPU }, &_baker), omm::Result::SUCCESS);
+			EXPECT_EQ(omm::CreateBaker({ .type = omm::BakerType::CPU }, &_baker), omm::Result::SUCCESS);
 		}
 
 		void TearDown() override {
@@ -32,7 +32,7 @@ namespace {
 				EXPECT_EQ(omm::Cpu::DestroyTexture(_baker, tex), omm::Result::SUCCESS);
 			}
 
-			EXPECT_EQ(omm::DestroyOpacityMicromapBaker(_baker), omm::Result::SUCCESS);
+			EXPECT_EQ(omm::DestroyBaker(_baker), omm::Result::SUCCESS);
 		}
 
 		omm::Cpu::Texture CreateTexture(const omm::Cpu::TextureDesc& desc) {
@@ -93,18 +93,18 @@ namespace {
 			desc.dynamicSubdivisionScale = 0.f;
 			omm::Cpu::BakeResult res = 0;
 
-			EXPECT_EQ(omm::Cpu::BakeOpacityMicromap(_baker, desc, &res), expectedResult);
+			EXPECT_EQ(omm::Cpu::Bake(_baker, desc, &res), expectedResult);
 			if (expectedResult != omm::Result::SUCCESS)
 				return;
 			EXPECT_NE(res, 0);
 
 			const omm::Cpu::BakeResultDesc* resDesc = nullptr;
-			EXPECT_EQ(omm::Cpu::GetBakeResultDesc(res, resDesc), omm::Result::SUCCESS);
+			EXPECT_EQ(omm::Cpu::GetBakeResultDesc(res, &resDesc), omm::Result::SUCCESS);
 			EXPECT_NE(resDesc, nullptr);
 
-			EXPECT_EQ(resDesc->ommIndexFormat, expectedOutput);
+			EXPECT_EQ(resDesc->indexFormat, expectedOutput);
 
-			EXPECT_EQ(resDesc->ommIndexCount, triangleCount);
+			EXPECT_EQ(resDesc->indexCount, triangleCount);
 
 			EXPECT_EQ(omm::Cpu::DestroyBakeResult(res), omm::Result::SUCCESS);
 

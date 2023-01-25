@@ -1,14 +1,14 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.12)
 
 option(OMM_ENABLE_BENCHMARK "Enable benchmark" ON)
 option(OMM_ENABLE_TESTS "Enable unit test" ON)
 
-file(READ "${CMAKE_CURRENT_SOURCE_DIR}/omm-sdk/include/omm.h" ver_h)
-string(REGEX MATCH "OMM_VERSION_MAJOR ([0-9]*)" _ ${ver_h})
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/omm-sdk/src/version.h" ver_h)
+string(REGEX MATCH "VERSION_MAJOR ([0-9]*)" _ ${ver_h})
 set(ver_major ${CMAKE_MATCH_1})
-string(REGEX MATCH "OMM_VERSION_MINOR ([0-9]*)" _ ${ver_h})
+string(REGEX MATCH "VERSION_MINOR ([0-9]*)" _ ${ver_h})
 set(ver_minor ${CMAKE_MATCH_1})
-string(REGEX MATCH "OMM_VERSION_BUILD ([0-9]*)" _ ${ver_h})
+string(REGEX MATCH "VERSION_BUILD ([0-9]*)" _ ${ver_h})
 set(ver_patch ${CMAKE_MATCH_1})
 
 project(omm-sdk VERSION ${ver_major}.${ver_minor}.${ver_patch} LANGUAGES CXX)

@@ -1,0 +1,45 @@
+/*
+Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
+
+NVIDIA CORPORATION and its licensors retain all intellectual property
+and proprietary rights in and to this software, related documentation
+and any modifications thereto. Any use, reproduction, disclosure or
+distribution of this software and related documentation without an express
+license agreement from NVIDIA CORPORATION is strictly prohibited.
+*/
+
+#ifndef INCLUDE_OMM_SDK_C
+#define INCLUDE_OMM_SDK_C
+
+#include <stdint.h>
+#include <stddef.h>
+
+#define OMM_VERSION_MAJOR 0
+#define OMM_VERSION_MINOR 9
+#define OMM_VERSION_BUILD 1
+
+#if defined(_MSC_VER)
+    #define OMM_CALL __fastcall
+#elif !defined(__aarch64__) && !defined(__x86_64) && (defined(__GNUC__)  || defined (__clang__))
+    #define OMM_CALL __attribute__((fastcall))
+#else
+    #define OMM_CALL 
+#endif
+
+#ifndef OMM_API 
+    #ifdef __cplusplus
+        #define OMM_API extern "C"
+    #else
+        #define OMM_API
+    #endif
+#endif
+
+#ifdef DEFINE_ENUM_FLAG_OPERATORS
+#define OMM_DEFINE_ENUM_FLAG_OPERATORS(x) DEFINE_ENUM_FLAG_OPERATORS(x)
+#else
+#define OMM_DEFINE_ENUM_FLAG_OPERATORS(x)
+#endif
+
+typedef void* (*ommAllocate)(void* userArg, size_t size, size_t alignment);
+typedef void* (*ommReallocate)(void* userArg, void* memory, size_t size, size_t alignment);
+typedef void (*ommFree)(void* userArg, void* memory);

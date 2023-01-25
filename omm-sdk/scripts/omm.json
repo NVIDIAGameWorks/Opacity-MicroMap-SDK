@@ -1,0 +1,2387 @@
+{
+    "Result": {
+        "type": "enum",
+        "name": "Result",
+        "underlying_type": "uint32_t",
+        "values": [
+            {
+                "name": "SUCCESS"
+            },
+            {
+                "name": "FAILURE"
+            },
+            {
+                "name": "INVALID_ARGUMENT"
+            },
+            {
+                "name": "INSUFFICIENT_SCRATCH_MEMORY"
+            },
+            {
+                "name": "NOT_IMPLEMENTED"
+            },
+            {
+                "name": "WORKLOAD_TOO_BIG"
+            },
+            {
+                "name": "MAX_NUM"
+            }
+        ]
+    },
+
+    "OpacityState": {
+        "type": "enum",
+        "name": "OpacityState",
+        "underlying_type": "int32_t",
+        "values": [
+            {
+                "name": "Transparent"
+            },
+            {
+                "name": "Opaque"
+            },
+            {
+                "name": "UnknownTransparent"
+            },
+            {
+                "name": "UnknownOpaque"
+            }
+        ]
+    },
+
+    "SpecialIndex": {
+        "type": "enum",
+        "name": "SpecialIndex",
+        "underlying_type": "int32_t",
+        "values": [
+            {
+                "name": "FullyTransparent",
+                "value": "-1"
+            },
+            {
+                "name": "FullyOpaque",
+                "value": "-2"
+            },
+            {
+                "name": "FullyUnknownTransparent",
+                "value": "-3"
+            },
+            {
+                "name": "FullyUnknownOpaque",
+                "value": "-4"
+            }
+        ]
+    },
+
+    "Format": {
+        "type": "enum",
+        "name": "Format",
+        "underlying_type": "uint16_t",
+        "values": [
+            {
+                "name": "INVALID"
+            },
+            {
+                "comment": "Value maps to DX/VK spec.",
+                "name": "OC1_2_State",
+                "value": "1"
+            },
+            {
+                "comment": "Value maps to DX/VK spec.",
+                "name": "OC1_4_State",
+                "value": "2"
+            },
+            {
+                "name": "MAX_NUM",
+                "value": "3"
+            }
+        ]
+    },
+
+    "UnknownStatePromotion": {
+        "type": "enum",
+        "name": "UnknownStatePromotion",
+        "underlying_type": "uint16_t",
+        "values": [
+            {
+                "comment": "Will either be UO or UT depending on the coverage. If the micro-triangle is \"mostly\" opaque it will be UO (4-state) or O (2-state). If the micro-triangle is \"mostly\" transparent it will be UT (4-state) or T (2-state)",
+                "name": "Nearest"
+            },
+            {
+                "comment": "All unknown states get promoted to O in 2-state mode, or UO in 4-state mode",
+                "name": "ForceOpaque"
+            },
+            {
+                "comment": "All unknown states get promoted to T in 2-state mode, or UT in 4-state mode",
+                "name": "ForceTransparent"
+            },
+            {
+                "name": "MAX_NUM"
+            }
+        ]
+    },
+
+    "BakerType": {
+        "type": "enum",
+        "name": "BakerType",
+        "underlying_type": "uint8_t",
+        "values": [
+            {
+                "name": "GPU"
+            },
+            {
+                "name": "CPU"
+            },
+            {
+                "name": "MAX_NUM"
+            }
+        ]
+    },
+
+    "TexCoordFormat": {
+        "type": "enum",
+        "name": "TexCoordFormat",
+        "underlying_type": "uint32_t",
+        "values": [
+            {
+                "name": "UV16_UNORM"
+            },
+            {
+                "name": "UV16_FLOAT"
+            },
+            {
+                "name": "UV32_FLOAT"
+            },
+            {
+                "name": "MAX_NUM"
+            }
+        ]
+    },
+
+    "IndexFormat": {
+        "type": "enum",
+        "name": "IndexFormat",
+        "underlying_type": "uint32_t",
+        "values": [
+            {
+                "name": "I16_UINT"
+            },
+            {
+                "name": "I32_UINT"
+            },
+            {
+                "name": "MAX_NUM"
+            }
+        ]
+    },
+
+    "TextureAddressMode": {
+        "type": "enum",
+        "name": "TextureAddressMode",
+        "underlying_type": "uint32_t",
+        "values": [
+            {
+                "name": "Wrap"
+            },
+            {
+                "name": "Mirror"
+            },
+            {
+                "name": "Clamp"
+            },
+            {
+                "name": "Border"
+            },
+            {
+                "name": "MirrorOnce"
+            },
+            {
+                "name": "MAX_NUM"
+            }
+        ]
+    },
+
+    "TextureFilterMode": {
+        "type": "enum",
+        "name": "TextureFilterMode",
+        "underlying_type": "uint32_t",
+        "values": [
+            {
+                "name": "Nearest"
+            },
+            {
+                "name": "Linear"
+            },
+            {
+                "name": "MAX_NUM"
+            }
+        ]
+    },
+
+    "AlphaMode": {
+        "type": "enum",
+        "name": "AlphaMode",
+        "underlying_type": "uint32_t",
+        "values": [
+            {
+                "name": "Test"
+            },
+            {
+                "name": "Blend"
+            },
+            {
+                "name": "MAX_NUM"
+            }
+        ]
+    },
+
+    "SamplerDesc": {
+        "type": "struct",
+        "name": "SamplerDesc",
+        "members": [
+            {
+                "type": "TextureAddressMode",
+                "name": "addressingMode",
+                "value": {
+                    "type": "TextureAddressMode",
+                    "value": "MAX_NUM"
+                }
+            },
+            {
+                "type": "TextureFilterMode",
+                "name": "filter",
+                "value": {
+                    "type": "TextureFilterMode",
+                    "value": "MAX_NUM"
+                }
+            },
+            {
+                "type": "float",
+                "name": "borderAlpha",
+                "value": "0"
+            }
+        ]
+    },
+
+    "MemoryAllocatorInterface": {
+        "type": "struct",
+        "name": "MemoryAllocatorInterface",
+        "members": [
+            {
+                "type": "ommAllocate",
+                "name": "Allocate",
+                "value": "nullptr"
+            },
+            {
+                "type": "ommReallocate",
+                "name": "Reallocate",
+                "value": "nullptr"
+            },
+            {
+                "type": "ommFree",
+                "name": "Free",
+                "value": "nullptr"
+            },
+            {
+                "type": "void*",
+                "name": "UserArg",
+                "value": "nullptr"
+            }
+        ]
+    },
+
+    "LibraryDesc": {
+        "type": "struct",
+        "name": "LibraryDesc",
+        "members": [
+            {
+                "type": "uint8_t",
+                "name": "versionMajor"
+            },
+            {
+                "type": "uint8_t",
+                "name": "versionMinor"
+            },
+            {
+                "type": "uint8_t",
+                "name": "versionBuild"
+            }
+        ]
+    },
+
+    "BakerCreationDesc": {
+        "type": "struct",
+        "name": "BakerCreationDesc",
+        "members": [
+            {
+                "type": "BakerType",
+                "name": "type",
+                "value": {
+                    "type": "BakerType",
+                    "value": "MAX_NUM"
+                }
+            },
+            {
+                "type": "bool",
+                "name": "enableValidation",
+                "value": "false"
+            },
+            {
+                "type": "MemoryAllocatorInterface",
+                "name": "memoryAllocatorInterface",
+                "value": "default"
+            }
+        ]
+    },
+
+    "Handle": {
+        "type": "typedef",
+        "name": "Handle",
+        "underlying_type": "uintptr_t"
+    },
+
+    "Baker": {
+        "type": "typedef",
+        "name": "Baker",
+        "underlying_type": "Handle"
+    },
+
+    "BakeResult": {
+        "type": "typedef",
+        "name": "BakeResult",
+        "underlying_type": "Handle"
+    },
+
+    "Texture": {
+        "type": "typedef",
+        "name": "Texture",
+        "underlying_type": "Handle"
+    },
+
+    "fnGetLibraryDesc": {
+        "type": "function",
+        "name": "GetLibraryDesc",
+        "ret": {
+            "type": "LibraryDesc"
+        }
+    },
+
+    "fnCreateBaker": {
+        "type": "function",
+        "name": "CreateBaker",
+        "ret": {
+            "type": "Result"
+        },
+        "args": [
+            {
+                "const": true,
+                "ref": true,
+                "type": "BakerCreationDesc",
+                "name": "bakeCreationDesc"
+            },
+            {
+                "ptr": true,
+                "type": "Baker",
+                "name": "outBaker"
+            }
+        ]
+    },
+
+    "fnDestroyBaker": {
+        "type": "function",
+        "name": "DestroyBaker",
+        "ret": {
+            "type": "Result"
+        },
+        "args": [
+            {
+                "type": "Baker",
+                "name": "baker"
+            }
+        ]
+    },
+
+    "TextureFormat": {
+        "type": "enum",
+        "name": "TextureFormat",
+        "values": [
+            {
+                "name": "FP32"
+            },
+            {
+                "name": "MAX_NUM"
+            }
+        ]
+    },
+
+    "cpuBakeFlags": {
+        "type": "enum",
+        "name": "BakeFlags",
+        "isFlag": true,
+        "injectNewLine": true,
+        "values": [
+            {
+                "name": "None"
+            },
+            {
+                "comment": "Baker will use internal threads to run the baking process in parallel.",
+                "name": "EnableInternalThreads",
+                "value": "1u << 0"
+            },
+            {
+                "comment": "Will disable the use of special indices in case the OMM-state is uniform, Only set this flag for debug purposes.\nNote: This prevents promotion of fully known OMMs to use special indices, however for invalid & degenerate UV triangles special indices may still be set.",
+                "name": "DisableSpecialIndices",
+                "value": "1u << 1"
+            },
+            {
+                "comment": "Force 32-bit index format in ommIndexFormat",
+                "name": "Force32BitIndices",
+                "value": "1u << 2"
+            },
+            {
+                "comment": "Will disable reuse of OMMs and instead produce duplicates omm-array data. Generally only needed for debug purposes.",
+                "name": "DisableDuplicateDetection",
+                "value": "1u << 3"
+            },
+            {
+                "auto_format_comment": false,
+                "comment": "This enables merging of \"similar\" OMMs where similarity is measured using hamming distance.\nUT and UO are considered identical.\nPros: normally reduces resulting OMM size drastically, especially when there's overlapping UVs.\nCons: The merging comes at the cost of coverage.\nThe resulting OMM Arrays will have lower fraction of known states. For large working sets it can be quite CPU heavy to compute.",
+                "name": "EnableNearDuplicateDetection",
+                "value": "1u << 4"
+            },
+            {
+                "comment": "Workload validation is a safety mechanism that will let the SDK reject workloads that become unreasonably large, which may lead to long baking times. When this flag is set the bake operation may return error WORKLOAD_TOO_BIG",
+                "name": "EnableWorkloadValidation",
+                "value": "1u << 5"
+            }
+        ]
+    },
+
+    "TextureFlags": {
+        "type": "enum",
+        "name": "TextureFlags",
+        "isFlag": true,
+        "values": [
+            {
+                "name": "None"
+            },
+            {
+                "comment": "Controls the internal memory layout of the texture. does not change the expected input format, it does affect the baking performance and memory footprint of the texture object.",
+                "name": "DisableZOrder",
+                "value": "1u << 0"
+            }
+        ]
+    },
+
+    "TextureMipDesc": {
+        "type": "struct",
+        "name": "TextureMipDesc",
+        "comment": "The baker supports conservativle baking from a MIP array when the runtime wants to pick freely between texture levels at runtime without the need to update the OMM data. _However_ baking from mip level 0 only is recommended in the general case for best performance the integration guide contains more in depth discussion on the topic",
+        "members": [
+            {
+                "type": "uint32_t",
+                "name": "width",
+                "value": "0"
+            },
+            {
+                "type": "uint32_t",
+                "name": "height",
+                "value": "0"
+            },
+            {
+                "type": "uint32_t",
+                "name": "rowPitch",
+                "value": "0"
+            },
+            {
+                "type": "const void*",
+                "name": "textureData",
+                "value": "nullptr"
+            }
+        ]
+    },
+
+    "BakeInputDesc": {
+        "type": "struct",
+        "name": "BakeInputDesc",
+        "members": [
+            {
+                "type": "cpuBakeFlags",
+                "name": "bakeFlags",
+                "value": {
+                    "type": "BakeFlags",
+                    "value": "None"
+                }
+            },
+            {
+                "type": "Texture",
+                "name": "texture",
+                "value": "0"
+            },
+            {
+                "type": "SamplerDesc",
+                "name": "runtimeSamplerDesc",
+                "value": "default",
+                "comment": "RuntimeSamplerDesc should match the sampler type used at runtime"
+            },
+            {
+                "type": "AlphaMode",
+                "name": "alphaMode",
+                "value": {
+                    "type": "AlphaMode",
+                    "value": "MAX_NUM"
+                }
+            },
+            {
+                "type": "TexCoordFormat",
+                "name": "texCoordFormat",
+                "value": {
+                    "type": "TexCoordFormat",
+                    "value": "MAX_NUM"
+                }
+            },
+            {
+                "type": "const void*",
+                "name": "texCoords",
+                "value": "nullptr"
+            },
+            {
+                "type": "uint32_t",
+                "name": "texCoordStrideInBytes",
+                "value": "0",
+                "comment": "texCoordStrideInBytes: If zero, packed aligment is assumed"
+            },
+            {
+                "type": "IndexFormat",
+                "name": "indexFormat",
+                "value": {
+                    "type": "IndexFormat",
+                    "value": "MAX_NUM"
+                }
+            },
+            {
+                "type": "const void*",
+                "name": "indexBuffer",
+                "value": "nullptr"
+            },
+            {
+                "type": "uint32_t",
+                "name": "indexCount",
+                "value": "0"
+            },
+            {
+                "type": "float",
+                "name": "dynamicSubdivisionScale",
+                "value": "2",
+                "comment": "Configure the target resolution when running dynamic subdivision level.\n<= 0: disabled.\n> 0: The subdivision level be chosen such that a single micro-triangle covers approximatley a dynamicSubdivisionScale * dynamicSubdivisionScale texel area."
+            },
+            {
+                "type": "float",
+                "name": "rejectionThreshold",
+                "value": "0",
+                "comment": "Rejection threshold [0,1]. Unless OMMs achive a rate of at least rejectionThreshold known states OMMs will be discarded for the primitive. Use this to weed out \"poor\" OMMs."
+            },
+            {
+                "type": "float",
+                "name": "alphaCutoff",
+                "value": "0.5f",
+                "comment": "The alpha cutoff value. texture > alphaCutoff ? Opaque : Transparent"
+            },
+            {
+                "type": "Format",
+                "name": "format",
+                "value": {
+                    "type": "Format",
+                    "value": "OC1_4_State"
+                },
+
+                "comment": "The global Format. May be overriden by the per-triangle subdivision level setting."
+            },
+            {
+                "type": "Format",
+                "const": true,
+                "ptr": true,
+                "name": "formats",
+                "value": "nullptr",
+                "comment": "Use Formats to control format on a per triangle granularity. If Format is set to Format::INVALID the global setting will be used instead."
+            },
+            {
+                "type": "UnknownStatePromotion",
+                "name": "unknownStatePromotion",
+                "value": {
+                    "type": "UnknownStatePromotion",
+                    "value": "ForceOpaque"
+                },
+                "comment": "Determines how to promote mixed states"
+            },
+            {
+                "type": "uint8_t",
+                "name": "maxSubdivisionLevel",
+                "value": "8",
+                "comment": "Micro triangle count is 4^N, where N is the subdivision level.\nmaxSubdivisionLevel level must be in range [0, 12].\nWhen dynamicSubdivisionScale is enabled maxSubdivisionLevel is the max subdivision level allowed.\nWhen dynamicSubdivisionScale is disabled maxSubdivisionLevel is the subdivision level applied uniformly to all triangles."
+            },
+            {
+                "type": "bool",
+                "name": "enableSubdivisionLevelBuffer",
+                "value": "false"
+            },
+            {
+                "type": "const uint8_t*",
+                "name": "subdivisionLevels",
+                "value": "nullptr",
+                "comment": "[optional] Use subdivisionLevels to control subdivision on a per triangle granularity.\n+14 - reserved for future use.\n13 - use global value specified in 'subdivisionLevel.\n[0,12] - per triangle subdivision level'"
+            }
+        ]
+    },
+
+    "TextureDesc": {
+        "type": "struct",
+        "name": "TextureDesc",
+        "members": [
+            {
+                "type": "TextureFormat",
+                "name": "format",
+                "value": {
+                    "type": "TextureFormat",
+                    "value": "MAX_NUM"
+                }
+            },
+            {
+                "type": "TextureFlags",
+                "name": "flags",
+                "value": {
+                    "type": "TextureFlags",
+                    "value": "None"
+                }
+            },
+            {
+                "type": "TextureMipDesc",
+                "const": true,
+                "ptr": true,
+                "name": "mips",
+                "value": "nullptr"
+            },
+            {
+                "type": "uint32_t",
+                "name": "mipCount",
+                "value": "0"
+            }
+        ]
+    },
+
+    "OpacityMicromapDesc": {
+        "type": "struct",
+        "name": "OpacityMicromapDesc",
+        "members": [
+            {
+                "type": "uint32_t",
+                "name": "offset",
+                "comment": "Byte offset into the opacity micromap map array."
+            },
+            {
+                "type": "uint16_t",
+                "name": "subdivisionLevel",
+                "comment": "Micro triangle count is 4^N, where N is the subdivision level."
+            },
+            {
+                "type": "uint16_t",
+                "name": "format",
+                "comment": "OMM input format."
+            }
+        ]
+    },
+
+    "OpacityMicromapUsageCount": {
+        "type": "struct",
+        "name": "OpacityMicromapUsageCount",
+        "members": [
+            {
+                "type": "uint32_t",
+                "name": "count",
+                "comment": "Number of OMMs with the specified subdivision level and format."
+            },
+            {
+                "type": "uint16_t",
+                "name": "subdivisionLevel",
+                "comment": "Micro triangle count is 4^N, where N is the subdivision level."
+            },
+            {
+                "type": "uint16_t",
+                "name": "format",
+                "comment": "OMM input format."
+            }
+        ]
+    },
+
+    "BakeResultDesc": {
+        "type": "struct",
+        "name": "BakeResultDesc",
+        "members": [
+            {
+                "type": "const void*",
+                "name": "arrayData",
+                "comment": "Below is used as OMM array build input DX/VK."
+            },
+            {
+                "type": "uint32_t",
+                "name": "arrayDataSize"
+            },
+            {
+                "type": "OpacityMicromapDesc",
+                "const": true,
+                "ptr": true,
+                "name": "descArray"
+            },
+            {
+                "type": "uint32_t",
+                "name": "descArrayCount"
+            },
+            {
+                "type": "OpacityMicromapUsageCount",
+                "const": true,
+                "ptr": true,
+                "name": "descArrayHistogram",
+                "comment": "The histogram of all omm data referenced by 'ommDescArray', can be used as 'pOMMUsageCounts' for the OMM build in D3D12"
+            },
+            {
+                "type": "uint32_t",
+                "name": "descArrayHistogramCount"
+            },
+            {
+                "type": "const void*",
+                "name": "indexBuffer",
+                "comment": "Below is used for BLAS build input in DX/VK"
+            },
+            {
+                "type": "uint32_t",
+                "name": "indexCount"
+            },
+            {
+                "type": "IndexFormat",
+                "name": "indexFormat"
+            },
+            {
+                "type": "OpacityMicromapUsageCount",
+                "const": true,
+                "ptr": true,
+                "name": "indexHistogram",
+                "comment": "Same as ommDescArrayHistogram but usage count equals the number of references by ommIndexBuffer. Can be used as 'pOMMUsageCounts' for the BLAS OMM attachment in D3D12"
+            },
+            {
+                "type": "uint32_t",
+                "name": "indexHistogramCount"
+            }
+        ]
+    },
+
+    "fnCreateTexture": {
+        "type": "function",
+        "name": "CreateTexture",
+        "ret": {
+            "type": "Result"
+        },
+        "args": [
+            {
+                "type": "Baker",
+                "name": "baker"
+            },
+            {
+                "const": true,
+                "ref": true,
+                "type": "TextureDesc",
+                "name": "desc"
+            },
+            {
+                "ptr": true,
+                "type": "Texture",
+                "name": "outTexture"
+            }
+        ]
+    },
+
+    "fnDestroyTexture": {
+        "type": "function",
+        "name": "DestroyTexture",
+        "ret": {
+            "type": "Result"
+        },
+        "args": [
+            {
+                "type": "Baker",
+                "name": "baker"
+            },
+            {
+                "type": "Texture",
+                "name": "texture"
+            }
+        ]
+    },
+
+    "fnBakeCPU": {
+        "type": "function",
+        "name": "Bake",
+        "ret": {
+            "type": "Result"
+        },
+        "args": [
+            {
+                "type": "Baker",
+                "name": "baker"
+            },
+            {
+                "const": true,
+                "ref": true,
+                "type": "BakeInputDesc",
+                "name": "bakeInputDesc"
+            },
+            {
+                "ptr": true,
+                "type": "BakeResult",
+                "name": "outBakeResult"
+            }
+        ]
+    },
+
+    "fnDestroyBakeResult": {
+        "type": "function",
+        "name": "DestroyBakeResult",
+        "ret": {
+            "type": "Result"
+        },
+        "args": [
+            {
+                "type": "BakeResult",
+                "name": "bakeResult"
+            }
+        ]
+    },
+
+    "fnGetBakeResultDesc": {
+        "type": "function",
+        "name": "GetBakeResultDesc",
+        "ret": {
+            "type": "Result"
+        },
+        "args": [
+            {
+                "type": "BakeResult",
+                "name": "bakeResult"
+            },
+            {
+                "type": "BakeResultDesc",
+                "const": true,
+                "ptr2x": true,
+                "name": "desc"
+            }
+        ]
+    },
+
+    "Pipeline": {
+        "type": "typedef",
+        "name": "Pipeline",
+        "underlying_type": "Handle"
+    },
+
+    "DescriptorType": {
+        "type": "enum",
+        "name": "DescriptorType",
+        "underlying_type": "uint32_t",
+        "values": [
+            {
+                "name": "TextureRead"
+            },
+            {
+                "name": "BufferRead"
+            },
+            {
+                "name": "RawBufferRead"
+            },
+            {
+                "name": "RawBufferWrite"
+            },
+            {
+                "name": "MAX_NUM"
+            }
+        ]
+    },
+
+    "ResourceType": {
+        "type": "enum",
+        "name": "ResourceType",
+        "underlying_type": "uint32_t",
+        "values": [
+            {
+                "name": "IN_ALPHA_TEXTURE",
+                "comment": "1-4 channels, any format."
+            },
+            {
+                "name": "IN_TEXCOORD_BUFFER"
+            },
+            {
+                "name": "IN_INDEX_BUFFER"
+            },
+            {
+                "name": "IN_SUBDIVISION_LEVEL_BUFFER",
+                "comment": "(Optional) R8, Values must be in range [-2, 12].\nPositive values to enforce specific subdibision level for the primtive.\n-1 to use global subdivision level.\n-2 to use automatic subduvision level based on tunable texel-area heuristic"
+            },
+            {
+                "name": "OUT_OMM_ARRAY_DATA",
+                "comment": "Used directly as argument for OMM build in DX/VK"
+            },
+            {
+                "name": "OUT_OMM_DESC_ARRAY",
+                "comment": "Used directly as argument for OMM build in DX/VK"
+            },
+            {
+                "name": "OUT_OMM_DESC_ARRAY_HISTOGRAM",
+                "comment": "Used directly as argument for OMM build in DX/VK. (Read back to CPU to query memory requirements during OMM Array build)"
+            },
+            {
+                "name": "OUT_OMM_INDEX_BUFFER",
+                "comment": "Used directly as argument for OMM build in DX/VK"
+            },
+            {
+                "name": "OUT_OMM_INDEX_HISTOGRAM",
+                "comment": "Used directly as argument for OMM build in DX/VK. (Read back to CPU to query memory requirements during OMM Blas build)"
+            },
+            {
+                "name": "OUT_POST_BAKE_INFO",
+                "comment": "(Optional, enabled if EnablePostBuildInfo is set). Read back the PostBakeInfo struct containing the actual sizes of ARRAY_DATA and DESC_ARRAY."
+            },
+            {
+                "name": "TRANSIENT_POOL_BUFFER",
+                "comment": "Can be reused after baking"
+            },
+            {
+                "name": "STATIC_VERTEX_BUFFER",
+                "comment": "Initialize on startup. Read-only."
+            },
+            {
+                "name": "STATIC_INDEX_BUFFER",
+                "comment": "Initialize on startup. Read-only."
+            },
+            {
+                "name": "MAX_NUM"
+            }
+        ]
+    },
+
+    "PrimitiveTopology": {
+        "type": "enum",
+        "name": "PrimitiveTopology",
+        "underlying_type": "uint32_t",
+        "values": [
+            {
+                "name": "TriangleList"
+            },
+            {
+                "name": "MAX_NUM"
+            }
+        ]
+    },
+
+    "PipelineType": {
+        "type": "enum",
+        "name": "PipelineType",
+        "underlying_type": "uint32_t",
+        "values": [
+            {
+                "name": "Compute"
+            },
+            {
+                "name": "Graphics"
+            },
+            {
+                "name": "MAX_NUM"
+            }
+        ]
+    },
+
+    "DispatchType": {
+        "type": "enum",
+        "name": "DispatchType",
+        "underlying_type": "uint32_t",
+        "values": [
+            {
+                "name": "Compute"
+            },
+            {
+                "name": "ComputeIndirect"
+            },
+            {
+                "name": "DrawIndexedIndirect"
+            },
+            {
+                "name": "BeginLabel"
+            },
+            {
+                "name": "EndLabel"
+            },
+            {
+                "name": "MAX_NUM"
+            }
+        ]
+    },
+
+    "BufferFormat": {
+        "type": "enum",
+        "name": "BufferFormat",
+        "underlying_type": "uint32_t",
+        "values": [
+            {
+                "name": "R32_UINT"
+            },
+            {
+                "name": "MAX_NUM"
+            }
+        ]
+    },
+
+    "RasterCullMode": {
+        "type": "enum",
+        "name": "RasterCullMode",
+        "underlying_type": "uint32_t",
+        "values": [
+            {
+                "name": "None"
+            }
+        ]
+    },
+
+    "RenderAPI": {
+        "type": "enum",
+        "name": "RenderAPI",
+        "underlying_type": "uint32_t",
+        "values": [
+            {
+                "name": "DX12"
+            },
+            {
+                "name": "Vulkan"
+            },
+            {
+                "name": "MAX_NUM"
+            }
+        ]
+    },
+
+    "ScratchMemoryBudget": {
+        "type": "enum",
+        "name": "ScratchMemoryBudget",
+        "underlying_type": "size_t",
+        "values": [
+            {
+                "name": "Undefined"
+            },
+            {
+                "name": "MB_4",
+                "value": "4ull << 20ull"
+            },
+            {
+                "name": "MB_32",
+                "value": "32ull << 20ull"
+            },
+            {
+                "name": "MB_64",
+                "value": "64ull << 20ull"
+            },
+            {
+                "name": "MB_128",
+                "value": "128ull << 20ull"
+            },
+            {
+                "name": "MB_256",
+                "value": "256ull << 20ull"
+            },
+            {
+                "name": "MB_512",
+                "value": "512ull << 20ull"
+            },
+            {
+                "name": "MB_1024",
+                "value": "1024ull << 20ull"
+            },
+            {
+                "name": "Default",
+                "value": "256ull << 20ull"
+            }
+        ]
+    },
+
+    "gpuBakeFlags": {
+        "type": "enum",
+        "name": "BakeFlags",
+        "underlying_type": "uint32_t",
+        "isFlag": true,
+        "injectNewLine": true,
+        "values": [
+            {
+                "name": "None",
+                "value": "0"
+            },
+            {
+                "name": "ComputeOnly",
+                "value": "1u << 0",
+                "comment": "Baking will only be done using compute shaders and no gfx involvement (drawIndirect or graphics PSOs). (Beta)\nWill become default mode in the future.\n+ Useful for async workloads\n+ Less memory hungry\n+ Faster baking on low texel ratio to micro-triangle ratio (=rasterizing small triangles)\n- May looses efficency when resampling large triangles (tail-effect). Potential mitigation is to batch multiple bake jobs. However this is generally not a big problem."
+            },
+            {
+                "name": "EnablePostBuildInfo",
+                "value": "1u << 1",
+                "comment": "Baking will also output post build info. (OUT_POST_BUILD_INFO)."
+            },
+            {
+                "name": "DisableSpecialIndices",
+                "value": "1u << 2",
+                "comment": "Will disable the use of special indices in case the OMM-state is uniform. Only set this flag for debug purposes."
+            },
+            {
+                "name": "DisableTexCoordDeduplication",
+                "value": "1u << 3",
+                "comment": "If texture coordinates are known to be unique tex cooord deduplication can be disabled to save processing time and free up scratch memory."
+            },
+            {
+                "name": "Force32BitIndices",
+                "value": "1u << 4",
+                "comment": "Force 32-bit indices in OUT_OMM_INDEX_BUFFER"
+            },
+            {
+                "name": "EnableNsightDebugMode",
+                "value": "1u << 5",
+                "comment": "Slightly modifies the dispatch to aid frame capture debugging."
+            }
+        ]
+    },
+
+    "Resource": {
+        "type": "struct",
+        "name": "Resource",
+        "members": [
+            {
+                "type": "DescriptorType",
+                "name": "stateNeeded"
+            },
+            {
+                "type": "ResourceType",
+                "name": "type"
+            },
+            {
+                "type": "uint16_t",
+                "name": "indexInPool"
+            },
+            {
+                "type": "uint16_t",
+                "name": "mipOffset"
+            },
+            {
+                "type": "uint16_t",
+                "name": "mipNum"
+            }
+        ]
+    },
+
+    "DescriptorRangeDesc": {
+        "type": "struct",
+        "name": "DescriptorRangeDesc",
+        "members": [
+            {
+                "type": "DescriptorType",
+                "name": "descriptorType"
+            },
+            {
+                "type": "uint32_t",
+                "name": "baseRegisterIndex"
+            },
+            {
+                "type": "uint32_t",
+                "name": "descriptorNum"
+            }
+        ]
+    },
+
+    "BufferDesc": {
+        "type": "struct",
+        "name": "BufferDesc",
+        "members": [
+            {
+                "type": "size_t",
+                "name": "bufferSize"
+            }
+        ]
+    },
+
+    "ShaderBytecode": {
+        "type": "struct",
+        "name": "ShaderBytecode",
+        "members": [
+            {
+                "type": "const void*",
+                "name": "data"
+            },
+            {
+                "type": "size_t",
+                "name": "size"
+            }
+        ]
+    },
+
+    "ComputePipelineDesc": {
+        "type": "struct",
+        "name": "ComputePipelineDesc",
+        "members": [
+            {
+                "type": "ShaderBytecode",
+                "name": "computeShader"
+            },
+            {
+                "type": "const char*",
+                "name": "shaderFileName"
+            },
+            {
+                "type": "const char*",
+                "name": "shaderEntryPointName"
+            },
+            {
+                "type": "DescriptorRangeDesc",
+                "const": true,
+                "ptr": true,
+                "name": "descriptorRanges"
+            },
+            {
+                "type": "uint32_t",
+                "name": "descriptorRangeNum"
+            },
+            {
+                "type": "bool",
+                "name": "hasConstantData",
+                "comment": "if \"true\" all constant buffers share same \"ConstantBufferDesc\" description. if \"false\" this pipeline doesn't have a constant buffer"
+            }
+        ]
+    },
+
+    "GraphicsPipelineDescVersion": {
+        "type": "enum",
+        "comment": "The graphics pipeline desc structs defines dynamically only a subset of the available raster states, what is not defined dynamically is defined in this header via documentation (or constexpr variables). Keep in mind that the constexpr fields may change to become non-constexpr in future releases, for this reason it's recommended to add static asserts in integration code to catch it if it changes.\nStatically asserting on the GraphicsPipelineVersion::VERSION. The purpose of doing this is to keep the integration code as minimal as possible, while still keeping the door open for future extensions. For instance, static_assert(GraphicsPipelineVersion::VERSION == 1, \"Graphics pipeline state version changed, update integration code\");",
+        "name": "GraphicsPipelineDescVersion",
+        "underlying_type": "int32_t",
+        "values": [
+            {
+                "name": "VERSION",
+                "value": 2
+            }
+        ]
+    },
+
+    "GraphicsPipelineInputElementDesc": {
+        "type": "struct",
+        "name": "GraphicsPipelineInputElementDesc",
+        "members": [
+            {
+                "static": "true",
+                "constexpr": "true",
+                "type": "const char*",
+                "name": "semanticName",
+                "value": "\"POSITION\""
+            },
+            {
+                "static": "true",
+                "constexpr": "true",
+                "type": "BufferFormat",
+                "name": "format",
+                "value": {
+                    "type": "BufferFormat",
+                    "value": "R32_UINT"
+                }
+            },
+            {
+                "static": "true",
+                "constexpr": "true",
+                "type": "uint32_t",
+                "name": "inputSlot",
+                "value": "0"
+            },
+            {
+                "static": "true",
+                "constexpr": "true",
+                "type": "uint32_t",
+                "name": "semanticIndex",
+                "value": "0"
+            },
+            {
+                "static": "true",
+                "constexpr": "true",
+                "type": "bool",
+                "name": "isPerInstanced",
+                "value": "false"
+            }
+
+        ]
+    },
+
+    "GraphicsPipelineDesc": {
+        "type": "struct",
+        "name": "GraphicsPipelineDesc",
+        "comment": "Config specification not declared in the GraphicsPipelineDesc is meant to be hard-coded and may only change in future SDK versions.\nWhen SDK updates the spec of GraphicsPipelineDesc GraphicsPipelineVersion::VERSION will be updated.\nIt's recommended to keep a static_assert(GraphicsPipelineVersion::VERSION == X) in the client integration layer to be notified of changes.\nStenci state = disabled\nBlendState = disabled\nPrimitive topology = triangle list\nInput element = count 1, see GraphicsPipelineInputElementDesc\nFill mode = solid\n",
+        "members": [
+            {
+                "type": "ShaderBytecode",
+                "name": "vertexShader"
+            },
+            {
+                "type": "const char*",
+                "name": "vertexShaderFileName"
+            },
+            {
+                "type": "const char*",
+                "name": "vertexShaderEntryPointName"
+            },
+            {
+                "type": "ShaderBytecode",
+                "name": "geometryShader"
+            },
+            {
+                "type": "const char*",
+                "name": "geometryShaderFileName"
+            },
+            {
+                "type": "const char*",
+                "name": "geometryShaderEntryPointName"
+            },
+            {
+                "type": "ShaderBytecode",
+                "name": "pixelShader"
+            },
+            {
+                "type": "const char*",
+                "name": "pixelShaderFileName"
+            },
+            {
+                "type": "const char*",
+                "name": "pixelShaderEntryPointName"
+            },
+            {
+                "type": "bool",
+                "name": "conservativeRasterization"
+            },
+            {
+                "type": "DescriptorRangeDesc",
+                "const": true,
+                "ptr": true,
+                "name": "descriptorRanges"
+            },
+            {
+                "type": "uint32_t",
+                "name": "descriptorRangeNum"
+            },
+            {
+                "type": "uint32_t",
+                "name": "numRenderTargets",
+                "comment": "if NumRenderTargets = 0 a null RTV is implied."
+            },
+            {
+                "type": "bool",
+                "name": "hasConstantData",
+                "comment": "if \"true\" all constant buffers share same \"ConstantBufferDesc\" description. if \"false\" this pipeline doesn't have a constant buffer"
+            }
+        ]
+    },
+
+    "PipelineDesc": {
+        "type": "struct",
+        "name": "PipelineDesc",
+        "members": [
+            {
+                "type": "PipelineType",
+                "name": "type"
+            }
+        ],
+        "union_members": [
+            {
+                "type": "ComputePipelineDesc",
+                "name": "compute"
+            },
+            {
+                "type": "GraphicsPipelineDesc",
+                "name": "graphics"
+            }
+        ]
+    },
+
+    "DescriptorSetDesc": {
+        "type": "struct",
+        "name": "DescriptorSetDesc",
+        "members": [
+            {
+                "type": "uint32_t",
+                "name": "constantBufferMaxNum"
+            },
+            {
+                "type": "uint32_t",
+                "name": "storageBufferMaxNum"
+            },
+            {
+                "type": "uint32_t",
+                "name": "descriptorRangeMaxNumPerPipeline"
+            }
+        ]
+    },
+
+    "ConstantBufferDesc": {
+        "type": "struct",
+        "name": "ConstantBufferDesc",
+        "members": [
+            {
+                "type": "uint32_t",
+                "name": "registerIndex"
+            },
+            {
+                "type": "uint32_t",
+                "name": "maxDataSize"
+            }
+        ]
+    },
+
+    "Viewport": {
+        "type": "struct",
+        "name": "Viewport",
+        "members": [
+            {
+                "type": "float",
+                "name": "minWidth"
+            },
+            {
+                "type": "float",
+                "name": "minHeight"
+            },
+            {
+                "type": "float",
+                "name": "maxWidth"
+            },
+            {
+                "type": "float",
+                "name": "maxHeight"
+            }
+        ]
+    },
+
+    "ComputeDesc": {
+        "type": "struct",
+        "name": "ComputeDesc",
+        "members": [
+            {
+                "type": "const char*",
+                "name": "name"
+            },
+            {
+                "type": "Resource",
+                "const": true,
+                "ptr": true,
+                "name": "resources",
+                "comment": "concatenated resources for all \"DescriptorRangeDesc\" descriptions in DenoiserDesc::pipelines[ pipelineIndex ]"
+            },
+            {
+                "type": "uint32_t",
+                "name": "resourceNum"
+            },
+            {
+                "type": "const uint8_t*",
+                "name": "localConstantBufferData",
+                "comment": "\"root constants\" in DX12"
+            },
+            {
+                "type": "uint32_t",
+                "name": "localConstantBufferDataSize"
+            },
+            {
+                "type": "uint16_t",
+                "name": "pipelineIndex"
+            },
+            {
+                "type": "uint16_t",
+                "name": "gridWidth"
+            },
+            {
+                "type": "uint16_t",
+                "name": "gridHeight"
+            }
+        ]
+    },
+
+    "ComputeIndirectDesc": {
+        "type": "struct",
+        "name": "ComputeIndirectDesc",
+        "members": [
+            {
+                "type": "const char*",
+                "name": "name"
+            },
+            {
+                "type": "Resource",
+                "const": true,
+                "ptr": true,
+                "name": "resources",
+                "comment": "concatenated resources for all \"DescriptorRangeDesc\" descriptions in DenoiserDesc::pipelines[ pipelineIndex ]"
+            },
+            {
+                "type": "uint32_t",
+                "name": "resourceNum"
+            },
+            {
+                "type": "const uint8_t*",
+                "name": "localConstantBufferData",
+                "comment": "\"root constants\" in DX12"
+            },
+            {
+                "type": "uint32_t",
+                "name": "localConstantBufferDataSize"
+            },
+            {
+                "type": "uint16_t",
+                "name": "pipelineIndex"
+            },
+            {
+                "type": "Resource",
+                "name": "indirectArg"
+            },
+            {
+                "type": "size_t",
+                "name": "indirectArgByteOffset"
+            }
+        ]
+    },
+
+    "DrawIndexedIndirectDesc": {
+        "type": "struct",
+        "name": "DrawIndexedIndirectDesc",
+        "members": [
+            {
+                "type": "const char*",
+                "name": "name"
+            },
+            {
+                "type": "Resource",
+                "const": true,
+                "ptr": true,
+                "name": "resources",
+                "comment": "concatenated resources for all \"DescriptorRangeDesc\" descriptions in DenoiserDesc::pipelines[ pipelineIndex ]"
+            },
+            {
+                "type": "uint32_t",
+                "name": "resourceNum"
+            },
+            {
+                "type": "const uint8_t*",
+                "name": "localConstantBufferData",
+                "comment": "\"root constants\" in DX12"
+            },
+            {
+                "type": "uint32_t",
+                "name": "localConstantBufferDataSize"
+            },
+            {
+                "type": "uint16_t",
+                "name": "pipelineIndex"
+            },
+            {
+                "type": "Resource",
+                "name": "indirectArg"
+            },
+            {
+                "type": "size_t",
+                "name": "indirectArgByteOffset"
+            },
+            {
+                "type": "Viewport",
+                "name": "viewport"
+            },
+            {
+                "type": "Resource",
+                "name": "indexBuffer"
+            },
+            {
+                "type": "uint32_t",
+                "name": "indexBufferOffset"
+            },
+            {
+                "type": "Resource",
+                "name": "vertexBuffer"
+            },
+            {
+                "type": "uint32_t",
+                "name": "vertexBufferOffset"
+            }
+        ]
+    },
+
+    "BeginLabelDesc": {
+        "type": "struct",
+        "name": "BeginLabelDesc",
+        "members": [
+            {
+                "type": "const char*",
+                "name": "debugName"
+            }
+        ]
+    },
+
+    "DispatchDesc": {
+        "type": "struct",
+        "name": "DispatchDesc",
+        "members": [
+            {
+                "type": "DispatchType",
+                "name": "type"
+            }
+        ],
+        "union_members": [
+            {
+                "type": "ComputeDesc",
+                "name": "compute"
+            },
+            {
+                "type": "ComputeIndirectDesc",
+                "name": "computeIndirect"
+            },
+            {
+                "type": "DrawIndexedIndirectDesc",
+                "name": "drawIndexedIndirect"
+            },
+            {
+                "type": "BeginLabelDesc",
+                "name": "beginLabel"
+            }
+        ]
+    },
+
+    "StaticSamplerDesc": {
+        "type": "struct",
+        "name": "StaticSamplerDesc",
+        "members": [
+            {
+                "type": "SamplerDesc",
+                "name": "desc"
+            },
+            {
+                "type": "uint32_t",
+                "name": "registerIndex"
+            }
+        ]
+    },
+
+    "SPIRVBindingOffsets": {
+        "type": "struct",
+        "name": "SPIRVBindingOffsets",
+        "members": [
+            {
+                "type": "uint32_t",
+                "name": "samplerOffset"
+            },
+            {
+                "type": "uint32_t",
+                "name": "textureOffset"
+            },
+            {
+                "type": "uint32_t",
+                "name": "constantBufferOffset"
+            },
+            {
+                "type": "uint32_t",
+                "name": "storageTextureAndBufferOffset"
+            }
+        ]
+    },
+
+    "BakePipelineConfigDesc": {
+        "type": "struct",
+        "name": "BakePipelineConfigDesc",
+        "members": [
+            {
+                "type": "RenderAPI",
+                "name": "renderAPI",
+                "value": {
+                    "type": "RenderAPI",
+                    "value": "DX12"
+                },
+                "comment": "API is required to make sure indirect buffers are written to in suitable format"
+            }
+        ]
+    },
+
+    "BakeDispatchConfigDesc": {
+        "type": "struct",
+        "name": "BakeDispatchConfigDesc",
+        "members": [
+            {
+                "type": "gpuBakeFlags",
+                "name": "bakeFlags",
+                "value": {
+                    "type": "BakeFlags",
+                    "value": "None"
+                }
+            },
+            {
+                "type": "SamplerDesc",
+                "name": "runtimeSamplerDesc",
+                "value": "default",
+                "comment": "RuntimeSamplerDesc describes the texture sampler that will be used in the runtime alpha test shader code."
+            },
+            {
+                "type": "AlphaMode",
+                "name": "alphaMode",
+                "value": {
+                    "type": "AlphaMode",
+                    "value": "MAX_NUM"
+                }
+            },
+            {
+                "type": "uint32_t",
+                "name": "alphaTextureWidth",
+                "value": "0",
+                "comment": " The texture dimensions of IN_ALPHA_TEXTURE"
+            },
+            {
+                "type": "uint32_t",
+                "name": "alphaTextureHeight",
+                "value": "0",
+                "comment": " The texture dimensions of IN_ALPHA_TEXTURE"
+            },
+            {
+                "type": "uint32_t",
+                "name": "alphaTextureChannel",
+                "value": "3",
+                "comment": "The channel in IN_ALPHA_TEXTURE containing opacity values"
+            },
+            {
+                "type": "TexCoordFormat",
+                "name": "texCoordFormat",
+                "value": {
+                    "type": "TexCoordFormat",
+                    "value": "MAX_NUM"
+                }
+            },
+            {
+                "type": "uint32_t",
+                "name": "texCoordOffsetInBytes",
+                "value": "0"
+            },
+            {
+                "type": "uint32_t",
+                "name": "texCoordStrideInBytes",
+                "value": "0"
+            },
+            {
+                "type": "IndexFormat",
+                "name": "indexFormat",
+                "value": {
+                    "type": "IndexFormat",
+                    "value": "MAX_NUM"
+                }
+            },
+            {
+                "type": "uint32_t",
+                "name": "indexCount",
+                "value": "0",
+                "comment": "The actual number of indices can be lower."
+            },
+            {
+                "type": "uint32_t",
+                "name": "indexStrideInBytes",
+                "value": "0",
+                "comment": "If zero packed aligment is assumed."
+            },
+            {
+                "type": "float",
+                "name": "alphaCutoff",
+                "value": "0.5f",
+                "comment": "The alpha cutoff value. texture > alphaCutoff ? Opaque : Transparent."
+            },
+            {
+                "type": "float",
+                "name": "dynamicSubdivisionScale",
+                "value": "2",
+                "comment": "Configure the target resolution when running dynamic subdivision level. <= 0: disabled. > 0: The subdivision level be chosen such that a single micro-triangle covers approximatley a dynamicSubdivisionScale * dynamicSubdivisionScale texel area."
+            },
+            {
+                "type": "Format",
+                "name": "globalFormat",
+                "value": {
+                    "type": "Format",
+                    "value": "OC1_4_State"
+                },
+                "comment": "The global Format. May be overriden by the per-triangle config."
+            },
+            {
+                "type": "uint8_t",
+                "name": "globalSubdivisionLevel",
+                "value": "4",
+                "comment": "Micro triangle count is 4^N, where N is the subdivision level. Subdivision level must be in range [0, MaxSubdivisionLevel]. The global subdivisionLevel. May be overriden by the per-triangle subdivision level setting. The subdivision level to allow in dynamic mode and value is used to allocate appropriate scratch memory."
+            },
+            {
+                "type": "uint8_t",
+                "name": "maxSubdivisionLevel",
+                "value": "8"
+            },
+            {
+                "type": "uint8_t",
+                "name": "enableSubdivisionLevelBuffer",
+                "value": "0"
+            },
+            {
+                "type": "uint32_t",
+                "name": "maxOutOmmArraySizeInBytes",
+                "value": "0xFFFFFFFF"
+            },
+            {
+                "type": "ScratchMemoryBudget",
+                "name": "maxScratchMemorySize",
+                "value": {
+                    "type": "ScratchMemoryBudget",
+                    "value": "Default"
+                },
+                "comment": "Target scratch memory budget, The SDK will try adjust the sum of the transient pool buffers to match this value. Higher budget more efficiently executes the baking operation. May return INSUFFICIENT_SCRATCH_MEMORY if set too low."
+            }
+        ]
+    },
+
+    "BakePipelineInfoDesc": {
+        "type": "struct",
+        "name": "BakePipelineInfoDesc",
+        "members": [
+            {
+                "type": "SPIRVBindingOffsets",
+                "name": "spirvBindingOffsets"
+            },
+            {
+                "type": "PipelineDesc",
+                "const": true,
+                "ptr": true,
+                "name": "pipelines"
+            },
+            {
+                "type": "uint32_t",
+                "name": "pipelineNum"
+            },
+            {
+                "type": "ConstantBufferDesc",
+                "name": "globalConstantBufferDesc"
+            },
+            {
+                "type": "ConstantBufferDesc",
+                "name": "localConstantBufferDesc"
+            },
+            {
+                "type": "DescriptorSetDesc",
+                "name": "descriptorSetDesc"
+            },
+            {
+                "type": "StaticSamplerDesc",
+                "const": true,
+                "ptr": true,
+                "name": "staticSamplers"
+            },
+            {
+                "type": "uint32_t",
+                "name": "staticSamplersNum"
+            }
+        ]
+    },
+
+    "PreBakeInfo": {
+        "type": "struct",
+        "name": "PreBakeInfo",
+        "comment": "Note: sizes may return size zero, this means the buffer will not be used in the dispatch.",
+        "members": [
+            {
+                "type": "IndexFormat",
+                "name": "outOmmIndexBufferFormat",
+                "comment": "Format of outOmmIndexBuffer"
+            },
+            {
+                "type": "uint32_t",
+                "name": "outOmmIndexCount"
+            },
+            {
+                "type": "uint32_t",
+                "name": "outOmmArraySizeInBytes",
+                "comment": "Min required size of OUT_OMM_ARRAY_DATA. GetPreBakeInfo returns most conservative estimation while less conservative number can be obtained via BakePrepass"
+            },
+            {
+                "type": "uint32_t",
+                "name": "outOmmDescSizeInBytes",
+                "comment": "Min required size of OUT_OMM_DESC_ARRAY. GetPreBakeInfo returns most conservative estimation while less conservative number can be obtained via BakePrepass"
+            },
+            {
+                "type": "uint32_t",
+                "name": "outOmmIndexBufferSizeInBytes",
+                "comment": "Min required size of OUT_OMM_INDEX_BUFFER"
+            },
+            {
+                "type": "uint32_t",
+                "name": "outOmmArrayHistogramSizeInBytes",
+                "comment": "Min required size of OUT_OMM_ARRAY_HISTOGRAM"
+            },
+            {
+                "type": "uint32_t",
+                "name": "outOmmIndexHistogramSizeInBytes",
+                "comment": "Min required size of OUT_OMM_INDEX_HISTOGRAM"
+            },
+            {
+                "type": "uint32_t",
+                "name": "outOmmPostBuildInfoSizeInBytes",
+                "comment": "Min required size of OUT_POST_BUILD_INFO"
+            },
+            {
+                "type": "uint32_t",
+                "name": "transientPoolBufferSizeInBytes[8]",
+                "comment": "Min required sizes of TRANSIENT_POOL_BUFFERs"
+            },
+            {
+                "type": "uint32_t",
+                "name": "numTransientPoolBuffers"
+            }
+        ]
+    },
+
+    "PostBakeInfo": {
+        "type": "struct",
+        "name": "PostBakeInfo",
+        "comment": "Format of OUT_POST_BAKE_INFO",
+        "members": [
+            {
+                "type": "uint32_t",
+                "name": "outOmmArraySizeInBytes"
+            },
+            {
+                "type": "uint32_t",
+                "name": "outOmmDescSizeInBytes"
+            }
+        ]
+    },
+
+    "BakeDispatchChain": {
+        "type": "struct",
+        "name": "BakeDispatchChain",
+        "comment": "Format of OUT_POST_BAKE_INFO",
+        "members": [
+            {
+                "type": "DispatchDesc",
+                "const": true,
+                "ptr": true,
+                "name": "dispatches"
+            },
+            {
+                "type": "uint32_t",
+                "name": "numDispatches"
+            },
+            {
+                "type": "const uint8_t*",
+                "name": "globalCBufferData"
+            },
+            {
+                "type": "uint32_t",
+                "name": "globalCBufferDataSize"
+            }
+        ]
+    },
+
+    "fnGetStaticResourceData": {
+        "type": "function",
+        "name": "GetStaticResourceData",
+        "comment": "Global immutable resources. These contain the static immutable resources being shared acroess all bake calls.  Currently it's the specific IB and VB that represents a tesselated triangle arranged in bird curve order, for different subdivision levels.",
+        "ret": {
+            "type": "Result"
+        },
+        "args": [
+            {
+                "type": "ResourceType",
+                "name": "resource"
+            },
+            {
+                "type": "uint8_t*",
+                "name": "data"
+            },
+            {
+                "type": "size_t*",
+                "name": "outByteSize"
+            }
+        ]
+    },
+
+    "fnCreatePipeline": {
+        "type": "function",
+        "name": "CreatePipeline",
+        "ret": {
+            "type": "Result"
+        },
+        "args": [
+            {
+                "type": "Baker",
+                "name": "baker"
+            },
+            {
+                "type": "BakePipelineConfigDesc",
+                "const": true,
+                "ref": true,
+                "name": "pipelineCfg"
+            },
+            {
+                "type": "Pipeline",
+                "ptr": true,
+                "name": "outPipeline"
+            }
+        ]
+    },
+
+    "fnDestroyPipeline": {
+        "type": "function",
+        "name": "DestroyPipeline",
+        "ret": {
+            "type": "Result"
+        },
+        "args": [
+            {
+                "type": "Baker",
+                "name": "baker"
+            },
+            {
+                "type": "Pipeline",
+                "name": "pipeline"
+            }
+        ]
+    },
+
+    "fnGetPipelineDesc": {
+        "type": "function",
+        "name": "GetPipelineDesc",
+        "comment": "Return the required pipelines. Does not depend on per-dispatch settings.",
+        "ret": {
+            "type": "Result"
+        },
+        "args": [
+            {
+                "type": "Pipeline",
+                "name": "pipeline"
+            },
+            {
+                "type": "BakePipelineInfoDesc",
+                "const": true,
+                "ptr2x": true,
+                "name": "outPipelineDesc"
+            }
+        ]
+    },
+
+    "fnGetPreBakeInfo": {
+        "type": "function",
+        "name": "GetPreBakeInfo",
+        "comment": "Returns the scratch and output memory requirements of the baking operation.",
+        "ret": {
+            "type": "Result"
+        },
+        "args": [
+            {
+                "type": "Pipeline",
+                "name": "pipeline"
+            },
+            {
+                "type": "BakeDispatchConfigDesc",
+                "const": true,
+                "ref": true,
+                "name": "config"
+            },
+            {
+                "type": "PreBakeInfo",
+                "ptr": true,
+                "name": "outPreBuildInfo"
+            }
+        ]
+    },
+
+    "fnBakeGPU": {
+        "type": "function",
+        "name": "Bake",
+        "comment": "Returns the dispatch order to perform the baking operation. Once complete the OUT_OMM_* resources will be written to and can be consumed by the application.",
+        "ret": {
+            "type": "Result"
+        },
+        "args": [
+            {
+                "type": "Pipeline",
+                "name": "pipeline"
+            },
+            {
+                "type": "BakeDispatchConfigDesc",
+                "const": true,
+                "ref": true,
+                "name": "config"
+            },
+            {
+                "type": "BakeDispatchChain",
+                "const": true,
+                "ptr2x": true,
+                "name": "outDispatchDesc"
+            }
+        ]
+    },
+
+    "SaveImagesDesc": {
+        "type": "struct",
+        "name": "SaveImagesDesc",
+        "members": [
+            {
+                "type": "const char*",
+                "name": "path",
+                "value": "\"\""
+            },
+            {
+                "type": "const char*",
+                "name": "filePostfix",
+                "value": "\"\""
+            },
+            {
+                "type": "bool",
+                "name": "detailedCutout",
+                "value": "false",
+                "comment": "The default behaviour is to dump the entire alpha texture with the OMM-triangle in it. Enabling detailedCutout will generate cropped version zoomed in on the OMM, and supersampled for detailed analysis"
+            },
+            {
+                "type": "bool",
+                "name": "dumpOnlyFirstOMM",
+                "value": "false",
+                "comment": "Only dump index 0."
+            },
+            {
+                "type": "bool",
+                "name": "monochromeUnknowns",
+                "value": "false",
+                "comment": "Will draw unknown transparent and unknown opaque in the same color."
+            },
+            {
+                "type": "bool",
+                "name": "oneFile",
+                "value": "false",
+                "comment": "true:Will draw all primitives to the same file. false: will draw each primitive separatley."
+            }
+        ]
+    },
+
+    "fnSaveAsImages": {
+        "type": "function",
+        "name": "SaveAsImages",
+        "comment": "Walk each primitive and dumps the corresponding OMM overlay to the alpha textures.",
+        "ret": {
+            "type": "Result"
+        },
+        "args": [
+            {
+                "type": "Baker",
+                "name": "baker"
+            },
+            {
+                "type": "BakeInputDesc",
+                "const": true,
+                "ref": true,
+                "name": "bakeInputDesc"
+            },
+            {
+                "type": "BakeResultDesc",
+                "const": true,
+                "ptr": true,
+                "name": "res"
+            },
+            {
+                "type": "SaveImagesDesc",
+                "const": true,
+                "ref": true,
+                "name": "desc"
+            }
+        ]
+    },
+
+    "Stats": {
+        "type": "struct",
+        "name": "Stats",
+        "members": [
+            {
+                "type": "uint64_t",
+                "name": "totalOpaque",
+                "value": "0"
+            },
+            {
+                "type": "uint64_t",
+                "name": "totalTransparent",
+                "value": "0"
+            },
+            {
+                "type": "uint64_t",
+                "name": "totalUnknownTransparent",
+                "value": "0"
+            },
+            {
+                "type": "uint64_t",
+                "name": "totalUnknownOpaque",
+                "value": "0"
+            },
+            {
+                "type": "uint32_t",
+                "name": "totalFullyOpaque",
+                "value": "0"
+            },
+            {
+                "type": "uint32_t",
+                "name": "totalFullyTransparent",
+                "value": "0"
+            },
+            {
+                "type": "uint32_t",
+                "name": "totalFullyUnknownOpaque",
+                "value": "0"
+            },
+            {
+                "type": "uint32_t",
+                "name": "totalFullyUnknownTransparent",
+                "value": "0"
+            }
+        ]
+    },
+
+    "fnGetStats": {
+        "type": "function",
+        "name": "GetStats",
+        "ret": {
+            "type": "Result"
+        },
+        "args": [
+            {
+                "type": "Baker",
+                "name": "baker"
+            },
+            {
+                "type": "BakeResultDesc",
+                "const": true,
+                "ptr": true,
+                "name": "res"
+            },
+            {
+                "type": "Stats",
+                "ptr": true,
+                "name": "out"
+            }
+        ]
+    },
+
+    "cpu": {
+        "type": "namespace",
+        "name": "Cpu",
+        "values": [
+            "BakeResult",
+            "Texture",
+            "TextureFormat",
+            "TextureFlags",
+            "cpuBakeFlags",
+            "TextureMipDesc",
+            "TextureDesc",
+            "BakeInputDesc",
+            "OpacityMicromapDesc",
+            "OpacityMicromapUsageCount",
+            "BakeResultDesc",
+            "fnCreateTexture",
+            "fnDestroyTexture",
+            "fnBakeCPU",
+            "fnDestroyBakeResult",
+            "fnGetBakeResultDesc"
+        ]
+    },
+
+    "gpu": {
+        "type": "namespace",
+        "name": "Gpu",
+        "values": [
+            "Pipeline",
+            "DescriptorType",
+            "ResourceType",
+            "PrimitiveTopology",
+            "PipelineType",
+            "DispatchType",
+            "BufferFormat",
+            "RasterCullMode",
+            "RenderAPI",
+            "ScratchMemoryBudget",
+            "gpuBakeFlags",
+            "Resource",
+            "DescriptorRangeDesc",
+            "BufferDesc",
+            "ShaderBytecode",
+            "ComputePipelineDesc",
+            "GraphicsPipelineInputElementDesc",
+            "GraphicsPipelineDescVersion",
+            "GraphicsPipelineDesc",
+            "PipelineDesc",
+            "DescriptorSetDesc",
+            "ConstantBufferDesc",
+            "Viewport",
+            "ComputeDesc",
+            "ComputeIndirectDesc",
+            "DrawIndexedIndirectDesc",
+            "BeginLabelDesc",
+            "DispatchDesc",
+            "StaticSamplerDesc",
+            "SPIRVBindingOffsets",
+            "BakePipelineConfigDesc",
+            "BakeDispatchConfigDesc",
+            "BakePipelineInfoDesc",
+            "PreBakeInfo",
+            "PostBakeInfo",
+            "BakeDispatchChain",
+            "fnGetStaticResourceData",
+            "fnCreatePipeline",
+            "fnDestroyPipeline",
+            "fnGetPipelineDesc",
+            "fnGetPreBakeInfo",
+            "fnBakeGPU"
+        ]
+    },
+
+    "debug": {
+        "type": "namespace",
+        "name": "Debug",
+        "values": [
+            "SaveImagesDesc",
+            "fnSaveAsImages",
+            "Stats",
+            "fnGetStats"
+        ]
+    },
+
+    "omm": {
+        "type": "namespace",
+        "name": "omm",
+        "values": [
+            "Result",
+            "LibraryDesc",
+            "OpacityState",
+            "SpecialIndex",
+            "Format",
+            "UnknownStatePromotion",
+            "BakerType",
+            "TexCoordFormat",
+            "IndexFormat",
+            "TextureAddressMode",
+            "TextureFilterMode",
+            "AlphaMode",
+            "SamplerDesc",
+            "MemoryAllocatorInterface",
+            "BakerCreationDesc",
+            "Handle",
+            "Baker",
+            "fnGetLibraryDesc",
+            "fnCreateBaker",
+            "fnDestroyBaker",
+            "cpu",
+            "gpu",
+            "debug"
+        ]
+    },
+
+    "layout": [
+        "omm"
+    ]
+}

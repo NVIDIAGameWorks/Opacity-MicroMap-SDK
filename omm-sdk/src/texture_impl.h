@@ -33,14 +33,14 @@ namespace omm
         TextureImpl(const StdAllocator<uint8_t>& stdAllocator);
         ~TextureImpl();
 
-        Result Create(const Cpu::TextureDesc& desc);
+        ommResult Create(const ommCpuTextureDesc& desc);
 
         template<TilingMode eTilingMode>
         float Load(const int2& texCoord, int32_t mip) const;
 
         float Load(const int2& texCoord, int32_t mip) const;
 
-        float Bilinear(omm::TextureAddressMode mode, const float2& p, int32_t mip) const;
+        float Bilinear(ommTextureAddressMode mode, const float2& p, int32_t mip) const;
 
         TilingMode GetTilingMode() const {
             return m_tilingMode;
@@ -59,7 +59,7 @@ namespace omm
         }
 
     private:
-        static Result Validate(const Cpu::TextureDesc& desc);
+        static ommResult Validate(const ommCpuTextureDesc& desc);
         void Deallocate();
         template<TilingMode eTilingMode>
         static uint64_t From2Dto1D(const int2& idx, const int2& size) {

@@ -32,7 +32,7 @@ namespace {
 
 	struct Options
 	{
-		omm::OMMFormat format = omm::OMMFormat::OC1_4_State;
+		omm::Format format = omm::Format::OC1_4_State;
 		omm::UnknownStatePromotion unknownStatePromotion = omm::UnknownStatePromotion::Nearest;
 		bool mergeSimilar = false;
 		uint32_t mipCount = 1;
@@ -45,7 +45,7 @@ namespace {
 	class OMMBakeTestCPU : public ::testing::TestWithParam<TestSuiteConfig> {
 	protected:
 		void SetUp() override {
-			EXPECT_EQ(omm::CreateOpacityMicromapBaker({.type = omm::BakerType::CPU }, &_baker), omm::Result::SUCCESS);
+			EXPECT_EQ(omm::CreateBaker({.type = omm::BakerType::CPU }, &_baker), omm::Result::SUCCESS);
 		}
 
 		void TearDown() override {
@@ -53,7 +53,7 @@ namespace {
 				EXPECT_EQ(omm::Cpu::DestroyTexture(_baker, tex), omm::Result::SUCCESS);
 			}
 
-			EXPECT_EQ(omm::DestroyOpacityMicromapBaker(_baker), omm::Result::SUCCESS);
+			EXPECT_EQ(omm::DestroyBaker(_baker), omm::Result::SUCCESS);
 		}
 
 		bool EnableZOrder() const { return !((GetParam() & TestSuiteConfig::TextureDisableZOrder) == TestSuiteConfig::TextureDisableZOrder); }
@@ -96,7 +96,7 @@ namespace {
 
 			omm::Cpu::BakeInputDesc desc;
 			desc.texture = tex_04;
-			desc.ommFormat = opt.format;
+			desc.format = opt.format;
 			desc.alphaMode = omm::AlphaMode::Test;
 			desc.runtimeSamplerDesc.addressingMode = omm::TextureAddressMode::Clamp;
 			desc.runtimeSamplerDesc.filter = omm::TextureFilterMode::Linear;
@@ -120,11 +120,11 @@ namespace {
 
 			omm::Cpu::BakeResult res = 0;
 
-			EXPECT_EQ(omm::Cpu::BakeOpacityMicromap(_baker, desc, &res), omm::Result::SUCCESS);
+			EXPECT_EQ(omm::Cpu::Bake(_baker, desc, &res), omm::Result::SUCCESS);
 			EXPECT_NE(res, 0);
 
 			const omm::Cpu::BakeResultDesc* resDesc = nullptr;
-			EXPECT_EQ(omm::Cpu::GetBakeResultDesc(res, resDesc), omm::Result::SUCCESS);
+			EXPECT_EQ(omm::Cpu::GetBakeResultDesc(res, &resDesc), omm::Result::SUCCESS);
 
 			
 #if OMM_TEST_ENABLE_IMAGE_DUMP
@@ -240,7 +240,7 @@ namespace {
 
 				return 1.f - mips[mipStart + mip][w * j + i];
 
-				}, { .format = omm::OMMFormat::OC1_4_State, .mipCount = NumMip, .oneFile = false, .detailedCutout = false });
+				}, { .format = omm::Format::OC1_4_State, .mipCount = NumMip, .oneFile = false, .detailedCutout = false });
 
 			return stats;
 		}
@@ -273,7 +273,7 @@ namespace {
 
 				return 1.f - mips[w * j + i];
 
-				}, { .format = omm::OMMFormat::OC1_4_State, .unknownStatePromotion = omm::UnknownStatePromotion::Nearest, .enableSpecialIndices = false, .oneFile = true, .detailedCutout = false });
+				}, { .format = omm::Format::OC1_4_State, .unknownStatePromotion = omm::UnknownStatePromotion::Nearest, .enableSpecialIndices = false, .oneFile = true, .detailedCutout = false });
 
 			return stats;
 		}
@@ -287,7 +287,7 @@ namespace {
 
 		omm::Cpu::BakeInputDesc nullDesc;
 		omm::Cpu::BakeResult res = 0;
-		EXPECT_EQ(omm::Cpu::BakeOpacityMicromap(_baker, nullDesc, &res), omm::Result::INVALID_ARGUMENT);
+		EXPECT_EQ(omm::Cpu::Bake(_baker, nullDesc, &res), omm::Result::INVALID_ARGUMENT);
 		EXPECT_EQ(res, 0);
 	}
 
@@ -514,7 +514,7 @@ namespace {
 			if (glm::length(uv - 0.5f) < r)
 				return 0.f;
 			return 1.f;
-			}, { .format = omm::OMMFormat::OC1_2_State });
+			}, { .format = omm::Format::OC1_2_State });
 
 		ExpectEqual(stats, {
 			.totalOpaque = 254,
@@ -556,7 +556,7 @@ namespace {
 			const float uv = float(i) / (float)w;
 
 			return 1.f - std::sin(uv * 15);
-			}, { .format = omm::OMMFormat::OC1_2_State });
+			}, { .format = omm::Format::OC1_2_State });
 
 		ExpectEqual(stats, {
 			.totalOpaque = 288,
@@ -577,7 +577,7 @@ namespace {
 			const float uv = float(i) / (float)w;
 
 			return 1.f - std::sin(uv * 15);
-			}, { .format = omm::OMMFormat::OC1_2_State });
+			}, { .format = omm::Format::OC1_2_State });
 
 		ExpectEqual(stats, {
 			.totalOpaque = 288,
@@ -616,7 +616,7 @@ namespace {
 				return 1.f;
 			}
 
-		}, { .format = omm::OMMFormat::OC1_4_State });
+		}, { .format = omm::Format::OC1_4_State });
 
 		ExpectEqual(stats, {
 			.totalOpaque = 1212,
@@ -661,7 +661,7 @@ namespace {
 				return 1.f;
 			}
 
-			}, { .format = omm::OMMFormat::OC1_4_State });
+			}, { .format = omm::Format::OC1_4_State });
 
 		ExpectEqual(stats, {
 			.totalOpaque = 521,
@@ -706,7 +706,7 @@ namespace {
 				return 1.f;
 			}
 
-			}, { .format = omm::OMMFormat::OC1_4_State });
+			}, { .format = omm::Format::OC1_4_State });
 
 		ExpectEqual(stats, {
 			.totalOpaque = 164040,
@@ -753,7 +753,7 @@ namespace {
 			float alpha = std::clamp(col.x, 0.f, 1.f);
 			return 1.f - alpha;
 
-			}, { .format = omm::OMMFormat::OC1_4_State });
+			}, { .format = omm::Format::OC1_4_State });
 
 		ExpectEqual(stats, {
 			.totalOpaque = 254735,
@@ -786,7 +786,7 @@ namespace {
 
 			return 1.f - values[x + 2 *y];
 
-			}, { .format = omm::OMMFormat::OC1_4_State });
+			}, { .format = omm::Format::OC1_4_State });
 
 		ExpectEqual(stats, {
 			.totalOpaque = 5132,
@@ -818,7 +818,7 @@ namespace {
 			float d = std::abs(glm::max(pos.x * 1.5f + pos.y, pos.y * 2.0f) - 1.0f);
 
 			return glm::smoothstep(0.0f, gridThickness, d);
-			}, { .format = omm::OMMFormat::OC1_4_State });
+			}, { .format = omm::Format::OC1_4_State });
 
 		ExpectEqual(stats, {
 			.totalOpaque = 902,
@@ -850,7 +850,7 @@ namespace {
 			float d = std::abs(glm::max(pos.x * 1.5f + pos.y, pos.y * 2.0f) - 1.0f);
 
 			return glm::smoothstep(0.0f, gridThickness, d);
-			}, { .format = omm::OMMFormat::OC1_4_State });
+			}, { .format = omm::Format::OC1_4_State });
 
 		ExpectEqual(stats, {
 			.totalOpaque = 77995,
@@ -897,7 +897,7 @@ namespace {
 			float d = std::abs(glm::max(pos.x * 1.5f + pos.y, pos.y * 2.0f) - 1.0f);
 
 			return glm::smoothstep(0.0f, gridThickness, d);
-			}, { .format = omm::OMMFormat::OC1_4_State });
+			}, { .format = omm::Format::OC1_4_State });
 
 		ExpectEqual(stats, {
 			.totalOpaque = 6933,
@@ -943,7 +943,7 @@ namespace {
 			float d = std::abs(glm::max(pos.x * 1.5f + pos.y, pos.y * 2.0f) - 1.0f);
 
 			return glm::smoothstep(0.0f, gridThickness, d);
-			}, { .format = omm::OMMFormat::OC1_4_State });
+			}, { .format = omm::Format::OC1_4_State });
 
 		ExpectEqual(stats, {
 			.totalOpaque = 40134,
@@ -990,7 +990,7 @@ namespace {
 			float d = std::abs(glm::max(pos.x * 1.5f + pos.y, pos.y * 2.0f) - 1.0f);
 
 			return glm::smoothstep(0.0f, gridThickness, d);
-			}, { .format = omm::OMMFormat::OC1_4_State });
+			}, { .format = omm::Format::OC1_4_State });
 
 		ExpectEqual(stats, {
 			.totalOpaque = 187129,
@@ -1037,7 +1037,7 @@ namespace {
 			float d = std::abs(glm::max(pos.x * 1.5f + pos.y, pos.y * 2.0f) - 1.0f);
 
 			return glm::smoothstep(0.0f, gridThickness, d);
-			}, { .format = omm::OMMFormat::OC1_4_State });
+			}, { .format = omm::Format::OC1_4_State });
 
 		ExpectEqual(stats, {
 			.totalOpaque = 796515,
@@ -1084,7 +1084,7 @@ namespace {
 			float d = std::abs(glm::max(pos.x * 1.5f + pos.y, pos.y * 2.0f) - 1.0f);
 
 			return glm::smoothstep(0.0f, gridThickness, d);
-			}, { .format = omm::OMMFormat::OC1_4_State, .mergeSimilar = true });
+			}, { .format = omm::Format::OC1_4_State, .mergeSimilar = true });
 
 		ExpectEqual(stats, {
 			.totalOpaque = 172854, 

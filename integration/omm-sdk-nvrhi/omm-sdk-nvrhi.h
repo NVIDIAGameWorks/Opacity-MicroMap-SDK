@@ -10,7 +10,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 #pragma once
 
-#include <omm.h>
+#include <omm.hpp>
 #include <nvrhi/nvrhi.h>
 #include <vector>
 #include <stdint.h>

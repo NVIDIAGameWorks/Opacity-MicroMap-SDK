@@ -44,7 +44,7 @@ BEGIN
             VALUE "CompanyName", "NVIDIA"
             VALUE "FileVersion", VERSION_STRING
             VALUE "LegalCopyright", "Copyright © 2022"
-            VALUE "ProductName", "NVIDIA Visibility Map Baker"
+            VALUE "ProductName", "NVIDIA Opacity Micro-Map SDK"
             VALUE "ProductVersion", VERSION_STRING
         END
     END

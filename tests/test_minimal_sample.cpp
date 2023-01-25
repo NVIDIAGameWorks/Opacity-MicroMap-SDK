@@ -9,7 +9,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 */
 
 #include <gtest/gtest.h>
-#include <omm.h>
+#include <omm.hpp>
 #include <shared/math.h>
 
 namespace {
@@ -71,7 +71,7 @@ namespace {
 
 		omm::Baker bakerHandle; // Create the baker instance. This instance can be shared among all baking tasks. Typucally one per application.
 
-		omm::Result res = omm::CreateOpacityMicromapBaker(desc, &bakerHandle);
+		omm::Result res = omm::CreateBaker(desc, &bakerHandle);
 		ASSERT_EQ(res, omm::Result::SUCCESS);
 
 		// Since we configured the CPU baker we are limited to the functions in the ::Cpu namespace
@@ -111,18 +111,18 @@ namespace {
 		bakeDesc.indexFormat = omm::IndexFormat::I32_UINT;
 		bakeDesc.subdivisionLevels = subdivisionLevels.data();
 		// Desired output config
-		bakeDesc.ommFormat = omm::OMMFormat::OC1_2_State;
+		bakeDesc.format = omm::Format::OC1_2_State;
 		bakeDesc.unknownStatePromotion = omm::UnknownStatePromotion::ForceOpaque;
 		// leave the rest of the parameters to default.
 
 		// perform the baking... processing time may vary depending on triangle count, triangle size, subdivision level and texture size.
 		omm::Cpu::BakeResult bakeResultHandle;
-		res = omm::Cpu::BakeOpacityMicromap(bakerHandle, bakeDesc, &bakeResultHandle);
+		res = omm::Cpu::Bake(bakerHandle, bakeDesc, &bakeResultHandle);
 		ASSERT_EQ(res, omm::Result::SUCCESS);
 
 		// Read back the result.
 		const omm::Cpu::BakeResultDesc* bakeResultDesc = nullptr;
-		res = omm::Cpu::GetBakeResultDesc(bakeResultHandle, bakeResultDesc);
+		res = omm::Cpu::GetBakeResultDesc(bakeResultHandle, &bakeResultDesc);
 		ASSERT_EQ(res, omm::Result::SUCCESS);
 
 		// ... 
@@ -150,7 +150,7 @@ namespace {
 		res = omm::Cpu::DestroyTexture(bakerHandle, textureHandle);
 		ASSERT_EQ(res, omm::Result::SUCCESS);
 		// Cleanup. Baker no longer needed
-		res = omm::DestroyOpacityMicromapBaker(bakerHandle);
+		res = omm::DestroyBaker(bakerHandle);
 		ASSERT_EQ(res, omm::Result::SUCCESS);
 	}
 

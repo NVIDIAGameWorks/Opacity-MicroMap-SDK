@@ -61,14 +61,14 @@ namespace omm
             return _data[idx.x + idx.y * _size.x];
         }
 
-        T Sample(omm::TextureAddressMode mode, const float2& p) const {
+        T Sample(ommTextureAddressMode mode, const float2& p) const {
             const int2 pi = (int2)(glm::floor(p * float2(_size)));
             const int2 idx = omm::GetTexCoord(mode, pi, _size);
             return Load(idx);
         }
 
         template<class T2 = T>
-        T BilinearSample(omm::TextureAddressMode mode, const float2& p) const {
+        T BilinearSample(ommTextureAddressMode mode, const float2& p) const {
 
             float2 pixelOffset = float2(p * (float2)_size - 0.5f);
             int2 coords[omm::TexelOffset::MAX_NUM];
@@ -86,7 +86,7 @@ namespace omm
             return bilinearValue;
         }
 
-        T Load(omm::TextureAddressMode mode, const int2& idx) const {
+        T Load(ommTextureAddressMode mode, const int2& idx) const {
             const int2 idxAddessed = omm::GetTexCoord(mode, idx, _size);
             return Load(idxAddessed);
         }
@@ -134,17 +134,17 @@ namespace omm
         return res == 1;
     }
 
-    Result SaveAsImagesImpl(StdAllocator<uint8_t>& memoryAllocator, const Cpu::BakeInputDesc& desc, const Cpu::BakeResultDesc* resDesc, const Debug::SaveImagesDesc& dumpDesc)
+    ommResult SaveAsImagesImpl(StdAllocator<uint8_t>& memoryAllocator, const ommCpuBakeInputDesc& desc, const ommCpuBakeResultDesc* resDesc, const ommDebugSaveImagesDesc& dumpDesc)
     {
         if (desc.texture == 0)
-            return Result::INVALID_ARGUMENT;
+            return ommResult_INVALID_ARGUMENT;
 
         if (dumpDesc.detailedCutout && dumpDesc.oneFile)
-            return Result::INVALID_ARGUMENT;
+            return ommResult_INVALID_ARGUMENT;
 
         TextureImpl* texImpl = (TextureImpl*)desc.texture;
 
-        vector<omm::OpacityState> states(memoryAllocator);
+        vector<ommOpacityState> states(memoryAllocator);
         set<int32_t> dumpedOMMs(memoryAllocator);
 
         std::optional<ImageRGBA> target;
@@ -233,8 +233,8 @@ namespace omm
                 };
 
                 struct RasterParams {
-                    omm::OpacityState* states = nullptr;
-                    omm::SamplerDesc runtimeSamplerDesc;
+                    ommOpacityState* states = nullptr;
+                    ommSamplerDesc runtimeSamplerDesc;
                     int32_t subdivisionLevel = 0;
                     std::optional<ImageRGBA>* target = nullptr;
                     const ImageAlphaFp* srcAlphaFp = nullptr;
@@ -267,7 +267,7 @@ namespace omm
                         const float2 uv = (float2(pixel)) * p->invSrcSize;
 
                         float4 rgb;
-                        if (p->runtimeSamplerDesc.filter == TextureFilterMode::Linear)
+                        if (p->runtimeSamplerDesc.filter == ommTextureFilterMode_Linear)
                         {
                             float alphaFinal = 0.f;
                             for (uint32_t mipIt = 0; mipIt < p->mipCount; ++mipIt)
@@ -317,7 +317,7 @@ namespace omm
                         uint32_t trans = 0;
 
                         float delta = 0.f;
-                        if (p->runtimeSamplerDesc.filter == TextureFilterMode::Linear)
+                        if (p->runtimeSamplerDesc.filter == ommTextureFilterMode_Linear)
                         {
                             const float alpha0x0 = p->srcAlphaFp[p->mip].BilinearSample<float>(p->runtimeSamplerDesc.addressingMode, float2(pixel - int2(0, 0)) * p->invSrcSize);
                             const float alpha1x0 = p->srcAlphaFp[p->mip].BilinearSample<float>(p->runtimeSamplerDesc.addressingMode, float2(pixel - int2(1, 0)) * p->invSrcSize);
@@ -453,7 +453,7 @@ namespace omm
                 {
                     bool res = SaveImageToFile(dumpDesc.path, std::to_string(/*meshIt*/ 0) + "_" + std::to_string(primIt) + "_" + std::string(dumpDesc.filePostfix) + ".png", target);
                     if (!res)
-                        return Result::FAILURE;
+                        return ommResult_FAILURE;
                     target.reset();
                 }
             }
@@ -463,36 +463,36 @@ namespace omm
         {
             bool res = SaveImageToFile(dumpDesc.path, std::to_string(/*meshIt*/ 0) + "_" + std::string(dumpDesc.filePostfix) + ".png", target);
             if (!res)
-                return Result::FAILURE;
+                return ommResult_FAILURE;
         }
 
-        return Result::SUCCESS;
+        return ommResult_SUCCESS;
     }
 
-    static Debug::Stats CollectStats(StdAllocator<uint8_t>& memoryAllocator, const omm::Cpu::BakeResultDesc& resDesc) {
+    static ommDebugStats CollectStats(StdAllocator<uint8_t>& memoryAllocator, const ommCpuBakeResultDesc& resDesc) {
 
-        Debug::Stats stats;
+        ommDebugStats stats = {0};
 
-        const uint32_t triangleCount = resDesc.ommIndexCount;
+        const uint32_t triangleCount = resDesc.indexCount;
 
         for (uint32_t i = 0; i < triangleCount; ++i) {
 
             const int32_t vmIdx = omm::parse::GetOmmIndexForTriangleIndex(resDesc, i);
 
-            if (vmIdx == (int32_t)omm::SpecialIndex::FullyTransparent) {
+            if (vmIdx == (int32_t)ommSpecialIndex_FullyTransparent) {
                 stats.totalFullyTransparent++;
             }
-            else if (vmIdx == (int32_t)omm::SpecialIndex::FullyOpaque) {
+            else if (vmIdx == (int32_t)ommSpecialIndex_FullyOpaque) {
                 stats.totalFullyOpaque++;
             }
-            else if (vmIdx == (int32_t)omm::SpecialIndex::FullyUnknownTransparent) {
+            else if (vmIdx == (int32_t)ommSpecialIndex_FullyUnknownTransparent) {
                 stats.totalFullyUnknownTransparent++;
             }
-            else if (vmIdx == (int32_t)omm::SpecialIndex::FullyUnknownOpaque) {
+            else if (vmIdx == (int32_t)ommSpecialIndex_FullyUnknownOpaque) {
                 stats.totalFullyUnknownOpaque++;
             }
             else {
-                OMM_ASSERT(vmIdx < (int32_t)resDesc.ommDescArrayCount);
+                OMM_ASSERT(vmIdx < (int32_t)resDesc.descArrayCount);
                 // Calculate later
             }
         }
@@ -506,44 +506,44 @@ namespace omm
         };
 
         vector<DescStats> descStats(memoryAllocator);
-        descStats.resize(resDesc.ommDescArrayCount);
-        for (uint32_t i = 0; i < resDesc.ommDescArrayCount; ++i)
+        descStats.resize(resDesc.descArrayCount);
+        for (uint32_t i = 0; i < resDesc.descArrayCount; ++i)
         {
-            OMM_ASSERT(i < resDesc.ommDescArrayCount);
+            OMM_ASSERT(i < resDesc.descArrayCount);
 
-            const omm::Cpu::OpacityMicromapDesc& vmDesc = resDesc.ommDescArray[i];
-            const uint8_t* ommArrayData = (const uint8_t*)((const char*)resDesc.ommArrayData) + vmDesc.offset;
+            const ommCpuOpacityMicromapDesc& vmDesc = resDesc.descArray[i];
+            const uint8_t* ommArrayData = (const uint8_t*)((const char*)resDesc.arrayData) + vmDesc.offset;
             const uint32_t numMicroTriangles = 1u << (vmDesc.subdivisionLevel << 1u);
-            const uint32_t is2State = (omm::OMMFormat)vmDesc.format == omm::OMMFormat::OC1_2_State ? 1 : 0;
+            const uint32_t is2State = (ommFormat)vmDesc.format == ommFormat_OC1_2_State ? 1 : 0;
             for (uint32_t uTriIt = 0; uTriIt < numMicroTriangles; ++uTriIt)
             {
                 int byteIndex = uTriIt >> (2 + is2State);
                 uint8_t v = ((uint8_t*)ommArrayData)[byteIndex];
-                omm::OpacityState state;
-                if (is2State)   state = omm::OpacityState((v >> ((uTriIt << 0) & 7)) & 1); // 2-state
-                else			state = omm::OpacityState((v >> ((uTriIt << 1) & 7)) & 3); // 4-state
+                ommOpacityState state;
+                if (is2State)   state = ommOpacityState((v >> ((uTriIt << 0) & 7)) & 1); // 2-state
+                else			state = ommOpacityState((v >> ((uTriIt << 1) & 7)) & 3); // 4-state
 
                 OMM_ASSERT(
-                    state == omm::OpacityState::Opaque ||
-                    state == omm::OpacityState::Transparent ||
-                    state == omm::OpacityState::UnknownOpaque ||
-                    state == omm::OpacityState::UnknownTransparent);
+                    state == ommOpacityState_Opaque ||
+                    state == ommOpacityState_Transparent ||
+                    state == ommOpacityState_UnknownOpaque ||
+                    state == ommOpacityState_UnknownTransparent);
 
-                if (state == omm::OpacityState::Opaque)
+                if (state == ommOpacityState_Opaque)
                     descStats[i].totalOpaque++;
-                else if (state == omm::OpacityState::Transparent)
+                else if (state == ommOpacityState_Transparent)
                     descStats[i].totalTransparent++;
-                else if (state == omm::OpacityState::UnknownOpaque)
+                else if (state == ommOpacityState_UnknownOpaque)
                     descStats[i].totalUnknownOpaque++;
-                else if (state == omm::OpacityState::UnknownTransparent)
+                else if (state == ommOpacityState_UnknownTransparent)
                     descStats[i].totalUnknownTransparent++;
             }
         }
 
 
-        for (uint32_t i = 0; i < resDesc.ommIndexCount; ++i)
+        for (uint32_t i = 0; i < resDesc.indexCount; ++i)
         {
-            int32_t index = resDesc.ommIndexFormat == IndexFormat::I16_UINT ? ((int16_t*)resDesc.ommIndexBuffer)[i] : ((int32_t*)resDesc.ommIndexBuffer)[i];
+            int32_t index = resDesc.indexFormat == ommIndexFormat_I16_UINT ? ((int16_t*)resDesc.indexBuffer)[i] : ((int32_t*)resDesc.indexBuffer)[i];
             if (index < 0)
                 continue;
             stats.totalOpaque += descStats[index].totalOpaque;
@@ -555,14 +555,14 @@ namespace omm
         return stats;
     }
 
-    Result GetStatsImpl(StdAllocator<uint8_t>& memoryAllocator, const Cpu::BakeResultDesc* resDesc, Debug::Stats* out)
+    ommResult GetStatsImpl(StdAllocator<uint8_t>& memoryAllocator, const ommCpuBakeResultDesc* resDesc, ommDebugStats* out)
     {
         if (resDesc == nullptr)
-            return Result::INVALID_ARGUMENT;
+            return ommResult_INVALID_ARGUMENT;
         if (out == nullptr)
-            return Result::INVALID_ARGUMENT;
+            return ommResult_INVALID_ARGUMENT;
 
         *out = CollectStats(memoryAllocator, *resDesc);
-        return Result::SUCCESS;
+        return ommResult_SUCCESS;
     }
 }  // namespace omm

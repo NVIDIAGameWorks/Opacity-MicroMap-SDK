@@ -97,7 +97,7 @@ public:
     bool HasResourceBinding(const char* resourceName) const;
     bool HasResourceBinding(uint32_t resourceNameHash) const;
 
-    const Gpu::DescriptorRangeDesc* GetRanges() const;
+    const ommGpuDescriptorRangeDesc* GetRanges() const;
     uint32_t GetNumRanges() const;
 
     const ResourceBinding* GetResources() const;
@@ -107,7 +107,7 @@ public:
     uint32_t GetNumSubResources() const;
 
 private:
-   vector<Gpu::DescriptorRangeDesc>   ranges;
+   vector<ommGpuDescriptorRangeDesc>   ranges;
    vector<ResourceBinding>            resourcesVec;
    vector<SubResourceBinding>         subResourcesVec;
    map<uint32_t, ResourceBinding>     resources;
