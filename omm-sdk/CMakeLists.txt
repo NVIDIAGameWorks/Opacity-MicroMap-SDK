@@ -9,7 +9,7 @@ option(OMM_CROSSCOMPILE_AARCH64 "cross compilation for aarch64" OFF)
 option(OMM_CROSSCOMPILE_X86_64 "cross compilation for x86_64" OFF)
 option(OMM_SHADER_DEBUG_INFO "enable embedded shader debug info" OFF)
 option(OMM_INSTALL "Generate install rules for OMM" ON)
-option(OMM_ENABLE_INTERFACE_GEN "Enable interface generation script. Only required for SDK development." ON)
+option(OMM_ENABLE_INTERFACE_GEN "Enable interface generation script. Only required for SDK development." OFF)
 
 if (OMM_ENABLE_OPENMP)
 find_package(OpenMP)
