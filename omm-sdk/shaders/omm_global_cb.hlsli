@@ -64,7 +64,8 @@ OMM_CONSTANTS_START(GlobalConstants)							\
 	OMM_CONSTANT(uint, BakeResultBufferOffset)					\
 																\
 	OMM_CONSTANT(uint, SpecialIndicesStateBufferOffset)			\
+	OMM_CONSTANT(uint, TempOmmBakeScheduleTrackerBufferOffset)	\
 	OMM_CONSTANT(uint, AssertBufferOffset)						\
-	OMM_CONSTANT(uint2, Pad3)									\
+	OMM_CONSTANT(uint, Pad3)									\
 																\
 OMM_CONSTANTS_END(GlobalConstants, 0)

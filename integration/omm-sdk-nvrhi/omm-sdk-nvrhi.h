@@ -55,8 +55,6 @@ namespace omm
 			bool								enableTexCoordDeuplication = true;
 			bool								computeOnly = false;
 			bool								onlySpecialIndices = false;
-
-			uint32_t							maxOutOmmArraySizeInBytes = 0xFFFFFFFF;
 		};
 
 		struct PreBakeInfo
@@ -73,6 +71,8 @@ namespace omm
 
 		struct PrePassOutput
 		{
+			nvrhi::BufferHandle ommDescBuffer;
+			nvrhi::BufferHandle ommIndexBuffer;
 			nvrhi::BufferHandle ommDescArrayHistogramBuffer;
 			nvrhi::BufferHandle ommIndexHistogramBuffer;
 			nvrhi::BufferHandle ommPostBuildInfoBuffer;

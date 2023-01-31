@@ -564,8 +564,6 @@ namespace Gpu
                 m_desc.compute.pipelineIndex = pipelineIndex;
                 m_desc.compute.gridWidth = threadGroupCountX;
                 m_desc.compute.gridHeight = threadGroupCountY;
-                OMM_ASSERT(m_desc.compute.gridWidth != 0);
-
                 return m_localCb;
             }
 
@@ -965,9 +963,12 @@ namespace Gpu
             omm_post_build_info_cs_bindings ommPostBuildInfoBindings;
             uint32_t ommPostBuildInfoBuffersIdx = -1;
 
+            omm_work_setup_bake_only_cs_cs_bindings ommWorkSetupBakeOnlyCsBindings;
+            uint32_t ommWorkSetupBakeOnlyCsIdx = -1;
+
             omm_work_setup_cs_cs_bindings ommWorkSetupCsBindings;
             uint32_t ommWorkSetupCsIdx = -1;
-
+            
             omm_work_setup_gfx_cs_bindings ommWorkSetupGfxBindings;
             uint32_t ommWorkSetupGfxIdx = -1;
 
@@ -1001,6 +1002,7 @@ namespace Gpu
             , ommInitBuffersCsBindings(stdAllocator)
             , ommInitBuffersGfxBindings(stdAllocator)
             , ommPostBuildInfoBindings(stdAllocator)
+            , ommWorkSetupBakeOnlyCsBindings(stdAllocator)
             , ommWorkSetupCsBindings(stdAllocator)
             , ommWorkSetupGfxBindings(stdAllocator)
             , ommRasterizeBindings(stdAllocator)
@@ -1018,12 +1020,12 @@ namespace Gpu
         {
             BufferResource scratchBuffer;
             BufferResource scratchBuffer0;
-            BufferResource scratch_u_ommDescArrayBuffer;
             BufferResource indArgBuffer;
             BufferResource debugBuffer; // Contains asserts.
 
             BufferResource::SubRange hashTableBuffer;
             BufferResource::SubRange tempOmmIndexBuffer;
+            BufferResource::SubRange tempOmmBakeScheduleTrackerBuffer;
             BufferResource::SubRange bakeResultBufferCounter;
             BufferResource::SubRange ommArrayAllocatorCounter;
             BufferResource::SubRange ommDescAllocatorCounter;
@@ -1035,7 +1037,6 @@ namespace Gpu
             BufferResource::SubRange IEBakeCsBuffer;
             BufferResource::SubRange IECompressCsBuffer;
             BufferResource::SubRange IEBakeCsThreadCountBuffer;
-            BufferResource::SubRange sub_u_ommDescArrayBuffer;
 
             BufferResource::SubRange assertBuffer;
 

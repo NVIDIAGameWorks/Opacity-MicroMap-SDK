@@ -520,9 +520,14 @@ typedef enum ommGpuBakeFlags
 {
    ommGpuBakeFlags_None                         = 0,
 
-   // Will run the pre-pass only. Meaning that _only_ OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_DESC_ARRAY_HISTOGRAM and (optionally)
-   // OUT_POST_BAKE_INFO will be written.
-   ommGpuBakeFlags_RunPrePass                   = 1u << 0,
+   // OUT_OMM_DESC_ARRAY_HISTOGRAM, OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_DESC_ARRAY and (optionally)
+   // OUT_POST_BAKE_INFO will be written to.
+   ommGpuBakeFlags_PerformBuild                 = 1u << 0,
+
+   // OUT_OMM_ARRAY_DATA will be written to. If special indices are detected OUT_OMM_INDEX_BUFFER is also modified.
+   // If PerformBuild is not set, OUT_OMM_DESC_ARRAY_HISTOGRAM, OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER,
+   // OUT_OMM_DESC_ARRAY must contain valid data.
+   ommGpuBakeFlags_PerformBake                  = 1u << 1,
 
    // Baking will only be done using compute shaders and no gfx involvement (drawIndirect or graphics PSOs). (Beta)
    // Will become default mode in the future.
@@ -531,23 +536,23 @@ typedef enum ommGpuBakeFlags
    // + Faster baking on low texel ratio to micro-triangle ratio (=rasterizing small triangles)
    // - May looses efficency when resampling large triangles (tail-effect). Potential mitigation is to batch multiple bake
    // jobs. However this is generally not a big problem.
-   ommGpuBakeFlags_ComputeOnly                  = 1u << 1,
+   ommGpuBakeFlags_ComputeOnly                  = 1u << 2,
 
    // Baking will also output post build info. (OUT_POST_BUILD_INFO).
-   ommGpuBakeFlags_EnablePostBuildInfo          = 1u << 2,
+   ommGpuBakeFlags_EnablePostBuildInfo          = 1u << 3,
 
    // Will disable the use of special indices in case the OMM-state is uniform. Only set this flag for debug purposes.
-   ommGpuBakeFlags_DisableSpecialIndices        = 1u << 3,
+   ommGpuBakeFlags_DisableSpecialIndices        = 1u << 4,
 
    // If texture coordinates are known to be unique tex cooord deduplication can be disabled to save processing time and free
    // up scratch memory.
-   ommGpuBakeFlags_DisableTexCoordDeduplication = 1u << 4,
+   ommGpuBakeFlags_DisableTexCoordDeduplication = 1u << 5,
 
    // Force 32-bit indices in OUT_OMM_INDEX_BUFFER
-   ommGpuBakeFlags_Force32BitIndices            = 1u << 5,
+   ommGpuBakeFlags_Force32BitIndices            = 1u << 6,
 
    // Slightly modifies the dispatch to aid frame capture debugging.
-   ommGpuBakeFlags_EnableNsightDebugMode        = 1u << 6,
+   ommGpuBakeFlags_EnableNsightDebugMode        = 1u << 7,
 } ommGpuBakeFlags;
 OMM_DEFINE_ENUM_FLAG_OPERATORS(ommGpuBakeFlags);
 
@@ -844,8 +849,6 @@ typedef struct ommGpuBakeDispatchConfigDesc
    uint8_t                   globalSubdivisionLevel;
    uint8_t                   maxSubdivisionLevel;
    uint8_t                   enableSubdivisionLevelBuffer;
-   // (REQUIRED). Maximum size of OUT_OMM_ARRAY_DATA buffer. Use data from preBuildInfo OR run bake pre-pass.
-   uint32_t                  maxOutOmmArraySizeInBytes;
    // Target scratch memory budget, The SDK will try adjust the sum of the transient pool buffers to match this value. Higher
    // budget more efficiently executes the baking operation. May return INSUFFICIENT_SCRATCH_MEMORY if set too low.
    ommGpuScratchMemoryBudget maxScratchMemorySize;
@@ -872,7 +875,6 @@ inline ommGpuBakeDispatchConfigDesc ommGpuBakeDispatchConfigDescDefault()
    v.globalSubdivisionLevel        = 4;
    v.maxSubdivisionLevel           = 8;
    v.enableSubdivisionLevelBuffer  = 0;
-   v.maxOutOmmArraySizeInBytes     = 0xFFFFFFFF;
    v.maxScratchMemorySize          = ommGpuScratchMemoryBudget_Default;
    return v;
 }
@@ -888,6 +890,15 @@ typedef struct ommGpuBakePipelineInfoDesc
    const ommGpuStaticSamplerDesc* staticSamplers;
    uint32_t                       staticSamplersNum;
 } ommGpuBakePipelineInfoDesc;
+
+// Format of OUT_PREPASS_DATA
+typedef struct ommGpuPrePassResult
+{
+   uint32_t outOmmArraySizeInBytes;
+   uint32_t outOmmDescSizeInBytes;
+   // Opaque data
+   uint32_t data[64];
+} ommGpuPrePassResult;
 
 // Format of OUT_POST_BAKE_INFO
 typedef struct ommGpuPostBakeInfo

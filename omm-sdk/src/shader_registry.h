@@ -17,6 +17,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 	#include "omm_init_buffers_cs.cs.dxil.h"
 	#include "omm_init_buffers_gfx.cs.dxil.h"
 	#include "omm_work_setup_cs.cs.dxil.h"
+	#include "omm_work_setup_bake_only_cs.cs.dxil.h"
 	#include "omm_work_setup_gfx.cs.dxil.h"
 	#include "omm_post_build_info.cs.dxil.h"
 	#include "omm_desc_patch.cs.dxil.h"
@@ -45,6 +46,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 	#include "omm_init_buffers_cs.cs.spirv.h"
 	#include "omm_init_buffers_gfx.cs.spirv.h"
 	#include "omm_work_setup_cs.cs.spirv.h"
+	#include "omm_work_setup_bake_only_cs.cs.spirv.h"
 	#include "omm_work_setup_gfx.cs.spirv.h"
 	#include "omm_post_build_info.cs.spirv.h"
 	#include "omm_desc_patch.cs.spirv.h"
@@ -95,6 +97,11 @@ END_DECLARE_SHADER_BINDINGS
 /// **********************************************************************************
 BEGIN_DECLARE_SHADER_BINDINGS(omm_work_setup_cs_cs_bindings)
 #include "omm_work_setup_cs.cs.resources.hlsli"
+#include "shader_bindings_expand.h"
+END_DECLARE_SHADER_BINDINGS
+/// **********************************************************************************
+BEGIN_DECLARE_SHADER_BINDINGS(omm_work_setup_bake_only_cs_cs_bindings)
+#include "omm_work_setup_bake_only_cs.cs.resources.hlsli"
 #include "shader_bindings_expand.h"
 END_DECLARE_SHADER_BINDINGS
 /// **********************************************************************************

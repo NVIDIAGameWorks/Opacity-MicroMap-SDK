@@ -518,7 +518,9 @@ omm::Gpu::BakeDispatchConfigDesc GpuBakeNvrhi::GetConfig(const Input& params, bo
 	config.bakeFlags = (omm::Gpu::BakeFlags)((uint32_t)config.bakeFlags | (uint32_t)omm::Gpu::BakeFlags::EnablePostBuildInfo);
 	
 	if (prePass)
-		config.bakeFlags = (omm::Gpu::BakeFlags)((uint32_t)config.bakeFlags | (uint32_t)omm::Gpu::BakeFlags::RunPrePass);
+		config.bakeFlags = (omm::Gpu::BakeFlags)((uint32_t)config.bakeFlags | (uint32_t)omm::Gpu::BakeFlags::PerformBuild);
+	else
+		config.bakeFlags = (omm::Gpu::BakeFlags)((uint32_t)config.bakeFlags | (uint32_t)omm::Gpu::BakeFlags::PerformBake);
 
 	if (!params.enableSpecialIndices)
 		config.bakeFlags = (omm::Gpu::BakeFlags)((uint32_t)config.bakeFlags | (uint32_t)omm::Gpu::BakeFlags::DisableSpecialIndices);
@@ -547,7 +549,6 @@ omm::Gpu::BakeDispatchConfigDesc GpuBakeNvrhi::GetConfig(const Input& params, bo
 	config.maxSubdivisionLevel					= params.maxSubdivisionLevel;
 	config.globalSubdivisionLevel				= params.maxSubdivisionLevel;
 	config.dynamicSubdivisionScale				= params.dynamicSubdivisionScale;
-	config.maxOutOmmArraySizeInBytes			= params.maxOutOmmArraySizeInBytes;
 	return config;
 }
 
@@ -596,15 +597,11 @@ void GpuBakeNvrhi::GetPreBakeInfo(const Input& params, PreBakeInfo& info)
 	info.ommPostBuildInfoBufferSize = preBuildInfo.outOmmPostBuildInfoSizeInBytes;
 }
 
-static std::mutex io_mutex;
-
 void GpuBakeNvrhi::RunBakePrePass(
 	nvrhi::CommandListHandle commandList,
 	const Input& params,
 	const PrePassOutput& result)
 {
-	std::lock_guard<std::mutex> lk(io_mutex);
-
 	using namespace omm;
 
 	Gpu::BakeDispatchConfigDesc config = GetConfig(params, true /*prepass*/);
@@ -620,6 +617,8 @@ void GpuBakeNvrhi::RunBakePrePass(
 	assert(res == omm::Result::SUCCESS);
 
 	Output output;
+	output.ommDescBuffer = result.ommDescBuffer;
+	output.ommIndexBuffer = result.ommIndexBuffer;
 	output.ommDescArrayHistogramBuffer = result.ommDescArrayHistogramBuffer;
 	output.ommIndexHistogramBuffer = result.ommIndexHistogramBuffer;
 	output.ommPostBuildInfoBuffer = result.ommPostBuildInfoBuffer;
@@ -631,8 +630,6 @@ void GpuBakeNvrhi::RunBake(
 	const Input& params, 
 	const Output& result)
 {
-	std::lock_guard<std::mutex> lk(io_mutex);
-
 	using namespace omm;
 
 	Gpu::BakeDispatchConfigDesc config = GetConfig(params, false /*prepass*/);

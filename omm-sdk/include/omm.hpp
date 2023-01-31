@@ -425,9 +425,14 @@ namespace omm
       {
          None                         = 0,
 
-         // Will run the pre-pass only. Meaning that _only_ OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_DESC_ARRAY_HISTOGRAM and (optionally)
-         // OUT_POST_BAKE_INFO will be written.
-         RunPrePass                   = 1u << 0,
+         // OUT_OMM_DESC_ARRAY_HISTOGRAM, OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_DESC_ARRAY and (optionally)
+         // OUT_POST_BAKE_INFO will be written to.
+         PerformBuild                 = 1u << 0,
+
+         // OUT_OMM_ARRAY_DATA will be written to. If special indices are detected OUT_OMM_INDEX_BUFFER is also modified.
+         // If PerformBuild is not set, OUT_OMM_DESC_ARRAY_HISTOGRAM, OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER,
+         // OUT_OMM_DESC_ARRAY must contain valid data.
+         PerformBake                  = 1u << 1,
 
          // Baking will only be done using compute shaders and no gfx involvement (drawIndirect or graphics PSOs). (Beta)
          // Will become default mode in the future.
@@ -436,23 +441,23 @@ namespace omm
          // + Faster baking on low texel ratio to micro-triangle ratio (=rasterizing small triangles)
          // - May looses efficency when resampling large triangles (tail-effect). Potential mitigation is to batch multiple bake
          // jobs. However this is generally not a big problem.
-         ComputeOnly                  = 1u << 1,
+         ComputeOnly                  = 1u << 2,
 
          // Baking will also output post build info. (OUT_POST_BUILD_INFO).
-         EnablePostBuildInfo          = 1u << 2,
+         EnablePostBuildInfo          = 1u << 3,
 
          // Will disable the use of special indices in case the OMM-state is uniform. Only set this flag for debug purposes.
-         DisableSpecialIndices        = 1u << 3,
+         DisableSpecialIndices        = 1u << 4,
 
          // If texture coordinates are known to be unique tex cooord deduplication can be disabled to save processing time and free
          // up scratch memory.
-         DisableTexCoordDeduplication = 1u << 4,
+         DisableTexCoordDeduplication = 1u << 5,
 
          // Force 32-bit indices in OUT_OMM_INDEX_BUFFER
-         Force32BitIndices            = 1u << 5,
+         Force32BitIndices            = 1u << 6,
 
          // Slightly modifies the dispatch to aid frame capture debugging.
-         EnableNsightDebugMode        = 1u << 6,
+         EnableNsightDebugMode        = 1u << 7,
       };
       OMM_DEFINE_ENUM_FLAG_OPERATORS(BakeFlags);
 
@@ -724,8 +729,6 @@ namespace omm
          uint8_t             globalSubdivisionLevel        = 4;
          uint8_t             maxSubdivisionLevel           = 8;
          uint8_t             enableSubdivisionLevelBuffer  = 0;
-         // (REQUIRED). Maximum size of OUT_OMM_ARRAY_DATA buffer. Use data from preBuildInfo OR run bake pre-pass.
-         uint32_t            maxOutOmmArraySizeInBytes     = 0xFFFFFFFF;
          // Target scratch memory budget, The SDK will try adjust the sum of the transient pool buffers to match this value. Higher
          // budget more efficiently executes the baking operation. May return INSUFFICIENT_SCRATCH_MEMORY if set too low.
          ScratchMemoryBudget maxScratchMemorySize          = ScratchMemoryBudget::Default;
@@ -741,6 +744,15 @@ namespace omm
          DescriptorSetDesc        descriptorSetDesc;
          const StaticSamplerDesc* staticSamplers;
          uint32_t                 staticSamplersNum;
+      };
+
+      // Format of OUT_PREPASS_DATA
+      struct PrePassResult
+      {
+         uint32_t outOmmArraySizeInBytes;
+         uint32_t outOmmDescSizeInBytes;
+         // Opaque data
+         uint32_t data[64];
       };
 
       // Format of OUT_POST_BAKE_INFO

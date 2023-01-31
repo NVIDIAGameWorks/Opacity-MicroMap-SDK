@@ -145,8 +145,8 @@ namespace {
 			input.texCoordStrideInBytes = sizeof(float2);
 			input.indexBuffer = ib;
 			input.numIndices = indexBufferSize / sizeof(uint32_t);
-			input.globalSubdivisionLevel = subdivisionLevel;
-			input.use2State = format == omm::Format::OC1_2_State;
+			input.maxSubdivisionLevel = subdivisionLevel;
+			input.format = format == omm::Format::OC1_2_State ? nvrhi::rt::OpacityMicromapFormat::OC1_2_State : nvrhi::rt::OpacityMicromapFormat::OC1_4_State;
 			input.dynamicSubdivisionScale = 0.f;
 			input.enableSpecialIndices = EnableSpecialIndices();
 			input.force32BitIndices = Force32BitIndices();
