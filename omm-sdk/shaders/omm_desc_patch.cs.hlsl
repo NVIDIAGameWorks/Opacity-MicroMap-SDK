@@ -62,7 +62,7 @@ void IncrementIndexHistogram(uint ommDescOffset)
 {
 	const uint kOMMFormatNum = 2;
 
-	const uint vmDescData = t_vmDescBuffer.Load(ommDescOffset * 8 + 4);
+	const uint vmDescData = t_ommDescArrayBuffer.Load(ommDescOffset * 8 + 4);
 	const OMMFormat vmFormat = (OMMFormat)(vmDescData >> 16u);
 	const uint subdivisionLevel = (uint)(vmDescData & 0x0000FFFF);
 

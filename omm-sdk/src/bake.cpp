@@ -180,7 +180,7 @@ OMM_API ommResult OMM_CALL ommGpuBake(ommGpuPipeline pipeline, const ommGpuBakeD
     if (dispatchConfig == 0)
         return ommResult_INVALID_ARGUMENT;
     Gpu::PipelineImpl* impl = (Gpu::PipelineImpl*)(pipeline);
-    return impl->GetDispatcheDesc(*dispatchConfig, outDispatchDesc);
+    return impl->GetDispatchBakeDesc(*dispatchConfig, outDispatchDesc);
 }
     
 OMM_API ommResult OMM_CALL ommDebugSaveAsImages(ommBaker baker, const ommCpuBakeInputDesc* bakeInputDesc, const ommCpuBakeResultDesc* res, const ommDebugSaveImagesDesc* desc)

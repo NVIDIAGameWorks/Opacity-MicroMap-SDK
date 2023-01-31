@@ -142,7 +142,13 @@ public:
 
 		return result;
 	}
-	void Clear();
+
+	void Clear()
+	{
+		m_Mutex.lock();
+		m_BindingSets.clear();
+		m_Mutex.unlock();
+	}
 };
 
 GpuBakeNvrhi::GpuBakeNvrhi(nvrhi::DeviceHandle device, nvrhi::CommandListHandle commandList, bool enableDebug, ShaderProviderCb* shaderProviderCb)
@@ -217,7 +223,7 @@ void GpuBakeNvrhi::InitStaticBuffers(nvrhi::CommandListHandle commandList)
 			desc.clearValue = nvrhi::Color();
 			desc.useClearValue = true;
 			desc.isRenderTarget = true;
-			desc.isVirtual = !m_enableDebug;
+			desc.isVirtual = false;
 			virtualTexture = m_device->createTexture(desc);
 		}
 
@@ -500,7 +506,7 @@ void GpuBakeNvrhi::SetupPipelines(
 	}
 }
 
-omm::Gpu::BakeDispatchConfigDesc GpuBakeNvrhi::GetConfig(const Input& params)
+omm::Gpu::BakeDispatchConfigDesc GpuBakeNvrhi::GetConfig(const Input& params, bool prePass)
 {
 	using namespace omm;
 
@@ -511,6 +517,9 @@ omm::Gpu::BakeDispatchConfigDesc GpuBakeNvrhi::GetConfig(const Input& params)
 		config.bakeFlags = (omm::Gpu::BakeFlags)((uint32_t)config.bakeFlags | (uint32_t)omm::Gpu::BakeFlags::EnableNsightDebugMode);
 	config.bakeFlags = (omm::Gpu::BakeFlags)((uint32_t)config.bakeFlags | (uint32_t)omm::Gpu::BakeFlags::EnablePostBuildInfo);
 	
+	if (prePass)
+		config.bakeFlags = (omm::Gpu::BakeFlags)((uint32_t)config.bakeFlags | (uint32_t)omm::Gpu::BakeFlags::RunPrePass);
+
 	if (!params.enableSpecialIndices)
 		config.bakeFlags = (omm::Gpu::BakeFlags)((uint32_t)config.bakeFlags | (uint32_t)omm::Gpu::BakeFlags::DisableSpecialIndices);
 
@@ -533,11 +542,12 @@ omm::Gpu::BakeDispatchConfigDesc GpuBakeNvrhi::GetConfig(const Input& params)
 	config.texCoordStrideInBytes				= params.texCoordStrideInBytes;
 	config.indexFormat							= IndexFormat::I32_UINT;
 	config.indexCount							= (uint32_t)params.numIndices;
-	config.globalFormat							= params.use2State ? Format::OC1_2_State : Format::OC1_4_State;
+	config.globalFormat							= params.format == nvrhi::rt::OpacityMicromapFormat::OC1_2_State ? Format::OC1_2_State : Format::OC1_4_State;
 	config.maxScratchMemorySize					= params.minimalMemoryMode ? Gpu::ScratchMemoryBudget::MB_4 : Gpu::ScratchMemoryBudget::MB_256;
-	config.maxSubdivisionLevel					= params.globalSubdivisionLevel;
-	config.globalSubdivisionLevel				= params.globalSubdivisionLevel;
+	config.maxSubdivisionLevel					= params.maxSubdivisionLevel;
+	config.globalSubdivisionLevel				= params.maxSubdivisionLevel;
 	config.dynamicSubdivisionScale				= params.dynamicSubdivisionScale;
+	config.maxOutOmmArraySizeInBytes			= params.maxOutOmmArraySizeInBytes;
 	return config;
 }
 
@@ -570,7 +580,7 @@ void GpuBakeNvrhi::GetPreBakeInfo(const Input& params, PreBakeInfo& info)
 {
 	using namespace omm;
 
-	Gpu::BakeDispatchConfigDesc config = GetConfig(params);
+	Gpu::BakeDispatchConfigDesc config = GetConfig(params, false /*prePass*/);
 
 	Gpu::PreBakeInfo preBuildInfo;
 	omm::Result res = Gpu::GetPreBakeInfo(m_pipeline, config, &preBuildInfo);
@@ -586,14 +596,46 @@ void GpuBakeNvrhi::GetPreBakeInfo(const Input& params, PreBakeInfo& info)
 	info.ommPostBuildInfoBufferSize = preBuildInfo.outOmmPostBuildInfoSizeInBytes;
 }
 
+static std::mutex io_mutex;
+
+void GpuBakeNvrhi::RunBakePrePass(
+	nvrhi::CommandListHandle commandList,
+	const Input& params,
+	const PrePassOutput& result)
+{
+	std::lock_guard<std::mutex> lk(io_mutex);
+
+	using namespace omm;
+
+	Gpu::BakeDispatchConfigDesc config = GetConfig(params, true /*prepass*/);
+
+	Gpu::PreBakeInfo preBuildInfo;
+	omm::Result res = Gpu::GetPreBakeInfo(m_pipeline, config, &preBuildInfo);
+	assert(res == omm::Result::SUCCESS);
+
+	ReserveScratchBuffers(preBuildInfo);
+
+	const omm::Gpu::BakeDispatchChain* dispatchDesc = nullptr;
+	res = Gpu::Bake(m_pipeline, config, &dispatchDesc);
+	assert(res == omm::Result::SUCCESS);
+
+	Output output;
+	output.ommDescArrayHistogramBuffer = result.ommDescArrayHistogramBuffer;
+	output.ommIndexHistogramBuffer = result.ommIndexHistogramBuffer;
+	output.ommPostBuildInfoBuffer = result.ommPostBuildInfoBuffer;
+	ExecuteBakeOperation(commandList, params, output, dispatchDesc);
+}
+
 void GpuBakeNvrhi::RunBake(
 	nvrhi::CommandListHandle commandList,
 	const Input& params, 
 	const Output& result)
 {
+	std::lock_guard<std::mutex> lk(io_mutex);
+
 	using namespace omm;
 
-	Gpu::BakeDispatchConfigDesc config = GetConfig(params);
+	Gpu::BakeDispatchConfigDesc config = GetConfig(params, false /*prepass*/);
 
 	Gpu::PreBakeInfo preBuildInfo;
 	omm::Result res = Gpu::GetPreBakeInfo(m_pipeline, config, &preBuildInfo);
@@ -606,6 +648,11 @@ void GpuBakeNvrhi::RunBake(
 	assert(res == omm::Result::SUCCESS);
 
 	ExecuteBakeOperation(commandList, params, result, dispatchDesc);
+}
+
+void GpuBakeNvrhi::Clear()
+{
+	m_bindingCache->Clear();
 }
 
 void GpuBakeNvrhi::ReadPostBuildInfo(void* pData, size_t byteSize, PostBuildInfo& outPostBuildInfo)
@@ -948,11 +995,16 @@ void GpuBakeNvrhi::ExecuteBakeOperation(
 	if (rtv)
 		commandList->setTextureState(rtv, nvrhi::AllSubresources, nvrhi::ResourceStates::Common);
 	commandList->setBufferState(m_globalCBuffer, nvrhi::ResourceStates::ConstantBuffer);
-	commandList->setBufferState(output.ommArrayBuffer, nvrhi::ResourceStates::Common);
-	commandList->setBufferState(output.ommDescBuffer, nvrhi::ResourceStates::Common);
-	commandList->setBufferState(output.ommIndexBuffer, nvrhi::ResourceStates::Common);
-	commandList->setBufferState(output.ommDescArrayHistogramBuffer, nvrhi::ResourceStates::Common);
-	commandList->setBufferState(output.ommIndexHistogramBuffer, nvrhi::ResourceStates::Common);
+	if (output.ommArrayBuffer.Get())
+		commandList->setBufferState(output.ommArrayBuffer, nvrhi::ResourceStates::Common);
+	if (output.ommDescBuffer.Get())
+		commandList->setBufferState(output.ommDescBuffer, nvrhi::ResourceStates::Common);
+	if (output.ommIndexBuffer.Get())
+		commandList->setBufferState(output.ommIndexBuffer, nvrhi::ResourceStates::Common);
+	if (output.ommDescArrayHistogramBuffer.Get())
+		commandList->setBufferState(output.ommDescArrayHistogramBuffer, nvrhi::ResourceStates::Common);
+	if (output.ommIndexHistogramBuffer.Get())
+		commandList->setBufferState(output.ommIndexHistogramBuffer, nvrhi::ResourceStates::Common);
 	for (auto it : m_transientPool)
 		commandList->setBufferState(it, nvrhi::ResourceStates::Common);
 	commandList->commitBarriers();

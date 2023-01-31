@@ -13,7 +13,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
     OMM_INPUT_RESOURCE( ByteAddressBuffer, t_texCoordBuffer, t, 1 )
 
 #define OMM_DECLARE_OUTPUT_RESOURCES \
-    OMM_OUTPUT_RESOURCE( RWByteAddressBuffer, u_vmDescBuffer, u, 0 ) \
+    OMM_OUTPUT_RESOURCE( RWByteAddressBuffer, u_ommDescArrayBuffer, u, 0 ) \
     OMM_OUTPUT_RESOURCE( RWByteAddressBuffer, u_ommDescArrayHistogramBuffer, u, 1 ) \
     OMM_OUTPUT_RESOURCE( RWByteAddressBuffer, u_heap0, u, 2 ) \
     OMM_OUTPUT_RESOURCE( RWByteAddressBuffer, u_heap1, u, 3 ) \

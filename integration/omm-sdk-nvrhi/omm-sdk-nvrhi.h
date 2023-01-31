@@ -33,27 +33,30 @@ namespace omm
 
 		struct Input
 		{
-			nvrhi::TextureHandle		alphaTexture;
-			uint32_t					alphaTextureChannel = 3;
-			float						alphaCutoff = 0.5f;
-			bool						bilinearFilter = true;
-			nvrhi::SamplerAddressMode	sampleMode = nvrhi::SamplerAddressMode::Clamp;
+			nvrhi::TextureHandle				alphaTexture;
+			uint32_t							alphaTextureChannel = 3;
+			float								alphaCutoff = 0.5f;
+			bool								bilinearFilter = true;
+			nvrhi::SamplerAddressMode			sampleMode = nvrhi::SamplerAddressMode::Clamp;
 
-			nvrhi::BufferHandle		texCoordBuffer;
-			uint32_t				texCoordBufferOffsetInBytes = 0;
-			uint32_t				texCoordStrideInBytes = 0;
-			nvrhi::BufferHandle		indexBuffer;
-			uint32_t				indexBufferOffsetInBytes = 0;
-			size_t					numIndices = 0;
+			nvrhi::BufferHandle					texCoordBuffer;
+			uint32_t							texCoordBufferOffsetInBytes = 0;
+			uint32_t							texCoordStrideInBytes = 0;
+			nvrhi::BufferHandle					indexBuffer;
+			uint32_t							indexBufferOffsetInBytes = 0;
+			uint32_t							numIndices = 0;
 
-			uint32_t				globalSubdivisionLevel = 0;
-			bool					use2State = false;
-			float					dynamicSubdivisionScale = 0.5f;
-			bool					minimalMemoryMode = false;
-			bool					enableSpecialIndices = true;
-			bool					force32BitIndices = false;
-			bool					enableTexCoordDeuplication = true;
-			bool					computeOnly = false;
+			uint32_t							maxSubdivisionLevel = 0;
+			nvrhi::rt::OpacityMicromapFormat	format = nvrhi::rt::OpacityMicromapFormat::OC1_4_State;
+			float								dynamicSubdivisionScale = 0.5f;
+			bool								minimalMemoryMode = false;
+			bool								enableSpecialIndices = true;
+			bool								force32BitIndices = false;
+			bool								enableTexCoordDeuplication = true;
+			bool								computeOnly = false;
+			bool								onlySpecialIndices = false;
+
+			uint32_t							maxOutOmmArraySizeInBytes = 0xFFFFFFFF;
 		};
 
 		struct PreBakeInfo
@@ -66,6 +69,13 @@ namespace omm
 			size_t			ommDescBufferSize;
 			size_t			ommDescArrayHistogramSize;
 			size_t			ommPostBuildInfoBufferSize;
+		};
+
+		struct PrePassOutput
+		{
+			nvrhi::BufferHandle ommDescArrayHistogramBuffer;
+			nvrhi::BufferHandle ommIndexHistogramBuffer;
+			nvrhi::BufferHandle ommPostBuildInfoBuffer;
 		};
 
 		struct Output
@@ -94,11 +104,19 @@ namespace omm
 		// CPU side pre-build info.
 		void GetPreBakeInfo(const Input& params, PreBakeInfo& info);
 
-		// Run VM bake on GPU
+		// Run bake pre-pass on GPU
+		void RunBakePrePass(
+			nvrhi::CommandListHandle commandList,
+			const Input& params,
+			const PrePassOutput& result);
+
+		// Run bake on GPU
 		void RunBake(
 			nvrhi::CommandListHandle commandList,
 			const Input& params,
 			const Output& result);
+
+		void Clear();
 
 		// This assumes pData is the CPU-side pointer of the contents in vmUsageDescReadbackBufferSize.
 		static void ReadPostBuildInfo(void* pData, size_t byteSize, PostBuildInfo& outPostBuildInfo);
@@ -135,7 +153,7 @@ namespace omm
 			const omm::Gpu::BakePipelineInfoDesc* desc, 
 			ShaderProviderCb* shaderProviderCb);
 
-		omm::Gpu::BakeDispatchConfigDesc GetConfig(const Input& params);
+		omm::Gpu::BakeDispatchConfigDesc GetConfig(const Input& params, bool prePass);
 
 		void ReserveGlobalCBuffer(size_t size, uint32_t slot);
 		void ReserveScratchBuffers(const omm::Gpu::PreBakeInfo& info);

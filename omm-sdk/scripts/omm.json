@@ -1119,33 +1119,38 @@
                 "value": "0"
             },
             {
-                "name": "ComputeOnly",
+                "name": "RunPrePass",
                 "value": "1u << 0",
+                "comment": "Will run the pre-pass only. Meaning that _only_ OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_DESC_ARRAY_HISTOGRAM and (optionally) OUT_POST_BAKE_INFO will be written."
+            },
+            {
+                "name": "ComputeOnly",
+                "value": "1u << 1",
                 "comment": "Baking will only be done using compute shaders and no gfx involvement (drawIndirect or graphics PSOs). (Beta)\nWill become default mode in the future.\n+ Useful for async workloads\n+ Less memory hungry\n+ Faster baking on low texel ratio to micro-triangle ratio (=rasterizing small triangles)\n- May looses efficency when resampling large triangles (tail-effect). Potential mitigation is to batch multiple bake jobs. However this is generally not a big problem."
             },
             {
                 "name": "EnablePostBuildInfo",
-                "value": "1u << 1",
+                "value": "1u << 2",
                 "comment": "Baking will also output post build info. (OUT_POST_BUILD_INFO)."
             },
             {
                 "name": "DisableSpecialIndices",
-                "value": "1u << 2",
+                "value": "1u << 3",
                 "comment": "Will disable the use of special indices in case the OMM-state is uniform. Only set this flag for debug purposes."
             },
             {
                 "name": "DisableTexCoordDeduplication",
-                "value": "1u << 3",
+                "value": "1u << 4",
                 "comment": "If texture coordinates are known to be unique tex cooord deduplication can be disabled to save processing time and free up scratch memory."
             },
             {
                 "name": "Force32BitIndices",
-                "value": "1u << 4",
+                "value": "1u << 5",
                 "comment": "Force 32-bit indices in OUT_OMM_INDEX_BUFFER"
             },
             {
                 "name": "EnableNsightDebugMode",
-                "value": "1u << 5",
+                "value": "1u << 6",
                 "comment": "Slightly modifies the dispatch to aid frame capture debugging."
             }
         ]
@@ -1495,11 +1500,11 @@
                 "name": "pipelineIndex"
             },
             {
-                "type": "uint16_t",
+                "type": "uint32_t",
                 "name": "gridWidth"
             },
             {
-                "type": "uint16_t",
+                "type": "uint32_t",
                 "name": "gridHeight"
             }
         ]
@@ -1827,7 +1832,8 @@
             {
                 "type": "uint32_t",
                 "name": "maxOutOmmArraySizeInBytes",
-                "value": "0xFFFFFFFF"
+                "value": "0xFFFFFFFF",
+                "comment": "(REQUIRED). Maximum size of OUT_OMM_ARRAY_DATA buffer. Use data from preBuildInfo OR run bake pre-pass."
             },
             {
                 "type": "ScratchMemoryBudget",
@@ -1892,40 +1898,51 @@
             {
                 "type": "IndexFormat",
                 "name": "outOmmIndexBufferFormat",
+                "value": {
+                    "type": "IndexFormat",
+                    "value": "MAX_NUM"
+                },
                 "comment": "Format of outOmmIndexBuffer"
             },
             {
                 "type": "uint32_t",
-                "name": "outOmmIndexCount"
+                "name": "outOmmIndexCount",
+                "value": "0xFFFFFFFF"
             },
             {
                 "type": "uint32_t",
                 "name": "outOmmArraySizeInBytes",
-                "comment": "Min required size of OUT_OMM_ARRAY_DATA. GetPreBakeInfo returns most conservative estimation while less conservative number can be obtained via BakePrepass"
+                "value": "0xFFFFFFFF",
+                "comment": "Min required size of OUT_OMM_ARRAY_DATA. GetBakeInfo returns most conservative estimation while less conservative number can be obtained via BakePrepass"
             },
             {
                 "type": "uint32_t",
                 "name": "outOmmDescSizeInBytes",
-                "comment": "Min required size of OUT_OMM_DESC_ARRAY. GetPreBakeInfo returns most conservative estimation while less conservative number can be obtained via BakePrepass"
+                "value": "0xFFFFFFFF",
+                "comment": "Min required size of OUT_OMM_DESC_ARRAY. GetBakeInfo returns most conservative estimation while less conservative number can be obtained via BakePrepass"
             },
             {
                 "type": "uint32_t",
                 "name": "outOmmIndexBufferSizeInBytes",
+                "value": "0xFFFFFFFF",
                 "comment": "Min required size of OUT_OMM_INDEX_BUFFER"
             },
             {
                 "type": "uint32_t",
                 "name": "outOmmArrayHistogramSizeInBytes",
+                "value": "0xFFFFFFFF",
                 "comment": "Min required size of OUT_OMM_ARRAY_HISTOGRAM"
             },
             {
                 "type": "uint32_t",
                 "name": "outOmmIndexHistogramSizeInBytes",
+                "value": "0xFFFFFFFF",
                 "comment": "Min required size of OUT_OMM_INDEX_HISTOGRAM"
             },
             {
                 "type": "uint32_t",
                 "name": "outOmmPostBuildInfoSizeInBytes",
+                "value": "0xFFFFFFFF",
                 "comment": "Min required size of OUT_POST_BUILD_INFO"
             },
             {
@@ -1935,7 +1952,33 @@
             },
             {
                 "type": "uint32_t",
-                "name": "numTransientPoolBuffers"
+                "name": "numTransientPoolBuffers",
+                "value": "0"
+            }
+        ]
+    },
+
+    "BufferSizes": {
+        "type": "struct",
+        "name": "BufferSizes",
+        "members": [
+            {
+                "type": "uint32_t",
+                "name": "ommArraySizeInBytes",
+                "value": "0xFFFFFFFF",
+                "comment": "Maximum size of OUT_OMM_ARRAY_DATA"
+            },
+            {
+                "type": "uint32_t",
+                "name": "ommDescSizeInBytes",
+                "value": "0xFFFFFFFF",
+                "comment": "Maximum size of OUT_OMM_DESC_ARRAY"
+            },
+            {
+                "type": "uint32_t",
+                "name": "preBakeResult",
+                "value": "0xFFFFFFFF",
+                "comment": "Data passed from preBakePass. Used for validation purposes."
             }
         ]
     },
@@ -1959,7 +2002,6 @@
     "BakeDispatchChain": {
         "type": "struct",
         "name": "BakeDispatchChain",
-        "comment": "Format of OUT_POST_BAKE_INFO",
         "members": [
             {
                 "type": "DispatchDesc",
@@ -2090,7 +2132,7 @@
             {
                 "type": "PreBakeInfo",
                 "ptr": true,
-                "name": "outPreBuildInfo"
+                "name": "outPreBakeInfo"
             }
         ]
     },
@@ -2326,9 +2368,9 @@
             "StaticSamplerDesc",
             "SPIRVBindingOffsets",
             "BakePipelineConfigDesc",
+            "PreBakeInfo",
             "BakeDispatchConfigDesc",
             "BakePipelineInfoDesc",
-            "PreBakeInfo",
             "PostBakeInfo",
             "BakeDispatchChain",
             "fnGetStaticResourceData",

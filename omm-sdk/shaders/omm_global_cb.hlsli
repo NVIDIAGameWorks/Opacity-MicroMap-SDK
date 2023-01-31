@@ -40,8 +40,8 @@ OMM_CONSTANTS_START(GlobalConstants)							\
 																\
 	OMM_CONSTANT(uint, AlphaTextureChannel)						\
 	OMM_CONSTANT(uint, FilterType) /* TextureFilterMode */ 		\
-	OMM_CONSTANT(uint, VmArraySize)								\
-	OMM_CONSTANT(uint, VmDescSize)								\
+	OMM_CONSTANT(uint, MaxOutOmmArraySizeInBytes)				\
+	OMM_CONSTANT(uint, MaxOutOmmDescSizeInBytes)				\
 																\
 	OMM_CONSTANT(float2, TexSize)								\
 	OMM_CONSTANT(float2, InvTexSize)							\

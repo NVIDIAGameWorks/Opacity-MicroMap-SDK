@@ -251,20 +251,22 @@ ommResult  PipelineImpl::Validate(const ommGpuBakeDispatchConfigDesc& config) co
 {
     const uint32_t MaxSubdivLevelAPI    = kMaxSubdivLevel;
     const uint32_t MaxSubdivLevel       = std::min<uint32_t>(MaxSubdivLevelAPI, OmmStaticBuffersImpl::kMaxSubdivisionLevelNum);
+    const bool isPrePass                = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_RunPrePass) == (uint32_t)ommGpuBakeFlags_RunPrePass);
+    const bool computeOnly              = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_ComputeOnly) == (uint32_t)ommGpuBakeFlags_ComputeOnly);
 
     if (config.indexCount == 0)
         return ommResult_INVALID_ARGUMENT;
     if (config.indexCount % 3 != 0)
         return ommResult_INVALID_ARGUMENT;
-    if (config.maxSubdivisionLevel > MaxSubdivLevel)
+    if (!computeOnly && config.maxSubdivisionLevel > MaxSubdivLevel)
         return ommResult_INVALID_ARGUMENT;
     if (config.maxSubdivisionLevel < config.globalSubdivisionLevel)
         return ommResult_INVALID_ARGUMENT;
     if (config.enableSubdivisionLevelBuffer)
         return ommResult_NOT_IMPLEMENTED;
-    if (config.maxOutOmmArraySizeInBytes != 0xFFFFFFFF)
-        return ommResult_NOT_IMPLEMENTED;
     if (config.alphaTextureChannel > 3)
+        return ommResult_INVALID_ARGUMENT;
+    if (!isPrePass && config.maxOutOmmArraySizeInBytes == 0xFFFFFFFF)
         return ommResult_INVALID_ARGUMENT;
 
     return ommResult_SUCCESS;
@@ -404,7 +406,7 @@ ommResult  PipelineImpl::Create(const ommGpuBakePipelineConfigDesc& config)
     return ommResult_SUCCESS;
 }
 
-ommResult  PipelineImpl::GetPipelineDesc(const ommGpuBakePipelineInfoDesc** outPipelineDesc)
+ommResult PipelineImpl::GetPipelineDesc(const ommGpuBakePipelineInfoDesc** outPipelineDesc)
 {
     if (outPipelineDesc == nullptr)
         return ommResult_INVALID_ARGUMENT;
@@ -413,20 +415,22 @@ ommResult  PipelineImpl::GetPipelineDesc(const ommGpuBakePipelineInfoDesc** outP
     return ommResult_SUCCESS;
 }
 
-ommResult  PipelineImpl::GetPreDispatchInfo(const ommGpuBakeDispatchConfigDesc& config, PreDispatchInfo& outInfo)
+ommResult PipelineImpl::GetPreDispatchInfo(const ommGpuBakeDispatchConfigDesc& config, const size_t outOmmDescSizeInBytes, PreDispatchInfo& outInfo) const
 {
+    const bool isPrePass = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_RunPrePass) == (uint32_t)ommGpuBakeFlags_RunPrePass);
     const bool computeOnly = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_ComputeOnly) == (uint32_t)ommGpuBakeFlags_ComputeOnly);
     const uint32_t primitiveCount = config.indexCount / 3;
     const uint32_t defaultAlignment = 128;
 
+    outInfo.numTransientPoolBuffers = 0;
+    outInfo.scratchBuffer                   = { "scratchBuffer",                ommGpuResourceType_TRANSIENT_POOL_BUFFER, 0xFFFFFFFF, BufferHeapAlloc() };
+    outInfo.scratchBuffer0                  = { "scratchBuffer0",               ommGpuResourceType_TRANSIENT_POOL_BUFFER, 0xFFFFFFFF, BufferHeapAlloc() };
+    outInfo.scratch_u_ommDescArrayBuffer    = { "scratch_u_ommDescArrayBuffer", ommGpuResourceType_TRANSIENT_POOL_BUFFER, 0xFFFFFFFF, BufferHeapAlloc() };
+    outInfo.indArgBuffer                    = { "indArgBuffer",                 ommGpuResourceType_TRANSIENT_POOL_BUFFER, 0xFFFFFFFF, BufferHeapAlloc() };
+    outInfo.debugBuffer                     = { "debugBuffer",                  ommGpuResourceType_TRANSIENT_POOL_BUFFER, 0xFFFFFFFF, BufferHeapAlloc() };
+
     if (computeOnly)
     {
-        outInfo.numTransientPoolBuffers = 0;
-        outInfo.scratchBuffer = { "scratchBuffer",    ommGpuResourceType_TRANSIENT_POOL_BUFFER, outInfo.numTransientPoolBuffers++, BufferHeapAlloc() };
-        outInfo.scratchBuffer0 = { "scratchBuffer0",   ommGpuResourceType_TRANSIENT_POOL_BUFFER, outInfo.numTransientPoolBuffers++, BufferHeapAlloc() };
-        outInfo.indArgBuffer = { "indArgBuffer",     ommGpuResourceType_TRANSIENT_POOL_BUFFER, outInfo.numTransientPoolBuffers++, BufferHeapAlloc() };
-        outInfo.debugBuffer = { "debugBuffer",      ommGpuResourceType_TRANSIENT_POOL_BUFFER, outInfo.numTransientPoolBuffers++, BufferHeapAlloc() };
-
         // Todo: rename this to "workItemsBuffer"
         {
             const size_t rasterItemSize = (size_t)primitiveCount * ((size_t)config.maxSubdivisionLevel + 1) * sizeof(uint32_t) * 2;
@@ -475,6 +479,11 @@ ommResult  PipelineImpl::GetPreDispatchInfo(const ommGpuBakeDispatchConfigDesc& 
             RETURN_STATUS_IF_FAILED(outInfo.scratchBuffer0.Allocate(defaultAlignment, defaultAlignment, outInfo.specialIndicesStateBuffer));
         }
 
+        if (isPrePass)
+        {
+            RETURN_STATUS_IF_FAILED(outInfo.scratch_u_ommDescArrayBuffer.Allocate(outOmmDescSizeInBytes, defaultAlignment, outInfo.sub_u_ommDescArrayBuffer));
+        }
+
         {
             const uint32_t indirectDispatchEntrySize = m_config.renderAPI == ommGpuRenderAPI_DX12 ? 12 : 12;
             const uint32_t IEBakeCountCs = (config.maxSubdivisionLevel + 1);
@@ -494,12 +503,6 @@ ommResult  PipelineImpl::GetPreDispatchInfo(const ommGpuBakeDispatchConfigDesc& 
         // For high subdibision levels and large primitive counts, it can become multiple GB.
         // It's for this reason required to be split up in to multiple smaller batches.
         const size_t maxNumMicroTris = bird::GetNumMicroTriangles(config.maxSubdivisionLevel);
-
-        outInfo.numTransientPoolBuffers = 0;
-        outInfo.scratchBuffer = { "scratchBuffer",    ommGpuResourceType_TRANSIENT_POOL_BUFFER, outInfo.numTransientPoolBuffers++, BufferHeapAlloc() };
-        outInfo.scratchBuffer0 = { "scratchBuffer0",   ommGpuResourceType_TRANSIENT_POOL_BUFFER, outInfo.numTransientPoolBuffers++, BufferHeapAlloc() };
-        outInfo.indArgBuffer = { "indArgBuffer",     ommGpuResourceType_TRANSIENT_POOL_BUFFER, outInfo.numTransientPoolBuffers++, BufferHeapAlloc() };
-        outInfo.debugBuffer = { "debugBuffer",      ommGpuResourceType_TRANSIENT_POOL_BUFFER, outInfo.numTransientPoolBuffers++, BufferHeapAlloc() };
 
         // The rest is reserved for raster output.
         {
@@ -590,6 +593,11 @@ ommResult  PipelineImpl::GetPreDispatchInfo(const ommGpuBakeDispatchConfigDesc& 
             RETURN_STATUS_IF_FAILED(outInfo.scratchBuffer.Allocate(sizeof(uint32_t) * (config.maxSubdivisionLevel + 1) * outInfo.MaxBatchCount, defaultAlignment, outInfo.IEBakeCsThreadCountBuffer));
         }
 
+        if (isPrePass)
+        {
+            RETURN_STATUS_IF_FAILED(outInfo.scratch_u_ommDescArrayBuffer.Allocate(outOmmDescSizeInBytes, defaultAlignment, outInfo.sub_u_ommDescArrayBuffer));
+        }
+
         {
             const uint32_t indirectDrawEntrySize = m_config.renderAPI == ommGpuRenderAPI_DX12 ? 20 : 20;
             const uint32_t indirectDrawCount = (config.maxSubdivisionLevel + 1) * outInfo.MaxBatchCount;
@@ -610,23 +618,25 @@ ommResult  PipelineImpl::GetPreDispatchInfo(const ommGpuBakeDispatchConfigDesc& 
         }
     }
 
+    outInfo.numTransientPoolBuffers = 0;
+    auto AssignPoolIndex = [&outInfo](BufferResource& resource)
+    {
+        if (resource.allocator.GetCurrentReservation() != 0)
+            resource.indexInPool = outInfo.numTransientPoolBuffers++;
+    };
+    AssignPoolIndex(outInfo.scratchBuffer);
+    AssignPoolIndex(outInfo.scratchBuffer0);
+    AssignPoolIndex(outInfo.scratch_u_ommDescArrayBuffer);
+    AssignPoolIndex(outInfo.indArgBuffer);
+    AssignPoolIndex(outInfo.debugBuffer);
+
     return ommResult_SUCCESS;
 }
 
-ommResult  PipelineImpl::GetPreBakeInfo(const ommGpuBakeDispatchConfigDesc& config, ommGpuPreBakeInfo* outPreBuildInfo)
+ommResult PipelineImpl::GetPreBakeInfo(const ommGpuBakeDispatchConfigDesc& config, ommGpuPreBakeInfo* outPreBuildInfo) const
 {
     if (!outPreBuildInfo)
         return ommResult_INVALID_ARGUMENT;
-
-    PreDispatchInfo info;
-    RETURN_STATUS_IF_FAILED(GetPreDispatchInfo(config, info));
-
-    outPreBuildInfo->numTransientPoolBuffers = info.numTransientPoolBuffers;
-
-    outPreBuildInfo->transientPoolBufferSizeInBytes[info.scratchBuffer.indexInPool]    = info.scratchBuffer.allocator.GetCurrentReservation();
-    outPreBuildInfo->transientPoolBufferSizeInBytes[info.scratchBuffer0.indexInPool]   = info.scratchBuffer0.allocator.GetCurrentReservation();
-    outPreBuildInfo->transientPoolBufferSizeInBytes[info.indArgBuffer.indexInPool]     = info.indArgBuffer.allocator.GetCurrentReservation();
-    outPreBuildInfo->transientPoolBufferSizeInBytes[info.debugBuffer.indexInPool]      = info.debugBuffer.allocator.GetCurrentReservation();
 
     const bool force32BitIndices = ((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_Force32BitIndices) == (uint32_t)ommGpuBakeFlags_Force32BitIndices;
 
@@ -644,11 +654,13 @@ ommResult  PipelineImpl::GetPreBakeInfo(const ommGpuBakeDispatchConfigDesc& conf
 
     const bool postBuildInfoEnabled     = ((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_EnablePostBuildInfo) == (uint32_t)ommGpuBakeFlags_EnablePostBuildInfo;
 
-    const size_t outOmmArraySizeInBytes              = math::Align<size_t>(math::DivUp<size_t>(vmArraySizeInBits, 8u), 4u);
-    const size_t outOmmDescSizeInBytes               = primitiveCount * sizeof(uint64_t);
-    const size_t outOmmIndexBufferSizeInBytes        = math::Align<size_t>(primitiveCount * indexBufferFormatSize, 4u);
-    const size_t outOmmHistogramSizeInBytes          = (size_t(config.maxSubdivisionLevel) + 1) * 2 * sizeof(uint64_t);
-    const size_t outOmmPostBuildInfoSizeInBytes  	 = postBuildInfoEnabled ? sizeof(ommGpuPostBakeInfo) : 0;
+    const size_t outMaxTheoreticalOmmArraySizeInBytes   = math::Align<size_t>(math::DivUp<size_t>(vmArraySizeInBits, 8u), 4u);
+
+    const size_t outOmmArraySizeInBytes                 = std::min<size_t>(config.maxOutOmmArraySizeInBytes, outMaxTheoreticalOmmArraySizeInBytes);
+    const size_t outOmmDescSizeInBytes                  = primitiveCount * sizeof(uint64_t);
+    const size_t outOmmIndexBufferSizeInBytes           = math::Align<size_t>(primitiveCount * indexBufferFormatSize, 4u);
+    const size_t outOmmHistogramSizeInBytes             = (size_t(config.maxSubdivisionLevel) + 1) * 2 * sizeof(uint64_t);
+    const size_t outOmmPostBuildInfoSizeInBytes  	    = postBuildInfoEnabled ? sizeof(ommGpuPostBakeInfo) : 0;
 
     if (outOmmArraySizeInBytes > std::numeric_limits<uint32_t>::max())
         return ommResult_FAILURE;
@@ -666,6 +678,22 @@ ommResult  PipelineImpl::GetPreBakeInfo(const ommGpuBakeDispatchConfigDesc& conf
         outVal = (uint32_t)val;
         return ommResult_SUCCESS;
     };
+
+    PreDispatchInfo info;
+    RETURN_STATUS_IF_FAILED(GetPreDispatchInfo(config, outOmmDescSizeInBytes, info));
+
+    outPreBuildInfo->numTransientPoolBuffers = info.numTransientPoolBuffers;
+
+    auto AssignPoolBufferSize = [&outPreBuildInfo](const BufferResource& resource)
+    {
+        if (resource.indexInPool != 0xFFFFFFFF)
+            outPreBuildInfo->transientPoolBufferSizeInBytes[resource.indexInPool] = resource.allocator.GetCurrentReservation();
+    };
+    AssignPoolBufferSize(info.scratchBuffer);
+    AssignPoolBufferSize(info.scratchBuffer0);
+    AssignPoolBufferSize(info.scratch_u_ommDescArrayBuffer);
+    AssignPoolBufferSize(info.indArgBuffer);
+    AssignPoolBufferSize(info.debugBuffer);
 
     outPreBuildInfo->outOmmIndexCount = primitiveCount;
     RETURN_STATUS_IF_FAILED(SafeCast(outPreBuildInfo->outOmmArrayHistogramSizeInBytes, outOmmHistogramSizeInBytes));
@@ -698,40 +726,29 @@ private:
 #define _SCOPED_LABEL(variableName, ...) ScopedLabel variableName(m_passBuilder, __VA_ARGS__);
 #define SCOPED_LABEL(...) _SCOPED_LABEL(scopedLabel_##__LINE__, __VA_ARGS__);
 
-ommResult  PipelineImpl::GetDispatcheDesc(const ommGpuBakeDispatchConfigDesc& config, const ommGpuBakeDispatchChain** outDispatchDesc)
+ommResult PipelineImpl::InitGlobalConstants(const ommGpuBakeDispatchConfigDesc& config, const PreDispatchInfo& info, GlobalConstants& cbuffer) const
 {
-    if (outDispatchDesc == nullptr)
-        return ommResult_INVALID_ARGUMENT;
-
-    RETURN_STATUS_IF_FAILED(Validate(config));
-
-    m_passBuilder.Reset();
-
     ommGpuPreBakeInfo preBuildInfo;
     RETURN_STATUS_IF_FAILED(GetPreBakeInfo(config, &preBuildInfo));
 
-    PreDispatchInfo info;
-    GetPreDispatchInfo(config, info);
-
-    const uint32_t primitiveCount           = config.indexCount / 3;
-    const uint32_t hashTableEntryCount      = info.hashTableBuffer.GetSize() / kHashTableEntrySize;
-
-    // The kMaxViewportPeriods dictates how many multiples of the alpha texture we allow to be rasterized,
-    // wrap sample modes may extend beyond the texture dimensions (or below zero).
-    // To avoid having these primitives clipped we increase the viewport size to accomodate for this type of periodic texture mapping.
-
-    const int32_t kViewportScale = 5; // Increasing this to 6 fails... TODO: investigate why!
-
-    const float2 viewportSize   = float2((2 * kViewportScale + 1) * config.alphaTextureWidth, (2 * kViewportScale + 1) * config.alphaTextureHeight);
-    const float2 viewportOffset = float2(kViewportScale * config.alphaTextureWidth, kViewportScale * config.alphaTextureHeight);
+    const uint32_t primitiveCount = config.indexCount / 3;
+    const uint32_t hashTableEntryCount = info.hashTableBuffer.GetSize() / kHashTableEntrySize;
 
     const bool IsOmmIndexFormat16bit = preBuildInfo.outOmmIndexBufferFormat == ommIndexFormat_I16_UINT;
     const bool enableSpecialIndices = ((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_DisableSpecialIndices) != (uint32_t)ommGpuBakeFlags_DisableSpecialIndices;
     const bool enableTexCoordDeduplication = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_DisableTexCoordDeduplication) != (uint32_t)ommGpuBakeFlags_DisableTexCoordDeduplication);
     const bool computeOnly = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_ComputeOnly) == (uint32_t)ommGpuBakeFlags_ComputeOnly);
 
-    GlobalConstants cbuffer;
-    memset(&cbuffer, 0x0, sizeof(cbuffer));
+    // The kMaxViewportPeriods dictates how many multiples of the alpha texture we allow to be rasterized,
+    // wrap sample modes may extend beyond the texture dimensions (or below zero).
+    // To avoid having these primitives clipped we increase the viewport size to accomodate for this type of periodic texture mapping.
+
+    const int32_t kViewportScale    = 5; // Increasing this to 6 fails... TODO: investigate why!
+
+    const float2 viewportSize       = float2((2 * kViewportScale + 1) * config.alphaTextureWidth, (2 * kViewportScale + 1) * config.alphaTextureHeight);
+    const float2 viewportOffset     = float2(kViewportScale * config.alphaTextureWidth, kViewportScale * config.alphaTextureHeight);
+
+    cbuffer = {0, };
     cbuffer.IndexCount                                 = config.indexCount;
     cbuffer.PrimitiveCount                             = primitiveCount;
     cbuffer.MaxBatchCount                              = info.MaxBatchCount;
@@ -756,8 +773,8 @@ ommResult  PipelineImpl::GetDispatcheDesc(const ommGpuBakeDispatchConfigDesc& co
     cbuffer.AlphaCutoff                                = config.alphaCutoff;
     cbuffer.AlphaTextureChannel                        = config.alphaTextureChannel;
     cbuffer.FilterType                                 = (uint32_t)config.runtimeSamplerDesc.filter;
-    cbuffer.VmArraySize                                = (uint32_t)preBuildInfo.outOmmArraySizeInBytes;
-    cbuffer.VmDescSize                                 = (uint32_t)preBuildInfo.outOmmDescSizeInBytes;
+    cbuffer.MaxOutOmmArraySizeInBytes                  = (uint32_t)preBuildInfo.outOmmArraySizeInBytes;
+    cbuffer.MaxOutOmmDescSizeInBytes                   = (uint32_t)preBuildInfo.outOmmDescSizeInBytes;
     cbuffer.EnableSpecialIndices                       = (uint32_t)enableSpecialIndices;
     cbuffer.EnableTexCoordDeduplication                = (uint32_t)enableTexCoordDeduplication;
     cbuffer.IEBakeBufferOffset                         = info.IEBakeBuffer.GetBufferOffset();
@@ -776,19 +793,43 @@ ommResult  PipelineImpl::GetDispatcheDesc(const ommGpuBakeDispatchConfigDesc& co
     cbuffer.AssertBufferOffset                         = info.assertBuffer.GetBufferOffset();
     static_assert(sizeof(float2) == sizeof(float) * 2);
     static_assert(sizeof(uint2) == sizeof(uint32_t) * 2);
+    return ommResult_SUCCESS;
+}
 
-    m_passBuilder.SetGlobalCbuffer((const uint8_t*)&cbuffer, sizeof(cbuffer));
-
-    bool enableValidation = false;
-
-    #define BEGIN_PASS(name, type, binding) \
+#define BEGIN_PASS(name, type, binding) \
     { \
         auto _name = name;\
         PassBuilder::PassConfig p(m_stdAllocator, type, binding, enableValidation);
 
-    #define END_PASS() \
+#define END_PASS() \
         m_passBuilder.FinalizePass(_name, p);\
     }
+
+ommResult PipelineImpl::GetDispatchBakeDesc(const ommGpuBakeDispatchConfigDesc& config, const ommGpuBakeDispatchChain** outDispatchDesc)
+{
+    if (outDispatchDesc == nullptr)
+        return ommResult_INVALID_ARGUMENT;
+
+    RETURN_STATUS_IF_FAILED(Validate(config));
+
+    m_passBuilder.Reset();
+
+    ommGpuPreBakeInfo preBuildInfo;
+    RETURN_STATUS_IF_FAILED(GetPreBakeInfo(config, &preBuildInfo));
+
+    PreDispatchInfo info;
+    GetPreDispatchInfo(config, preBuildInfo.outOmmDescSizeInBytes, info);
+
+    GlobalConstants cbuffer;
+    RETURN_STATUS_IF_FAILED(InitGlobalConstants(config, info, cbuffer));
+    m_passBuilder.SetGlobalCbuffer((const uint8_t*)&cbuffer, sizeof(cbuffer));
+
+    const uint32_t primitiveCount = config.indexCount / 3;
+    const bool computeOnly = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_ComputeOnly) == (uint32_t)ommGpuBakeFlags_ComputeOnly);
+    const bool runPrePass = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_RunPrePass) == (uint32_t)ommGpuBakeFlags_RunPrePass);
+    const bool IsOmmIndexFormat16bit = preBuildInfo.outOmmIndexBufferFormat == ommIndexFormat_I16_UINT;
+
+    bool enableValidation = false;
 
     {
         auto ClearBuffer = [&](const char* name, const BufferResource* resource) {
@@ -821,7 +862,10 @@ ommResult  PipelineImpl::GetDispatcheDesc(const ommGpuBakeDispatchConfigDesc& co
             OMM_ASSERT(byteSize % 4 == 0);
             const uint32_t numElements = byteSize / 4;
 
-            CBufferWriter& lCb = p.AddComputeDispatch(m_pipelines.clearBufferIdx, math::DivUp<uint32_t>(numElements, 128u), 1);
+            const uint32_t threadGroupCountX = math::DivUp<uint32_t>(numElements, 128u);
+            OMM_ASSERT(threadGroupCountX != 0);
+
+            CBufferWriter& lCb = p.AddComputeDispatch(m_pipelines.clearBufferIdx, threadGroupCountX, 1);
             lCb.WriteDW(0 /*ClearValue*/);
             lCb.WriteDW(numElements /*NumElements*/);
             lCb.WriteDW(0 /*BufferOffset*/);
@@ -830,11 +874,16 @@ ommResult  PipelineImpl::GetDispatcheDesc(const ommGpuBakeDispatchConfigDesc& co
             END_PASS();
         };
 
-        ClearBuffer("ClearScratchMemory0", &info.scratchBuffer);
-        ClearBuffer("ClearScratchMemory1", &info.scratchBuffer0);
-        ClearBuffer("ClearScratchMemory2", &info.indArgBuffer);
-        ClearBuffer("ClearScratchMemory3", &info.debugBuffer);
-        ClearResource("ClearOUT_OMM_ARRAY_DATA", ommGpuResourceType_OUT_OMM_ARRAY_DATA, preBuildInfo.outOmmArraySizeInBytes);
+        if (info.scratchBuffer.allocator.GetCurrentReservation() != 0)
+            ClearBuffer("ClearScratchMemory0", &info.scratchBuffer);
+        if (info.scratchBuffer0.allocator.GetCurrentReservation() != 0)
+            ClearBuffer("ClearScratchMemory1", &info.scratchBuffer0);
+        if (info.indArgBuffer.allocator.GetCurrentReservation() != 0)
+            ClearBuffer("ClearScratchMemory2", &info.indArgBuffer);
+        if (info.debugBuffer.allocator.GetCurrentReservation() != 0)
+            ClearBuffer("ClearScratchMemory3", &info.debugBuffer);
+        if (!runPrePass && (preBuildInfo.outOmmArraySizeInBytes != 0))
+            ClearResource("ClearOUT_OMM_ARRAY_DATA", ommGpuResourceType_OUT_OMM_ARRAY_DATA, preBuildInfo.outOmmArraySizeInBytes);
     }
 
     if (computeOnly)
@@ -859,14 +908,18 @@ ommResult  PipelineImpl::GetDispatcheDesc(const ommGpuBakeDispatchConfigDesc& co
 
             m_passBuilder.PushPass(
                 "WorkSetupCs",  ommGpuDispatchType_Compute, m_pipelines.ommWorkSetupCsBindings,
-                [this, &config, &info, primitiveCount](PassBuilder::PassConfig& p)
+                [this, &config, &info, primitiveCount, runPrePass](PassBuilder::PassConfig& p)
                 {
                     p.UseGlobalCbuffer();
 
                     p.BindResource("t_indexBuffer", ommGpuResourceType_IN_INDEX_BUFFER);
                     p.BindResource("t_texCoordBuffer", ommGpuResourceType_IN_TEXCOORD_BUFFER);
 
-                    p.BindResource("u_vmDescBuffer", ommGpuResourceType_OUT_OMM_DESC_ARRAY);
+                    if (runPrePass)
+                        p.BindResource("u_ommDescArrayBuffer", info.scratch_u_ommDescArrayBuffer.type, info.scratch_u_ommDescArrayBuffer.indexInPool);
+                    else
+                        p.BindResource("u_ommDescArrayBuffer", ommGpuResourceType_OUT_OMM_DESC_ARRAY);
+
                     p.BindResource("u_ommDescArrayHistogramBuffer", ommGpuResourceType_OUT_OMM_DESC_ARRAY_HISTOGRAM);
 
                     p.BindSubRange("HashTableBuffer", info.hashTableBuffer);
@@ -901,6 +954,7 @@ ommResult  PipelineImpl::GetDispatcheDesc(const ommGpuBakeDispatchConfigDesc& co
                 });
         }
 
+        if (!runPrePass)
         {
             auto PushBakeRasterizeCs = [&](const char* debugName, uint32_t subdivisionLevel) {
 
@@ -946,19 +1000,24 @@ ommResult  PipelineImpl::GetDispatcheDesc(const ommGpuBakeDispatchConfigDesc& co
 
             m_passBuilder.PushPass(
                 "DescPatchCS",  ommGpuDispatchType_Compute, m_pipelines.ommDescPatchBindings,
-                [this, &config, &info, primitiveCount](PassBuilder::PassConfig& p)
+                [this, &config, &info, primitiveCount, runPrePass](PassBuilder::PassConfig& p)
                 {
                     p.UseGlobalCbuffer();
                     p.BindSubRange("TempOmmIndexBuffer", info.tempOmmIndexBuffer);
                     p.BindSubRange("HashTableBuffer", info.hashTableBuffer);
                     p.BindResource("u_ommIndexHistogramBuffer", ommGpuResourceType_OUT_OMM_INDEX_HISTOGRAM);
-                    p.BindResource("t_vmDescBuffer", ommGpuResourceType_OUT_OMM_DESC_ARRAY);
+                    if (runPrePass)
+                        p.BindResource("t_ommDescArrayBuffer", info.scratch_u_ommDescArrayBuffer.type, info.scratch_u_ommDescArrayBuffer.indexInPool);
+                    else
+                        p.BindResource("t_ommDescArrayBuffer", ommGpuResourceType_OUT_OMM_DESC_ARRAY);
+
                     p.BindSubRange("SpecialIndicesStateBuffer", info.specialIndicesStateBuffer);
 
                     p.AddComputeDispatch(m_pipelines.ommDescPatchIdx, math::DivUp<uint32_t>(primitiveCount, 128u), 1);
                 });
         }
 
+        if (!runPrePass)
         {
             SCOPED_LABEL("IndexWriteCS");
 
@@ -1002,14 +1061,18 @@ ommResult  PipelineImpl::GetDispatcheDesc(const ommGpuBakeDispatchConfigDesc& co
 
             m_passBuilder.PushPass(
                 "WorkSetupCS",  ommGpuDispatchType_Compute, m_pipelines.ommWorkSetupGfxBindings,
-                [this, &config, &info, primitiveCount](PassBuilder::PassConfig& p)
+                [this, &config, &info, primitiveCount, runPrePass](PassBuilder::PassConfig& p)
                 {
                     p.UseGlobalCbuffer();
 
                     p.BindResource("t_indexBuffer", ommGpuResourceType_IN_INDEX_BUFFER);
                     p.BindResource("t_texCoordBuffer", ommGpuResourceType_IN_TEXCOORD_BUFFER);
 
-                    p.BindResource("u_vmDescBuffer", ommGpuResourceType_OUT_OMM_DESC_ARRAY);
+                    if (runPrePass)
+                        p.BindResource("u_ommDescArrayBuffer", info.scratch_u_ommDescArrayBuffer.type, info.scratch_u_ommDescArrayBuffer.indexInPool);
+                    else
+                        p.BindResource("u_ommDescArrayBuffer", ommGpuResourceType_OUT_OMM_DESC_ARRAY);
+
                     p.BindResource("u_ommDescArrayHistogramBuffer", ommGpuResourceType_OUT_OMM_DESC_ARRAY_HISTOGRAM);
 
                     p.BindSubRange("HashTableBuffer", info.hashTableBuffer);
@@ -1059,134 +1122,142 @@ ommResult  PipelineImpl::GetDispatcheDesc(const ommGpuBakeDispatchConfigDesc& co
 
         const uint ommRasterizeIdx = GetOmmRasterizeIdx(config.alphaTextureChannel);
 
-        for (uint32_t levelIt = 0; levelIt <= config.maxSubdivisionLevel; levelIt++)
+        if (!runPrePass)
         {
-            SCOPED_LABEL("Level %d", levelIt);
-
-            auto GetMaxItemsPerBatch = [&info](uint32_t subdivisionLevel)
+            for (uint32_t levelIt = 0; levelIt <= config.maxSubdivisionLevel; levelIt++)
             {
-                const uint32_t numMicroTri = bird::GetNumMicroTriangles(subdivisionLevel);
-                const uint32_t rasterItemByteByteSize = (numMicroTri) * 8; // We need 2 x uint32 for each micro-VM state.
-                const size_t bakeResultBufferSize = info.bakeResultBuffer.GetSize();
-                return bakeResultBufferSize / rasterItemByteByteSize;
-            };
+                SCOPED_LABEL("Level %d", levelIt);
 
-            const uint32_t maxNumMicroTris = bird::GetNumMicroTriangles(levelIt);
-            const size_t totalScratchMemory = (size_t)maxNumMicroTris * primitiveCount * (sizeof(uint32_t) * 2);
-            const uint32_t maxBatchCountForLevel = (uint32_t)math::DivUp<size_t>(totalScratchMemory, info.bakeResultBuffer.GetSize());
-
-            const uint32_t maxItemsPerBatch = (uint32_t)GetMaxItemsPerBatch(levelIt);
-            OMM_ASSERT(info.MaxBatchCount >= maxBatchCountForLevel);
-
-            for (uint32_t batchIt = 0; batchIt < maxBatchCountForLevel; batchIt++)
-            {
-                const uint32_t resultBufferStride = maxNumMicroTris;
-
-                std::optional<ScopedLabel> batchLabel;
-                if (maxBatchCountForLevel > 1)
-                    batchLabel.emplace(m_passBuilder, "Batch %d", batchIt);
-
+                auto GetMaxItemsPerBatch = [&info](uint32_t subdivisionLevel)
                 {
-                    auto PushBakeRasterize = [&](const char* debugName, uint32_t pipelineIndex, const ShaderBindings& bindings) {
+                    const uint32_t numMicroTri = bird::GetNumMicroTriangles(subdivisionLevel);
+                    const uint32_t rasterItemByteByteSize = (numMicroTri) * 8; // We need 2 x uint32 for each micro-VM state.
+                    const size_t bakeResultBufferSize = info.bakeResultBuffer.GetSize();
+                    return bakeResultBufferSize / rasterItemByteByteSize;
+                };
 
-                        BEGIN_PASS(debugName,  ommGpuDispatchType_DrawIndexedIndirect, bindings);
-                        p.UseGlobalCbuffer();
-                        p.BindResource("t_alphaTexture", ommGpuResourceType_IN_ALPHA_TEXTURE);
-                        p.BindResource("t_indexBuffer", ommGpuResourceType_IN_INDEX_BUFFER);
-                        p.BindResource("t_texCoordBuffer", ommGpuResourceType_IN_TEXCOORD_BUFFER);
+                const uint32_t maxNumMicroTris = bird::GetNumMicroTriangles(levelIt);
+                const size_t totalScratchMemory = (size_t)maxNumMicroTris * primitiveCount * (sizeof(uint32_t) * 2);
+                const uint32_t maxBatchCountForLevel = (uint32_t)math::DivUp<size_t>(totalScratchMemory, info.bakeResultBuffer.GetSize());
 
-                        p.BindSubRange("RasterItemsBuffer", info.rasterItemsBuffer);
-                        p.BindSubRange("BakeResultBuffer", info.bakeResultBuffer);
+                const uint32_t maxItemsPerBatch = (uint32_t)GetMaxItemsPerBatch(levelIt);
+                OMM_ASSERT(info.MaxBatchCount >= maxBatchCountForLevel);
 
-                        p.BindIB(ommGpuResourceType_STATIC_INDEX_BUFFER, OmmStaticBuffersImpl::kStaticIndexBufferOffsets[levelIt]);
-                        p.BindVB(ommGpuResourceType_STATIC_VERTEX_BUFFER, OmmStaticBuffersImpl::kStaticVertexBufferOffsets[levelIt]);
+                for (uint32_t batchIt = 0; batchIt < maxBatchCountForLevel; batchIt++)
+                {
+                    const uint32_t resultBufferStride = maxNumMicroTris;
 
-                        p.SetViewport(
-                            0, 0,
-                            viewportSize.x, viewportSize.y);
-
-                        const uint32_t indirectDrawStrideInBytes = 20; // DX12
-                        const uint32_t offset = levelIt * info.MaxBatchCount + batchIt;
-
-                        const uint32_t PrimitiveIdOffset = batchIt * maxItemsPerBatch;
-
-                        CBufferWriter& lCb = p.AddDrawIndirect(pipelineIndex, info.IEBakeBuffer, offset * indirectDrawStrideInBytes);
-                        lCb.WriteDW(levelIt /*levelIt*/);
-                        lCb.WriteDW(resultBufferStride /*vmResultBufferStride*/);
-                        lCb.WriteDW(batchIt /*batchIt*/);
-                        lCb.WriteDW(PrimitiveIdOffset /*PrimitiveIdOffset*/);
-                        for (uint32_t i = 0; i < 4u; ++i)
-                            lCb.WriteDW(0u /*dummy*/);
-                        END_PASS();
-                    };
-
-                    SCOPED_LABEL("Rasterize");
-                    PushBakeRasterize("Rasterize", ommRasterizeIdx, m_pipelines.ommRasterizeBindings);
-
-                    const bool debug = ((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_EnableNsightDebugMode) == (uint32_t)ommGpuBakeFlags_EnableNsightDebugMode;
-                    if (debug)
-                    {
-                        SCOPED_LABEL("Debug");
-                        {
-                            SCOPED_LABEL("DebugBakeVSPS");
-                            PushBakeRasterize("DebugBakeVSPS", m_pipelines.ommRasterizeDebugIdx, m_pipelines.ommRasterizeDebugBindings);
-                        }
-                        {
-                            SCOPED_LABEL("ClearRenderTarget");
-                            PushBakeRasterize("ClearRenderTarget", m_pipelines.renderTargetClearDebugIdx, m_pipelines.renderTargetClearDebugBindings);
-                        }
-                    }
+                    std::optional<ScopedLabel> batchLabel;
+                    if (maxBatchCountForLevel > 1)
+                        batchLabel.emplace(m_passBuilder, "Batch %d", batchIt);
 
                     {
-                        SCOPED_LABEL("Compress");
+                        auto PushBakeRasterize = [&](const char* debugName, uint32_t pipelineIndex, const ShaderBindings& bindings) {
 
-                        m_passBuilder.PushPass(
-                            "Compress",  ommGpuDispatchType_ComputeIndirect, m_pipelines.ommCompressBindings,
-                            [&](PassBuilder::PassConfig& p)
+                            BEGIN_PASS(debugName, ommGpuDispatchType_DrawIndexedIndirect, bindings);
+                            p.UseGlobalCbuffer();
+                            p.BindResource("t_alphaTexture", ommGpuResourceType_IN_ALPHA_TEXTURE);
+                            p.BindResource("t_indexBuffer", ommGpuResourceType_IN_INDEX_BUFFER);
+                            p.BindResource("t_texCoordBuffer", ommGpuResourceType_IN_TEXCOORD_BUFFER);
+
+                            p.BindSubRange("RasterItemsBuffer", info.rasterItemsBuffer);
+                            p.BindSubRange("BakeResultBuffer", info.bakeResultBuffer);
+
+                            p.BindIB(ommGpuResourceType_STATIC_INDEX_BUFFER, OmmStaticBuffersImpl::kStaticIndexBufferOffsets[levelIt]);
+                            p.BindVB(ommGpuResourceType_STATIC_VERTEX_BUFFER, OmmStaticBuffersImpl::kStaticVertexBufferOffsets[levelIt]);
+
+                            p.SetViewport(
+                                0, 0,
+                                cbuffer.ViewportSize.x, cbuffer.ViewportSize.y);
+
+                            const uint32_t indirectDrawStrideInBytes = 20; // DX12
+                            const uint32_t offset = levelIt * info.MaxBatchCount + batchIt;
+
+                            const uint32_t PrimitiveIdOffset = batchIt * maxItemsPerBatch;
+
+                            CBufferWriter& lCb = p.AddDrawIndirect(pipelineIndex, info.IEBakeBuffer, offset * indirectDrawStrideInBytes);
+                            lCb.WriteDW(levelIt /*levelIt*/);
+                            lCb.WriteDW(resultBufferStride /*vmResultBufferStride*/);
+                            lCb.WriteDW(batchIt /*batchIt*/);
+                            lCb.WriteDW(PrimitiveIdOffset /*PrimitiveIdOffset*/);
+                            for (uint32_t i = 0; i < 4u; ++i)
+                                lCb.WriteDW(0u /*dummy*/);
+                            END_PASS();
+                        };
+
+                        SCOPED_LABEL("Rasterize");
+                        PushBakeRasterize("Rasterize", ommRasterizeIdx, m_pipelines.ommRasterizeBindings);
+
+                        const bool debug = ((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_EnableNsightDebugMode) == (uint32_t)ommGpuBakeFlags_EnableNsightDebugMode;
+                        if (debug)
+                        {
+                            SCOPED_LABEL("Debug");
                             {
-                                p.UseGlobalCbuffer();
-                                p.BindSubRange("RasterItemsBuffer", info.rasterItemsBuffer);
-                                p.BindSubRange("BakeResultBuffer", info.bakeResultBuffer);
-                                p.BindSubRange("DispatchIndirectThreadCountBuffer", info.dispatchIndirectThreadCounter);
-                                p.BindSubRange("SpecialIndicesStateBuffer", info.specialIndicesStateBuffer);
+                                SCOPED_LABEL("DebugBakeVSPS");
+                                PushBakeRasterize("DebugBakeVSPS", m_pipelines.ommRasterizeDebugIdx, m_pipelines.ommRasterizeDebugBindings);
+                            }
+                            {
+                                SCOPED_LABEL("ClearRenderTarget");
+                                PushBakeRasterize("ClearRenderTarget", m_pipelines.renderTargetClearDebugIdx, m_pipelines.renderTargetClearDebugBindings);
+                            }
+                        }
 
-                                p.BindResource("u_vmArrayBuffer", ommGpuResourceType_OUT_OMM_ARRAY_DATA);
+                        {
+                            SCOPED_LABEL("Compress");
 
-                                const uint32_t indirectDispatchStrideInBytes = 12; // DX12
-                                const uint32_t offset = levelIt * info.MaxBatchCount + batchIt;
+                            m_passBuilder.PushPass(
+                                "Compress", ommGpuDispatchType_ComputeIndirect, m_pipelines.ommCompressBindings,
+                                [&](PassBuilder::PassConfig& p)
+                                {
+                                    p.UseGlobalCbuffer();
+                                    p.BindSubRange("RasterItemsBuffer", info.rasterItemsBuffer);
+                                    p.BindSubRange("BakeResultBuffer", info.bakeResultBuffer);
+                                    p.BindSubRange("DispatchIndirectThreadCountBuffer", info.dispatchIndirectThreadCounter);
+                                    p.BindSubRange("SpecialIndicesStateBuffer", info.specialIndicesStateBuffer);
 
-                                const uint32_t PrimitiveIdOffset = batchIt * maxItemsPerBatch;
+                                    p.BindResource("u_vmArrayBuffer", ommGpuResourceType_OUT_OMM_ARRAY_DATA);
 
-                                CBufferWriter& lCb = p.AddComputeIndirect(m_pipelines.ommCompressIdx, info.IECompressCsBuffer, offset * indirectDispatchStrideInBytes);
-                                lCb.WriteDW(levelIt /*levelIt*/);
-                                lCb.WriteDW(batchIt /*batchIt*/);
-                                lCb.WriteDW(PrimitiveIdOffset /*PrimitiveIdOffset*/);
-                                for (uint32_t i = 0; i < 5u; ++i)
-                                    lCb.WriteDW(4u /*dummy*/);
-                            });
+                                    const uint32_t indirectDispatchStrideInBytes = 12; // DX12
+                                    const uint32_t offset = levelIt * info.MaxBatchCount + batchIt;
+
+                                    const uint32_t PrimitiveIdOffset = batchIt * maxItemsPerBatch;
+
+                                    CBufferWriter& lCb = p.AddComputeIndirect(m_pipelines.ommCompressIdx, info.IECompressCsBuffer, offset * indirectDispatchStrideInBytes);
+                                    lCb.WriteDW(levelIt /*levelIt*/);
+                                    lCb.WriteDW(batchIt /*batchIt*/);
+                                    lCb.WriteDW(PrimitiveIdOffset /*PrimitiveIdOffset*/);
+                                    for (uint32_t i = 0; i < 5u; ++i)
+                                        lCb.WriteDW(4u /*dummy*/);
+                                });
+                        }
                     }
                 }
             }
         }
-
+       
         {
             SCOPED_LABEL("DescPatchCS");
 
             m_passBuilder.PushPass(
                 "DescPatchCS",  ommGpuDispatchType_Compute, m_pipelines.ommDescPatchBindings,
-                [this, &config, &info, primitiveCount](PassBuilder::PassConfig& p)
+                [this, &config, &info, primitiveCount, runPrePass](PassBuilder::PassConfig& p)
                 {
                     p.UseGlobalCbuffer();
                     p.BindSubRange("TempOmmIndexBuffer", info.tempOmmIndexBuffer);
                     p.BindSubRange("HashTableBuffer", info.hashTableBuffer);
                     p.BindResource("u_ommIndexHistogramBuffer", ommGpuResourceType_OUT_OMM_INDEX_HISTOGRAM);
-                    p.BindResource("t_vmDescBuffer", ommGpuResourceType_OUT_OMM_DESC_ARRAY);
+                    if (runPrePass)
+                        p.BindResource("t_ommDescArrayBuffer", info.scratch_u_ommDescArrayBuffer.type, info.scratch_u_ommDescArrayBuffer.indexInPool);
+                    else
+                        p.BindResource("t_ommDescArrayBuffer", ommGpuResourceType_OUT_OMM_DESC_ARRAY);
+
                     p.BindSubRange("SpecialIndicesStateBuffer", info.specialIndicesStateBuffer);
 
                     p.AddComputeDispatch(m_pipelines.ommDescPatchIdx, math::DivUp<uint32_t>(primitiveCount, 128u), 1);
                 });
         }
 
+        if (!runPrePass)
         {
             SCOPED_LABEL("IndexWriteCS");
 

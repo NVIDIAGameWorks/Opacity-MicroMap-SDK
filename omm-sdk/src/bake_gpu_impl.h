@@ -175,7 +175,7 @@ namespace Gpu
             _staticSamplers.insert(_staticSamplers.end(), ranges.begin(), ranges.end());
         }
 
-        uint32_t GetStaticSamplerIndex(const ommSamplerDesc& desc)
+        uint32_t GetStaticSamplerIndex(const ommSamplerDesc& desc) const
         {
             OMM_ASSERT(_staticSamplers.size() < 16); // Keep linear search small.
 
@@ -564,6 +564,8 @@ namespace Gpu
                 m_desc.compute.pipelineIndex = pipelineIndex;
                 m_desc.compute.gridWidth = threadGroupCountX;
                 m_desc.compute.gridHeight = threadGroupCountY;
+                OMM_ASSERT(m_desc.compute.gridWidth != 0);
+
                 return m_localCb;
             }
 
@@ -930,13 +932,13 @@ namespace Gpu
         ommResult Validate(const ommGpuBakeDispatchConfigDesc& config) const;
         ommResult Create(const ommGpuBakePipelineConfigDesc& config);
         ommResult GetPipelineDesc(const ommGpuBakePipelineInfoDesc** outPipelineDesc);
-        ommResult GetPreBakeInfo(const ommGpuBakeDispatchConfigDesc& config, ommGpuPreBakeInfo* outPreBuildInfo);
-        ommResult GetDispatcheDesc(const ommGpuBakeDispatchConfigDesc& dispatchConfig, const ommGpuBakeDispatchChain** outDispatchDesc);
+        ommResult GetPreBakeInfo(const ommGpuBakeDispatchConfigDesc& config, ommGpuPreBakeInfo* outPreBuildInfo) const;
+        ommResult GetDispatchBakeDesc(const ommGpuBakeDispatchConfigDesc& dispatchConfig, const ommGpuBakeDispatchChain** outDispatchDesc);
 
     private:
-        ommResult ConfigurePipeline(const ommGpuBakePipelineConfigDesc& config);
 
         static constexpr uint32_t kHashTableEntrySize = sizeof(uint32_t) * 2;
+        static constexpr int32_t kViewportScale = 5; // Increasing this to 6 fails... TODO: investigate why!
 
         ommGpuBakePipelineConfigDesc m_config;
         StdAllocator<uint8_t> m_stdAllocator;
@@ -1016,6 +1018,7 @@ namespace Gpu
         {
             BufferResource scratchBuffer;
             BufferResource scratchBuffer0;
+            BufferResource scratch_u_ommDescArrayBuffer;
             BufferResource indArgBuffer;
             BufferResource debugBuffer; // Contains asserts.
 
@@ -1032,6 +1035,7 @@ namespace Gpu
             BufferResource::SubRange IEBakeCsBuffer;
             BufferResource::SubRange IECompressCsBuffer;
             BufferResource::SubRange IEBakeCsThreadCountBuffer;
+            BufferResource::SubRange sub_u_ommDescArrayBuffer;
 
             BufferResource::SubRange assertBuffer;
 
@@ -1039,8 +1043,9 @@ namespace Gpu
             uint32_t MaxBatchCount = 0;
             bool MayContain4StateFormats = false;
         };
-
-        ommResult GetPreDispatchInfo(const ommGpuBakeDispatchConfigDesc& config, PreDispatchInfo& outInfo);
+        ommResult ConfigurePipeline(const ommGpuBakePipelineConfigDesc& config);
+        ommResult GetPreDispatchInfo(const ommGpuBakeDispatchConfigDesc& config, const size_t outOmmDescSizeInBytes, PreDispatchInfo& outInfo) const;
+        ommResult InitGlobalConstants(const ommGpuBakeDispatchConfigDesc& config, const PreDispatchInfo& info, GlobalConstants& cbuffer) const;
     };
 
     class BakerImpl

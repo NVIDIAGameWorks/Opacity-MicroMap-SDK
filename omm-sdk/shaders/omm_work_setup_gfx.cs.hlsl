@@ -75,8 +75,8 @@ void main(uint3 tid : SV_DispatchThreadID)
 			{
 				const uint vmDescData = ((uint)ommFormat << 16u) | subdivisionLevel;
 
-				u_vmDescBuffer.Store(vmDescOffset * 8, vmArrayOffset);
-				u_vmDescBuffer.Store(vmDescOffset * 8 + 4, vmDescData);
+				u_ommDescArrayBuffer.Store(vmDescOffset * 8, vmArrayOffset);
+				u_ommDescArrayBuffer.Store(vmDescOffset * 8 + 4, vmDescData);
 			}
 		}
 
