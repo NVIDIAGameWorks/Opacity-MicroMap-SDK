@@ -603,7 +603,7 @@ omm::Gpu::DispatchConfigDesc GpuBakeNvrhiImpl::GetConfig(const GpuBakeNvrhi::Inp
 {
 	using namespace omm;
 
-	assert(params.operation != Operation::Invalid);
+	assert(params.operation != GpuBakeNvrhi::Operation::Invalid);
 
 	Gpu::DispatchConfigDesc config;
 	config.runtimeSamplerDesc.addressingMode	= GetTextureAddressMode(params.sampleMode);
