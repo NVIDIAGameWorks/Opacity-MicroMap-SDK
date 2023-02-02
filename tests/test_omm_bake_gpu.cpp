@@ -360,7 +360,19 @@ namespace {
 
 			omm::Test::ValidateHistograms(&resDesc);
 
-			return bake.GetStats(resDesc);
+			omm::GpuBakeNvrhi::Stats stats = bake.GetStats(resDesc);
+
+			return
+			{
+				.totalOpaque = stats.totalOpaque,
+				.totalTransparent = stats.totalTransparent,
+				.totalUnknownTransparent = stats.totalUnknownTransparent,
+				.totalUnknownOpaque = stats.totalUnknownOpaque,
+				.totalFullyOpaque = stats.totalFullyOpaque,
+				.totalFullyTransparent = stats.totalFullyTransparent,
+				.totalFullyUnknownOpaque = stats.totalFullyUnknownOpaque,
+				.totalFullyUnknownTransparent = stats.totalFullyUnknownTransparent
+			};
 		}
 
 		omm::Debug::Stats RunVmBake(
