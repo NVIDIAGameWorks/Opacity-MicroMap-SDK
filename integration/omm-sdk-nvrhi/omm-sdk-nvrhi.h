@@ -15,6 +15,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include <algorithm>
 #include <functional>
 #include <vector>
+#include <memory>
 
 #include <omm.hpp>
 
