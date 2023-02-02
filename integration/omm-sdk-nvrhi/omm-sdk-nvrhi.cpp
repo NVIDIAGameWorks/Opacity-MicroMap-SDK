@@ -1163,14 +1163,14 @@ GpuBakeNvrhi::Stats GpuBakeNvrhiImpl::GetStats(const omm::Cpu::BakeResultDesc& d
 	assert(statsRes == omm::Result::SUCCESS);
 
 	GpuBakeNvrhi::Stats s;
-	s.totalOpaque = stats.totalFullyOpaque;
-	s.totalTransparent = stats.totalFullyOpaque;
-	s.totalUnknownTransparent = stats.totalFullyOpaque;
-	s.totalUnknownOpaque = stats.totalFullyOpaque;
+	s.totalOpaque = stats.totalOpaque;
+	s.totalTransparent = stats.totalTransparent;
+	s.totalUnknownTransparent = stats.totalUnknownTransparent;
+	s.totalUnknownOpaque = stats.totalUnknownOpaque;
 	s.totalFullyOpaque = stats.totalFullyOpaque;
-	s.totalFullyTransparent = stats.totalFullyOpaque;
-	s.totalFullyUnknownOpaque = stats.totalFullyOpaque;
-	s.totalFullyUnknownTransparent = stats.totalFullyOpaque;
+	s.totalFullyTransparent = stats.totalFullyTransparent;
+	s.totalFullyUnknownOpaque = stats.totalFullyUnknownOpaque;
+	s.totalFullyUnknownTransparent = stats.totalFullyUnknownTransparent;
 	return s;
 }
 
