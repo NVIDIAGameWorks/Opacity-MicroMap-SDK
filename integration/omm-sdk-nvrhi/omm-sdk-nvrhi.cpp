@@ -730,7 +730,7 @@ void GpuBakeNvrhiImpl::Clear()
 void GpuBakeNvrhiImpl::ReadPostBuildInfo(void* pData, size_t byteSize, GpuBakeNvrhi::PostBuildInfo& outPostBuildInfo)
 {
 	static_assert(sizeof(omm::Gpu::PostBakeInfo) == sizeof(GpuBakeNvrhi::PostBuildInfo));
-	assert(byteSize >= sizeof(PostBuildInfo));
+	assert(byteSize >= sizeof(GpuBakeNvrhi::PostBuildInfo));
 	memcpy(&outPostBuildInfo, pData, sizeof(GpuBakeNvrhi::PostBuildInfo));
 }
 
