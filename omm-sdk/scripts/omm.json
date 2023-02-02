@@ -1115,18 +1115,19 @@
         "injectNewLine": true,
         "values": [
             {
-                "name": "None",
-                "value": "0"
+                "name": "Invalid",
+                "value": "0",
+                "comment": "Either PerformSetup, PerformBake (or both simultaniously) must be set."
             },
             {
                 "name": "PerformSetup",
                 "value": "1u << 0",
-                "comment": "OUT_OMM_DESC_ARRAY_HISTOGRAM, OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_DESC_ARRAY and (optionally) OUT_POST_BAKE_INFO will be updated."
+                "comment": "(Default) OUT_OMM_DESC_ARRAY_HISTOGRAM, OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_DESC_ARRAY and (optionally) OUT_POST_BAKE_INFO will be updated."
             },
             {
                 "name": "PerformBake",
                 "value": "1u << 1",
-                "comment": "OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_ARRAY_DATA will be written to. If special indices are detected OUT_OMM_INDEX_BUFFER may also be modified.\nIf PerformBuild is not used with this flag, OUT_OMM_DESC_ARRAY_HISTOGRAM, OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_DESC_ARRAY must contain valid data from a prior PerformSetup pass."
+                "comment": "(Default) OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_ARRAY_DATA will be written to. If special indices are detected OUT_OMM_INDEX_BUFFER may also be modified.\nIf PerformBuild is not used with this flag, OUT_OMM_DESC_ARRAY_HISTOGRAM, OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_DESC_ARRAY must contain valid data from a prior PerformSetup pass."
             },
             {
                 "name": "ComputeOnly",
@@ -1729,7 +1730,7 @@
                 "name": "bakeFlags",
                 "value": {
                     "type": "BakeFlags",
-                    "value": "None"
+                    "value": "Invalid"
                 }
             },
             {

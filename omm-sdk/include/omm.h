@@ -518,14 +518,15 @@ typedef enum ommGpuScratchMemoryBudget
 
 typedef enum ommGpuBakeFlags
 {
-   ommGpuBakeFlags_None                         = 0,
+   // Either PerformSetup, PerformBake (or both simultaniously) must be set.
+   ommGpuBakeFlags_Invalid                      = 0,
 
-   // OUT_OMM_DESC_ARRAY_HISTOGRAM, OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_DESC_ARRAY and (optionally)
-   // OUT_POST_BAKE_INFO will be updated.
+   // (Default) OUT_OMM_DESC_ARRAY_HISTOGRAM, OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_DESC_ARRAY and
+   // (optionally) OUT_POST_BAKE_INFO will be updated.
    ommGpuBakeFlags_PerformSetup                 = 1u << 0,
 
-   // OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_ARRAY_DATA will be written to. If special indices are detected
-   // OUT_OMM_INDEX_BUFFER may also be modified.
+   // (Default) OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_ARRAY_DATA will be written to. If special indices are
+   // detected OUT_OMM_INDEX_BUFFER may also be modified.
    // If PerformBuild is not used with this flag, OUT_OMM_DESC_ARRAY_HISTOGRAM, OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER,
    // OUT_OMM_DESC_ARRAY must contain valid data from a prior PerformSetup pass.
    ommGpuBakeFlags_PerformBake                  = 1u << 1,
@@ -861,7 +862,7 @@ typedef struct ommGpuDispatchConfigDesc
 inline ommGpuDispatchConfigDesc ommGpuDispatchConfigDescDefault()
 {
    ommGpuDispatchConfigDesc v;
-   v.bakeFlags                     = ommGpuBakeFlags_None;
+   v.bakeFlags                     = ommGpuBakeFlags_Invalid;
    v.runtimeSamplerDesc            = ommSamplerDescDefault();
    v.alphaMode                     = ommAlphaMode_MAX_NUM;
    v.alphaTextureWidth             = 0;

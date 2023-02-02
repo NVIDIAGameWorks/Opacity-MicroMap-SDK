@@ -85,10 +85,9 @@ namespace {
 		omm::Baker _baker = 0;
 	};
 
-
 	TEST_F(GpuTest, Pipeline) {
 
-		omm::Gpu::BakePipelineConfigDesc cfg;
+		omm::Gpu::PipelineConfigDesc cfg;
 		cfg.renderAPI				= omm::Gpu::RenderAPI::DX12;
 
 		omm::Gpu::Pipeline pipeline = 0;
