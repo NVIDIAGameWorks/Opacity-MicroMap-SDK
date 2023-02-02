@@ -668,14 +668,14 @@ namespace omm
          uint32_t storageTextureAndBufferOffset;
       };
 
-      struct BakePipelineConfigDesc
+      struct PipelineConfigDesc
       {
          // API is required to make sure indirect buffers are written to in suitable format
          RenderAPI renderAPI  = RenderAPI::DX12;
       };
 
       // Note: sizes may return size zero, this means the buffer will not be used in the dispatch.
-      struct PreBakeInfo
+      struct PreDispatchInfo
       {
          // Format of outOmmIndexBuffer
          IndexFormat outOmmIndexBufferFormat            = IndexFormat::MAX_NUM;
@@ -699,7 +699,7 @@ namespace omm
          uint32_t    numTransientPoolBuffers            = 0;
       };
 
-      struct BakeDispatchConfigDesc
+      struct DispatchConfigDesc
       {
          BakeFlags           bakeFlags                     = BakeFlags::None;
          // RuntimeSamplerDesc describes the texture sampler that will be used in the runtime alpha test shader code.
@@ -738,7 +738,7 @@ namespace omm
          ScratchMemoryBudget maxScratchMemorySize          = ScratchMemoryBudget::Default;
       };
 
-      struct BakePipelineInfoDesc
+      struct PipelineInfoDesc
       {
          SPIRVBindingOffsets      spirvBindingOffsets;
          const PipelineDesc*      pipelines;
@@ -750,15 +750,6 @@ namespace omm
          uint32_t                 staticSamplersNum;
       };
 
-      // Format of OUT_PREPASS_DATA
-      struct PrePassResult
-      {
-         uint32_t outOmmArraySizeInBytes;
-         uint32_t outOmmDescSizeInBytes;
-         // Opaque data
-         uint32_t data[64];
-      };
-
       // Format of OUT_POST_BAKE_INFO
       struct PostBakeInfo
       {
@@ -766,7 +757,7 @@ namespace omm
          uint32_t outOmmDescSizeInBytes;
       };
 
-      struct BakeDispatchChain
+      struct DispatchChain
       {
          const DispatchDesc* dispatches;
          uint32_t            numDispatches;
@@ -779,19 +770,19 @@ namespace omm
       // subdivision levels.
       static inline Result GetStaticResourceData(ResourceType resource, uint8_t* data, size_t* outByteSize);
 
-      static inline Result CreatePipeline(Baker baker, const BakePipelineConfigDesc& pipelineCfg, Pipeline* outPipeline);
+      static inline Result CreatePipeline(Baker baker, const PipelineConfigDesc& pipelineCfg, Pipeline* outPipeline);
 
       static inline Result DestroyPipeline(Baker baker, Pipeline pipeline);
 
       // Return the required pipelines. Does not depend on per-dispatch settings.
-      static inline Result GetPipelineDesc(Pipeline pipeline, const BakePipelineInfoDesc** outPipelineDesc);
+      static inline Result GetPipelineDesc(Pipeline pipeline, const PipelineInfoDesc** outPipelineDesc);
 
       // Returns the scratch and output memory requirements of the baking operation.
-      static inline Result GetPreBakeInfo(Pipeline pipeline, const BakeDispatchConfigDesc& config, PreBakeInfo* outPreBakeInfo);
+      static inline Result GetPreDispatchInfo(Pipeline pipeline, const DispatchConfigDesc& config, PreDispatchInfo* outPreDispatchInfo);
 
       // Returns the dispatch order to perform the baking operation. Once complete the OUT_OMM_* resources will be written to and
       // can be consumed by the application.
-      static inline Result Bake(Pipeline pipeline, const BakeDispatchConfigDesc& config, const BakeDispatchChain** outDispatchDesc);
+      static inline Result Dispatch(Pipeline pipeline, const DispatchConfigDesc& config, const DispatchChain** outDispatchDesc);
 
    } // namespace Gpu
 
@@ -879,25 +870,25 @@ namespace omm
 		{
 			return (Result)ommGpuGetStaticResourceData((ommGpuResourceType)resource, data, outByteSize);
 		}
-		static inline Result CreatePipeline(Baker baker, const BakePipelineConfigDesc& pipelineCfg, Pipeline* outPipeline)
+		static inline Result CreatePipeline(Baker baker, const PipelineConfigDesc& pipelineCfg, Pipeline* outPipeline)
 		{
-			return (Result)ommGpuCreatePipeline((ommBaker)baker, reinterpret_cast<const ommGpuBakePipelineConfigDesc*>(&pipelineCfg), (ommGpuPipeline*)outPipeline);
+			return (Result)ommGpuCreatePipeline((ommBaker)baker, reinterpret_cast<const ommGpuPipelineConfigDesc*>(&pipelineCfg), (ommGpuPipeline*)outPipeline);
 		}
 		static inline Result DestroyPipeline(Baker baker, Pipeline pipeline)
 		{
 			return (Result)ommGpuDestroyPipeline((ommBaker)baker, (ommGpuPipeline)pipeline);
 		}
-		static inline Result GetPipelineDesc(Pipeline pipeline, const BakePipelineInfoDesc** outPipelineDesc)
+		static inline Result GetPipelineDesc(Pipeline pipeline, const PipelineInfoDesc** outPipelineDesc)
 		{
-			return (Result)ommGpuGetPipelineDesc((ommGpuPipeline)pipeline, reinterpret_cast<const ommGpuBakePipelineInfoDesc**>(outPipelineDesc));
+			return (Result)ommGpuGetPipelineDesc((ommGpuPipeline)pipeline, reinterpret_cast<const ommGpuPipelineInfoDesc**>(outPipelineDesc));
 		}
-		static inline Result GetPreBakeInfo(Pipeline pipeline, const BakeDispatchConfigDesc& config, PreBakeInfo* outPreBuildInfo)
+		static inline Result GetPreDispatchInfo(Pipeline pipeline, const DispatchConfigDesc& config, PreDispatchInfo* outPreBuildInfo)
 		{
-			return (Result)ommGpuGetPreBakeInfo((ommGpuPipeline)pipeline, reinterpret_cast<const ommGpuBakeDispatchConfigDesc*>(&config), reinterpret_cast<ommGpuPreBakeInfo*>(outPreBuildInfo));
+			return (Result)ommGpuGetPreDispatchInfo((ommGpuPipeline)pipeline, reinterpret_cast<const ommGpuDispatchConfigDesc*>(&config), reinterpret_cast<ommGpuPreDispatchInfo*>(outPreBuildInfo));
 		}
-		static inline Result Bake(Pipeline pipeline, const BakeDispatchConfigDesc& config, const BakeDispatchChain** outDispatchDesc)
+		static inline Result Dispatch(Pipeline pipeline, const DispatchConfigDesc& config, const DispatchChain** outDispatchDesc)
 		{
-			return (Result)ommGpuBake((ommGpuPipeline)pipeline, reinterpret_cast<const ommGpuBakeDispatchConfigDesc*>(&config), reinterpret_cast<const ommGpuBakeDispatchChain**>(outDispatchDesc));
+			return (Result)ommGpuDispatch((ommGpuPipeline)pipeline, reinterpret_cast<const ommGpuDispatchConfigDesc*>(&config), reinterpret_cast<const ommGpuDispatchChain**>(outDispatchDesc));
 		}
 	}
 	namespace Debug

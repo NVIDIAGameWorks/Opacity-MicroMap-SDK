@@ -242,12 +242,12 @@ ommResult  OmmStaticBuffers::GetStaticResourceData(ommGpuResourceType resource, 
 PipelineImpl::~PipelineImpl()
 {}
 
-ommResult  PipelineImpl::Validate(const ommGpuBakePipelineConfigDesc& config)
+ommResult  PipelineImpl::Validate(const ommGpuPipelineConfigDesc& config)
 {
     return ommResult_SUCCESS;
 }
 
-ommResult  PipelineImpl::Validate(const ommGpuBakeDispatchConfigDesc& config) const
+ommResult  PipelineImpl::Validate(const ommGpuDispatchConfigDesc& config) const
 {
     const uint32_t MaxSubdivLevelAPI    = kMaxSubdivLevel;
     const uint32_t MaxSubdivLevel       = std::min<uint32_t>(MaxSubdivLevelAPI, OmmStaticBuffersImpl::kMaxSubdivisionLevelNum);
@@ -272,7 +272,7 @@ ommResult  PipelineImpl::Validate(const ommGpuBakeDispatchConfigDesc& config) co
     return ommResult_SUCCESS;
 }
 
-ommResult  PipelineImpl::Create(const ommGpuBakePipelineConfigDesc& config)
+ommResult  PipelineImpl::Create(const ommGpuPipelineConfigDesc& config)
 {
     RETURN_STATUS_IF_FAILED(ConfigurePipeline(config));
 
@@ -414,7 +414,7 @@ ommResult  PipelineImpl::Create(const ommGpuBakePipelineConfigDesc& config)
     return ommResult_SUCCESS;
 }
 
-ommResult PipelineImpl::GetPipelineDesc(const ommGpuBakePipelineInfoDesc** outPipelineDesc)
+ommResult PipelineImpl::GetPipelineDesc(const ommGpuPipelineInfoDesc** outPipelineDesc)
 {
     if (outPipelineDesc == nullptr)
         return ommResult_INVALID_ARGUMENT;
@@ -423,7 +423,7 @@ ommResult PipelineImpl::GetPipelineDesc(const ommGpuBakePipelineInfoDesc** outPi
     return ommResult_SUCCESS;
 }
 
-ommResult PipelineImpl::GetPreDispatchInfo(const ommGpuBakeDispatchConfigDesc& config, PreDispatchInfo& outInfo) const
+ommResult PipelineImpl::GetPreDispatchInfo(const ommGpuDispatchConfigDesc& config, PreDispatchInfo& outInfo) const
 {
     const bool doSetup = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_PerformSetup) == (uint32_t)ommGpuBakeFlags_PerformSetup);
     const bool doBake = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_PerformBake) == (uint32_t)ommGpuBakeFlags_PerformBake);
@@ -591,7 +591,7 @@ ommResult PipelineImpl::GetPreDispatchInfo(const ommGpuBakeDispatchConfigDesc& c
     return ommResult_SUCCESS;
 }
 
-ommResult PipelineImpl::GetPreBakeInfo(const ommGpuBakeDispatchConfigDesc& config, ommGpuPreBakeInfo* outPreBuildInfo) const
+ommResult PipelineImpl::GetPreDispatchInfo(const ommGpuDispatchConfigDesc& config, ommGpuPreDispatchInfo* outPreBuildInfo) const
 {
     if (!outPreBuildInfo)
         return ommResult_INVALID_ARGUMENT;
@@ -682,10 +682,10 @@ private:
 #define _SCOPED_LABEL(variableName, ...) ScopedLabel variableName(m_passBuilder, __VA_ARGS__);
 #define SCOPED_LABEL(...) _SCOPED_LABEL(scopedLabel_##__LINE__, __VA_ARGS__);
 
-ommResult PipelineImpl::InitGlobalConstants(const ommGpuBakeDispatchConfigDesc& config, const PreDispatchInfo& info, GlobalConstants& cbuffer) const
+ommResult PipelineImpl::InitGlobalConstants(const ommGpuDispatchConfigDesc& config, const PreDispatchInfo& info, GlobalConstants& cbuffer) const
 {
-    ommGpuPreBakeInfo preBuildInfo;
-    RETURN_STATUS_IF_FAILED(GetPreBakeInfo(config, &preBuildInfo));
+    ommGpuPreDispatchInfo preBuildInfo;
+    RETURN_STATUS_IF_FAILED(GetPreDispatchInfo(config, &preBuildInfo));
 
     const uint32_t primitiveCount = config.indexCount / 3;
     const uint32_t hashTableEntryCount = info.hashTableBuffer.GetSize() / kHashTableEntrySize;
@@ -763,7 +763,7 @@ ommResult PipelineImpl::InitGlobalConstants(const ommGpuBakeDispatchConfigDesc& 
         m_passBuilder.FinalizePass(_name, p);\
     }
 
-ommResult PipelineImpl::GetDispatchBakeDesc(const ommGpuBakeDispatchConfigDesc& config, const ommGpuBakeDispatchChain** outDispatchDesc)
+ommResult PipelineImpl::GetDispatchDesc(const ommGpuDispatchConfigDesc& config, const ommGpuDispatchChain** outDispatchDesc)
 {
     if (outDispatchDesc == nullptr)
         return ommResult_INVALID_ARGUMENT;
@@ -772,8 +772,8 @@ ommResult PipelineImpl::GetDispatchBakeDesc(const ommGpuBakeDispatchConfigDesc& 
 
     m_passBuilder.Reset();
 
-    ommGpuPreBakeInfo preBuildInfo;
-    RETURN_STATUS_IF_FAILED(GetPreBakeInfo(config, &preBuildInfo));
+    ommGpuPreDispatchInfo preBuildInfo;
+    RETURN_STATUS_IF_FAILED(GetPreDispatchInfo(config, &preBuildInfo));
 
     PreDispatchInfo info;
     GetPreDispatchInfo(config, info);
@@ -1282,7 +1282,7 @@ ommResult PipelineImpl::GetDispatchBakeDesc(const ommGpuBakeDispatchConfigDesc& 
     return ommResult_SUCCESS;
 }
 
-ommResult  PipelineImpl::ConfigurePipeline(const ommGpuBakePipelineConfigDesc& config)
+ommResult  PipelineImpl::ConfigurePipeline(const ommGpuPipelineConfigDesc& config)
 {
     m_config = config;
     return ommResult_SUCCESS;
@@ -1299,7 +1299,7 @@ ommResult BakerImpl::Create(const ommBakerCreationDesc& vmBakeCreationDesc)
     return ommResult_SUCCESS;
 }
 
-ommResult BakerImpl::CreatePipeline(const ommGpuBakePipelineConfigDesc& config, ommGpuPipeline* outPipeline)
+ommResult BakerImpl::CreatePipeline(const ommGpuPipelineConfigDesc& config, ommGpuPipeline* outPipeline)
 {
     RETURN_STATUS_IF_FAILED(PipelineImpl::Validate(config));
 

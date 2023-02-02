@@ -131,7 +131,7 @@ OMM_API ommResult OMM_CALL ommGpuGetStaticResourceData(ommGpuResourceType resour
 }
 
 ///< The Pipeline determines the 
-OMM_API ommResult OMM_CALL ommGpuCreatePipeline(ommBaker baker, const ommGpuBakePipelineConfigDesc* config, ommGpuPipeline* outPipeline)
+OMM_API ommResult OMM_CALL ommGpuCreatePipeline(ommBaker baker, const ommGpuPipelineConfigDesc* config, ommGpuPipeline* outPipeline)
 {
     if (baker == 0)
         return ommResult_INVALID_ARGUMENT;
@@ -143,7 +143,7 @@ OMM_API ommResult OMM_CALL ommGpuCreatePipeline(ommBaker baker, const ommGpuBake
     return bakePtr->CreatePipeline(*config, outPipeline);
 }
 
-OMM_API ommResult OMM_CALL ommGpuGetPipelineDesc(ommGpuPipeline pipeline, const ommGpuBakePipelineInfoDesc** outPipelineDesc)
+OMM_API ommResult OMM_CALL ommGpuGetPipelineDesc(ommGpuPipeline pipeline, const ommGpuPipelineInfoDesc** outPipelineDesc)
 {
     if (pipeline == 0)
         return ommResult_INVALID_ARGUMENT;
@@ -163,24 +163,24 @@ OMM_API ommResult OMM_CALL ommGpuDestroyPipeline(ommBaker baker, ommGpuPipeline 
     return bakePtr->DestroyPipeline(pipeline);
 }
 
-OMM_API ommResult OMM_CALL ommGpuGetPreBakeInfo(ommGpuPipeline pipeline, const ommGpuBakeDispatchConfigDesc* config, ommGpuPreBakeInfo* outPreBuildInfo)
+OMM_API ommResult OMM_CALL ommGpuGetPreDispatchInfo(ommGpuPipeline pipeline, const ommGpuDispatchConfigDesc* config, ommGpuPreDispatchInfo* outPreBuildInfo)
 {
     if (pipeline == 0)
         return ommResult_INVALID_ARGUMENT;
     if (config == 0)
         return ommResult_INVALID_ARGUMENT;
     Gpu::PipelineImpl* impl = (Gpu::PipelineImpl*)(pipeline);
-    return impl->GetPreBakeInfo(*config, outPreBuildInfo);
+    return impl->GetPreDispatchInfo(*config, outPreBuildInfo);
 }
 
-OMM_API ommResult OMM_CALL ommGpuBake(ommGpuPipeline pipeline, const ommGpuBakeDispatchConfigDesc* dispatchConfig, const ommGpuBakeDispatchChain** outDispatchDesc)
+OMM_API ommResult OMM_CALL ommGpuDispatch(ommGpuPipeline pipeline, const ommGpuDispatchConfigDesc* dispatchConfig, const ommGpuDispatchChain** outDispatchDesc)
 {
     if (pipeline == 0)
         return ommResult_INVALID_ARGUMENT;
     if (dispatchConfig == 0)
         return ommResult_INVALID_ARGUMENT;
     Gpu::PipelineImpl* impl = (Gpu::PipelineImpl*)(pipeline);
-    return impl->GetDispatchBakeDesc(*dispatchConfig, outDispatchDesc);
+    return impl->GetDispatchDesc(*dispatchConfig, outDispatchDesc);
 }
     
 OMM_API ommResult OMM_CALL ommDebugSaveAsImages(ommBaker baker, const ommCpuBakeInputDesc* bakeInputDesc, const ommCpuBakeResultDesc* res, const ommDebugSaveImagesDesc* desc)

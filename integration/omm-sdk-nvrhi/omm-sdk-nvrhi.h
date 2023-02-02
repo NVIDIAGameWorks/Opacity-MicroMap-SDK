@@ -10,16 +10,17 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 #pragma once
 
-#include <omm.hpp>
 #include <nvrhi/nvrhi.h>
-#include <vector>
-#include <stdint.h>
-#include <utility>
+
+#include <algorithm>
 #include <functional>
+#include <vector>
+
+#include <omm.hpp>
 
 namespace omm
 {
-	class BindingCache;
+	class GpuBakeNvrhiImpl;
 
 	class GpuBakeNvrhi
 	{
@@ -27,9 +28,6 @@ namespace omm
 
 		// In case the shaders are compiled externally the ShaderProviderCb can be used.
 		using ShaderProviderCb = std::function<nvrhi::ShaderHandle(nvrhi::ShaderType type, const char* shaderName, const char* shaderEntryName)>;
-
-		GpuBakeNvrhi(nvrhi::DeviceHandle device, nvrhi::CommandListHandle commandList, bool enableDebug, ShaderProviderCb* shaderProviderCb = nullptr);
-		~GpuBakeNvrhi();
 
 		enum class Operation
 		{
@@ -89,18 +87,26 @@ namespace omm
 			nvrhi::BufferHandle ommPostBuildInfoBuffer;
 		};
 
-		struct OpacityMicromapUsageCount
-		{
-			uint32_t count = 0;
-			uint16_t subdivisionLevel = 0;
-			uint16_t format = 0;
-		};
-
 		struct PostBuildInfo
 		{
 			uint32_t ommArrayBufferSize;
 			uint32_t ommDescBufferSize;
 		};
+
+		struct Stats
+		{
+			uint64_t totalOpaque = 0;
+			uint64_t totalTransparent = 0;
+			uint64_t totalUnknownTransparent = 0;
+			uint64_t totalUnknownOpaque = 0;
+			uint32_t totalFullyOpaque = 0;
+			uint32_t totalFullyTransparent = 0;
+			uint32_t totalFullyUnknownOpaque = 0;
+			uint32_t totalFullyUnknownTransparent = 0;
+		};
+
+		GpuBakeNvrhi(nvrhi::DeviceHandle device, nvrhi::CommandListHandle commandList, bool enableDebug, ShaderProviderCb* shaderProviderCb = nullptr);
+		~GpuBakeNvrhi();
 
 		// CPU side pre-build info.
 		void GetPreDispatchInfo(const Input& params, PreDispatchInfo& info);
@@ -114,7 +120,7 @@ namespace omm
 
 		// This assumes pData is the CPU-side pointer of the contents in vmUsageDescReadbackBufferSize.
 		static void ReadPostBuildInfo(void* pData, size_t byteSize, PostBuildInfo& outPostBuildInfo);
-		static void ReadUsageDescBuffer(void* pData, size_t byteSize, std::vector<OpacityMicromapUsageCount>& outVmUsages);
+		static void ReadUsageDescBuffer(void* pData, size_t byteSize, std::vector<nvrhi::rt::OpacityMicromapUsageCount>& outVmUsages);
 
 		// Debug dumping
 		void DumpDebug(
@@ -135,48 +141,9 @@ namespace omm
 			const uint32_t height
 		);
 
-		omm::Debug::Stats GetStats(const omm::Cpu::BakeResultDesc& desc);
+		Stats GetStats(const omm::Cpu::BakeResultDesc& desc);
 
 	private:
-
-		void InitStaticBuffers(nvrhi::CommandListHandle commandList);
-		void InitBaker(ShaderProviderCb* shaderProviderCb);
-		void DestroyBaker();
-
-		void SetupPipelines(
-			const omm::Gpu::BakePipelineInfoDesc* desc, 
-			ShaderProviderCb* shaderProviderCb);
-
-		omm::Gpu::BakeDispatchConfigDesc GetConfig(const Input& params);
-
-		void ReserveGlobalCBuffer(size_t size, uint32_t slot);
-		void ReserveScratchBuffers(const omm::Gpu::PreBakeInfo& info);
-		nvrhi::TextureHandle GetTextureResource(const Input& params, const Buffers& output, const omm::Gpu::Resource& resource);
-		nvrhi::BufferHandle GetBufferResource(const Input& params, const Buffers& output, const omm::Gpu::Resource& resource, uint32_t& offsetInBytes);
-
-		void ExecuteBakeOperation(
-			nvrhi::CommandListHandle commandList,
-			const Input& params,
-			const Buffers& output,
-			const omm::Gpu::BakeDispatchChain* outDispatchDesc);
-
-		nvrhi::DeviceHandle m_device;
-		nvrhi::BufferHandle m_staticIndexBuffer;
-		nvrhi::BufferHandle m_staticVertexBuffer;
-		nvrhi::BufferHandle m_globalCBuffer;
-		uint32_t m_globalCBufferSlot;
-		uint32_t m_localCBufferSlot;
-		uint32_t m_localCBufferSize;
-		nvrhi::FramebufferHandle m_nullFbo;
-		nvrhi::FramebufferHandle m_debugFbo;
-		std::vector<nvrhi::BufferHandle> m_transientPool;
-		std::vector<nvrhi::ResourceHandle> m_pipelines;
-		std::vector<std::pair<nvrhi::SamplerHandle, uint32_t>> m_samplers;
-		BindingCache* m_bindingCache;
-
-		omm::Baker m_baker;
-		omm::Baker m_cpuBaker;
-		omm::Gpu::Pipeline m_pipeline;
-		bool m_enableDebug = false;
+		std::unique_ptr< GpuBakeNvrhiImpl> m_impl;
 	};
 } // namespace omm

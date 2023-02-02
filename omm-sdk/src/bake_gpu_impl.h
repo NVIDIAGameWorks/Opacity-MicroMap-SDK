@@ -280,7 +280,7 @@ namespace Gpu
         vector<ommGpuPipelineDesc> _pipelines;
         vector<ommGpuDescriptorRangeDesc> _ranges;
         vector<ommGpuStaticSamplerDesc> _staticSamplers;
-        ommGpuBakePipelineInfoDesc _desc;
+        ommGpuPipelineInfoDesc _desc;
     };
 
     struct StringCache
@@ -896,7 +896,7 @@ namespace Gpu
         vector<ommGpuResource> _resources;
         vector<uint8_t> _localCbufferData;
         vector<uint8_t> _globalCbufferData;
-        ommGpuBakeDispatchChain _result;
+        ommGpuDispatchChain _result;
         StringCache& _strings;
         bool _enableValidation;
     };
@@ -926,19 +926,19 @@ namespace Gpu
         {
             return m_stdAllocator;
         }
-        static ommResult Validate(const ommGpuBakePipelineConfigDesc& config);
-        ommResult Validate(const ommGpuBakeDispatchConfigDesc& config) const;
-        ommResult Create(const ommGpuBakePipelineConfigDesc& config);
-        ommResult GetPipelineDesc(const ommGpuBakePipelineInfoDesc** outPipelineDesc);
-        ommResult GetPreBakeInfo(const ommGpuBakeDispatchConfigDesc& config, ommGpuPreBakeInfo* outPreBuildInfo) const;
-        ommResult GetDispatchBakeDesc(const ommGpuBakeDispatchConfigDesc& dispatchConfig, const ommGpuBakeDispatchChain** outDispatchDesc);
+        static ommResult Validate(const ommGpuPipelineConfigDesc& config);
+        ommResult Validate(const ommGpuDispatchConfigDesc& config) const;
+        ommResult Create(const ommGpuPipelineConfigDesc& config);
+        ommResult GetPipelineDesc(const ommGpuPipelineInfoDesc** outPipelineDesc);
+        ommResult GetPreDispatchInfo(const ommGpuDispatchConfigDesc& config, ommGpuPreDispatchInfo* outPreBuildInfo) const;
+        ommResult GetDispatchDesc(const ommGpuDispatchConfigDesc& dispatchConfig, const ommGpuDispatchChain** outDispatchDesc);
 
     private:
 
         static constexpr uint32_t kHashTableEntrySize = sizeof(uint32_t) * 2;
         static constexpr int32_t kViewportScale = 5; // Increasing this to 6 fails... TODO: investigate why!
 
-        ommGpuBakePipelineConfigDesc m_config;
+        ommGpuPipelineConfigDesc m_config;
         StdAllocator<uint8_t> m_stdAllocator;
         vector<ommGpuBufferDesc> m_scratchBufferDescs;
         PipelineBuilder m_pipelineBuilder;
@@ -1048,9 +1048,9 @@ namespace Gpu
             uint32_t MaxBatchCount = 0;
             bool MayContain4StateFormats = false;
         };
-        ommResult ConfigurePipeline(const ommGpuBakePipelineConfigDesc& config);
-        ommResult GetPreDispatchInfo(const ommGpuBakeDispatchConfigDesc& config, PreDispatchInfo& outInfo) const;
-        ommResult InitGlobalConstants(const ommGpuBakeDispatchConfigDesc& config, const PreDispatchInfo& info, GlobalConstants& cbuffer) const;
+        ommResult ConfigurePipeline(const ommGpuPipelineConfigDesc& config);
+        ommResult GetPreDispatchInfo(const ommGpuDispatchConfigDesc& config, PreDispatchInfo& outInfo) const;
+        ommResult InitGlobalConstants(const ommGpuDispatchConfigDesc& config, const PreDispatchInfo& info, GlobalConstants& cbuffer) const;
     };
 
     class BakerImpl
@@ -1068,7 +1068,7 @@ namespace Gpu
 
         ommResult Create(const ommBakerCreationDesc& bakeCreationDesc);
 
-        ommResult CreatePipeline(const ommGpuBakePipelineConfigDesc& config, ommGpuPipeline* outPipeline);
+        ommResult CreatePipeline(const ommGpuPipelineConfigDesc& config, ommGpuPipeline* outPipeline);
         ommResult DestroyPipeline(ommGpuPipeline pipeline);
 
     private:

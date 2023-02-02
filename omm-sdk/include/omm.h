@@ -766,21 +766,21 @@ typedef struct ommGpuSPIRVBindingOffsets
    uint32_t storageTextureAndBufferOffset;
 } ommGpuSPIRVBindingOffsets;
 
-typedef struct ommGpuBakePipelineConfigDesc
+typedef struct ommGpuPipelineConfigDesc
 {
    // API is required to make sure indirect buffers are written to in suitable format
    ommGpuRenderAPI renderAPI;
-} ommGpuBakePipelineConfigDesc;
+} ommGpuPipelineConfigDesc;
 
-inline ommGpuBakePipelineConfigDesc ommGpuBakePipelineConfigDescDefault()
+inline ommGpuPipelineConfigDesc ommGpuPipelineConfigDescDefault()
 {
-   ommGpuBakePipelineConfigDesc v;
+   ommGpuPipelineConfigDesc v;
    v.renderAPI  = ommGpuRenderAPI_DX12;
    return v;
 }
 
 // Note: sizes may return size zero, this means the buffer will not be used in the dispatch.
-typedef struct ommGpuPreBakeInfo
+typedef struct ommGpuPreDispatchInfo
 {
    // Format of outOmmIndexBuffer
    ommIndexFormat outOmmIndexBufferFormat;
@@ -802,11 +802,11 @@ typedef struct ommGpuPreBakeInfo
    // Min required sizes of TRANSIENT_POOL_BUFFERs
    uint32_t       transientPoolBufferSizeInBytes[8];
    uint32_t       numTransientPoolBuffers;
-} ommGpuPreBakeInfo;
+} ommGpuPreDispatchInfo;
 
-inline ommGpuPreBakeInfo ommGpuPreBakeInfoDefault()
+inline ommGpuPreDispatchInfo ommGpuPreDispatchInfoDefault()
 {
-   ommGpuPreBakeInfo v;
+   ommGpuPreDispatchInfo v;
    v.outOmmIndexBufferFormat            = ommIndexFormat_MAX_NUM;
    v.outOmmIndexCount                   = 0xFFFFFFFF;
    v.outOmmArraySizeInBytes             = 0xFFFFFFFF;
@@ -819,7 +819,7 @@ inline ommGpuPreBakeInfo ommGpuPreBakeInfoDefault()
    return v;
 }
 
-typedef struct ommGpuBakeDispatchConfigDesc
+typedef struct ommGpuDispatchConfigDesc
 {
    ommGpuBakeFlags           bakeFlags;
    // RuntimeSamplerDesc describes the texture sampler that will be used in the runtime alpha test shader code.
@@ -856,11 +856,11 @@ typedef struct ommGpuBakeDispatchConfigDesc
    // Target scratch memory budget, The SDK will try adjust the sum of the transient pool buffers to match this value. Higher
    // budget more efficiently executes the baking operation. May return INSUFFICIENT_SCRATCH_MEMORY if set too low.
    ommGpuScratchMemoryBudget maxScratchMemorySize;
-} ommGpuBakeDispatchConfigDesc;
+} ommGpuDispatchConfigDesc;
 
-inline ommGpuBakeDispatchConfigDesc ommGpuBakeDispatchConfigDescDefault()
+inline ommGpuDispatchConfigDesc ommGpuDispatchConfigDescDefault()
 {
-   ommGpuBakeDispatchConfigDesc v;
+   ommGpuDispatchConfigDesc v;
    v.bakeFlags                     = ommGpuBakeFlags_None;
    v.runtimeSamplerDesc            = ommSamplerDescDefault();
    v.alphaMode                     = ommAlphaMode_MAX_NUM;
@@ -883,7 +883,7 @@ inline ommGpuBakeDispatchConfigDesc ommGpuBakeDispatchConfigDescDefault()
    return v;
 }
 
-typedef struct ommGpuBakePipelineInfoDesc
+typedef struct ommGpuPipelineInfoDesc
 {
    ommGpuSPIRVBindingOffsets      spirvBindingOffsets;
    const ommGpuPipelineDesc*      pipelines;
@@ -893,16 +893,7 @@ typedef struct ommGpuBakePipelineInfoDesc
    ommGpuDescriptorSetDesc        descriptorSetDesc;
    const ommGpuStaticSamplerDesc* staticSamplers;
    uint32_t                       staticSamplersNum;
-} ommGpuBakePipelineInfoDesc;
-
-// Format of OUT_PREPASS_DATA
-typedef struct ommGpuPrePassResult
-{
-   uint32_t outOmmArraySizeInBytes;
-   uint32_t outOmmDescSizeInBytes;
-   // Opaque data
-   uint32_t data[64];
-} ommGpuPrePassResult;
+} ommGpuPipelineInfoDesc;
 
 // Format of OUT_POST_BAKE_INFO
 typedef struct ommGpuPostBakeInfo
@@ -911,32 +902,32 @@ typedef struct ommGpuPostBakeInfo
    uint32_t outOmmDescSizeInBytes;
 } ommGpuPostBakeInfo;
 
-typedef struct ommGpuBakeDispatchChain
+typedef struct ommGpuDispatchChain
 {
    const ommGpuDispatchDesc* dispatches;
    uint32_t                  numDispatches;
    const uint8_t*            globalCBufferData;
    uint32_t                  globalCBufferDataSize;
-} ommGpuBakeDispatchChain;
+} ommGpuDispatchChain;
 
 // Global immutable resources. These contain the static immutable resources being shared acroess all bake calls.  Currently
 // it's the specific IB and VB that represents a tesselated triangle arranged in bird curve order, for different
 // subdivision levels.
 OMM_API ommResult ommGpuGetStaticResourceData(ommGpuResourceType resource, uint8_t* data, size_t* outByteSize);
 
-OMM_API ommResult ommGpuCreatePipeline(ommBaker baker, const ommGpuBakePipelineConfigDesc* pipelineCfg, ommGpuPipeline* outPipeline);
+OMM_API ommResult ommGpuCreatePipeline(ommBaker baker, const ommGpuPipelineConfigDesc* pipelineCfg, ommGpuPipeline* outPipeline);
 
 OMM_API ommResult ommGpuDestroyPipeline(ommBaker baker, ommGpuPipeline pipeline);
 
 // Return the required pipelines. Does not depend on per-dispatch settings.
-OMM_API ommResult ommGpuGetPipelineDesc(ommGpuPipeline pipeline, const ommGpuBakePipelineInfoDesc** outPipelineDesc);
+OMM_API ommResult ommGpuGetPipelineDesc(ommGpuPipeline pipeline, const ommGpuPipelineInfoDesc** outPipelineDesc);
 
 // Returns the scratch and output memory requirements of the baking operation.
-OMM_API ommResult ommGpuGetPreBakeInfo(ommGpuPipeline pipeline, const ommGpuBakeDispatchConfigDesc* config, ommGpuPreBakeInfo* outPreBakeInfo);
+OMM_API ommResult ommGpuGetPreDispatchInfo(ommGpuPipeline pipeline, const ommGpuDispatchConfigDesc* config, ommGpuPreDispatchInfo* outPreDispatchInfo);
 
 // Returns the dispatch order to perform the baking operation. Once complete the OUT_OMM_* resources will be written to and
 // can be consumed by the application.
-OMM_API ommResult ommGpuBake(ommGpuPipeline pipeline, const ommGpuBakeDispatchConfigDesc* config, const ommGpuBakeDispatchChain** outDispatchDesc);
+OMM_API ommResult ommGpuDispatch(ommGpuPipeline pipeline, const ommGpuDispatchConfigDesc* config, const ommGpuDispatchChain** outDispatchDesc);
 
 typedef struct ommDebugSaveImagesDesc
 {

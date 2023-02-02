@@ -1704,9 +1704,9 @@
         ]
     },
 
-    "BakePipelineConfigDesc": {
+    "PipelineConfigDesc": {
         "type": "struct",
-        "name": "BakePipelineConfigDesc",
+        "name": "PipelineConfigDesc",
         "members": [
             {
                 "type": "RenderAPI",
@@ -1720,9 +1720,9 @@
         ]
     },
 
-    "BakeDispatchConfigDesc": {
+    "DispatchConfigDesc": {
         "type": "struct",
-        "name": "BakeDispatchConfigDesc",
+        "name": "DispatchConfigDesc",
         "members": [
             {
                 "type": "gpuBakeFlags",
@@ -1851,9 +1851,9 @@
         ]
     },
 
-    "BakePipelineInfoDesc": {
+    "PipelineInfoDesc": {
         "type": "struct",
-        "name": "BakePipelineInfoDesc",
+        "name": "PipelineInfoDesc",
         "members": [
             {
                 "type": "SPIRVBindingOffsets",
@@ -1894,9 +1894,9 @@
         ]
     },
 
-    "PreBakeInfo": {
+    "PreDispatchInfo": {
         "type": "struct",
-        "name": "PreBakeInfo",
+        "name": "PreDispatchInfo",
         "comment": "Note: sizes may return size zero, this means the buffer will not be used in the dispatch.",
         "members": [
             {
@@ -1987,27 +1987,6 @@
         ]
     },
 
-    "PrePassResult": {
-        "type": "struct",
-        "name": "PrePassResult",
-        "comment": "Format of OUT_PREPASS_DATA",
-        "members": [
-            {
-                "type": "uint32_t",
-                "name": "outOmmArraySizeInBytes"
-            },
-            {
-                "type": "uint32_t",
-                "name": "outOmmDescSizeInBytes"
-            },
-            {
-                "type": "uint32_t",
-                "name": "data[64]",
-                "comment": "Opaque data "
-            }
-        ]
-    },
-
     "PostBakeInfo": {
         "type": "struct",
         "name": "PostBakeInfo",
@@ -2024,9 +2003,9 @@
         ]
     },
 
-    "BakeDispatchChain": {
+    "DispatchChain": {
         "type": "struct",
-        "name": "BakeDispatchChain",
+        "name": "DispatchChain",
         "members": [
             {
                 "type": "DispatchDesc",
@@ -2084,7 +2063,7 @@
                 "name": "baker"
             },
             {
-                "type": "BakePipelineConfigDesc",
+                "type": "PipelineConfigDesc",
                 "const": true,
                 "ref": true,
                 "name": "pipelineCfg"
@@ -2128,7 +2107,7 @@
                 "name": "pipeline"
             },
             {
-                "type": "BakePipelineInfoDesc",
+                "type": "PipelineInfoDesc",
                 "const": true,
                 "ptr2x": true,
                 "name": "outPipelineDesc"
@@ -2136,9 +2115,9 @@
         ]
     },
 
-    "fnGetPreBakeInfo": {
+    "fnGetPreDispatchInfo": {
         "type": "function",
-        "name": "GetPreBakeInfo",
+        "name": "GetPreDispatchInfo",
         "comment": "Returns the scratch and output memory requirements of the baking operation.",
         "ret": {
             "type": "Result"
@@ -2149,22 +2128,22 @@
                 "name": "pipeline"
             },
             {
-                "type": "BakeDispatchConfigDesc",
+                "type": "DispatchConfigDesc",
                 "const": true,
                 "ref": true,
                 "name": "config"
             },
             {
-                "type": "PreBakeInfo",
+                "type": "PreDispatchInfo",
                 "ptr": true,
-                "name": "outPreBakeInfo"
+                "name": "outPreDispatchInfo"
             }
         ]
     },
 
-    "fnBakeGPU": {
+    "fnDispatchGPU": {
         "type": "function",
-        "name": "Bake",
+        "name": "Dispatch",
         "comment": "Returns the dispatch order to perform the baking operation. Once complete the OUT_OMM_* resources will be written to and can be consumed by the application.",
         "ret": {
             "type": "Result"
@@ -2175,13 +2154,13 @@
                 "name": "pipeline"
             },
             {
-                "type": "BakeDispatchConfigDesc",
+                "type": "DispatchConfigDesc",
                 "const": true,
                 "ref": true,
                 "name": "config"
             },
             {
-                "type": "BakeDispatchChain",
+                "type": "DispatchChain",
                 "const": true,
                 "ptr2x": true,
                 "name": "outDispatchDesc"
@@ -2392,19 +2371,18 @@
             "DispatchDesc",
             "StaticSamplerDesc",
             "SPIRVBindingOffsets",
-            "BakePipelineConfigDesc",
-            "PreBakeInfo",
-            "BakeDispatchConfigDesc",
-            "BakePipelineInfoDesc",
-            "PrePassResult",
+            "PipelineConfigDesc",
+            "PreDispatchInfo",
+            "DispatchConfigDesc",
+            "PipelineInfoDesc",
             "PostBakeInfo",
-            "BakeDispatchChain",
+            "DispatchChain",
             "fnGetStaticResourceData",
             "fnCreatePipeline",
             "fnDestroyPipeline",
             "fnGetPipelineDesc",
-            "fnGetPreBakeInfo",
-            "fnBakeGPU"
+            "fnGetPreDispatchInfo",
+            "fnDispatchGPU"
         ]
     },
 
