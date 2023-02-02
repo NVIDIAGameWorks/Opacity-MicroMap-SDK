@@ -1117,7 +1117,7 @@
             {
                 "name": "Invalid",
                 "value": "0",
-                "comment": "Either PerformSetup, PerformBake (or both simultaniously) must be set."
+                "comment": "Either PerformSetup, PerformBake (or both simultaneously) must be set."
             },
             {
                 "name": "PerformSetup",

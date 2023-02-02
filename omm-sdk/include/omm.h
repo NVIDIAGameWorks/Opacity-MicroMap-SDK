@@ -518,7 +518,7 @@ typedef enum ommGpuScratchMemoryBudget
 
 typedef enum ommGpuBakeFlags
 {
-   // Either PerformSetup, PerformBake (or both simultaniously) must be set.
+   // Either PerformSetup, PerformBake (or both simultaneously) must be set.
    ommGpuBakeFlags_Invalid                      = 0,
 
    // (Default) OUT_OMM_DESC_ARRAY_HISTOGRAM, OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_DESC_ARRAY and
