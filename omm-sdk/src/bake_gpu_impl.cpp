@@ -252,6 +252,8 @@ ommResult  PipelineImpl::Validate(const ommGpuBakeDispatchConfigDesc& config) co
     const uint32_t MaxSubdivLevelAPI    = kMaxSubdivLevel;
     const uint32_t MaxSubdivLevel       = std::min<uint32_t>(MaxSubdivLevelAPI, OmmStaticBuffersImpl::kMaxSubdivisionLevelNum);
     const bool computeOnly              = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_ComputeOnly) == (uint32_t)ommGpuBakeFlags_ComputeOnly);
+    const bool doSetup                  = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_PerformSetup) == (uint32_t)ommGpuBakeFlags_PerformSetup);
+    const bool doBake                   = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_PerformBake) == (uint32_t)ommGpuBakeFlags_PerformBake);
 
     if (config.indexCount == 0)
         return ommResult_INVALID_ARGUMENT;
@@ -265,7 +267,8 @@ ommResult  PipelineImpl::Validate(const ommGpuBakeDispatchConfigDesc& config) co
         return ommResult_NOT_IMPLEMENTED;
     if (config.alphaTextureChannel > 3)
         return ommResult_INVALID_ARGUMENT;
-
+    if (!doBake && !doSetup)
+        return ommResult_INVALID_ARGUMENT;
     return ommResult_SUCCESS;
 }
 
@@ -322,6 +325,10 @@ ommResult  PipelineImpl::Create(const ommGpuBakePipelineConfigDesc& config)
     m_pipelines.ommWorkSetupGfxIdx = m_pipelineBuilder.AddComputePipeline(
         ByteCodeFromName("omm_work_setup_gfx.cs", omm_work_setup_gfx_cs),
         m_pipelines.ommWorkSetupGfxBindings.GetRanges(), m_pipelines.ommWorkSetupGfxBindings.GetNumRanges());
+
+    m_pipelines.ommWorkSetupBakeOnlyGfxIdx = m_pipelineBuilder.AddComputePipeline(
+        ByteCodeFromName("omm_work_setup_bake_only_gfx.cs", omm_work_setup_bake_only_gfx_cs),
+        m_pipelines.ommWorkSetupBakeOnlyGfxBindings.GetRanges(), m_pipelines.ommWorkSetupBakeOnlyGfxBindings.GetNumRanges());
 
     m_pipelines.ommPostBuildInfoBuffersIdx = m_pipelineBuilder.AddComputePipeline(
         ByteCodeFromName("omm_post_build_info.cs", omm_post_build_info_cs),
@@ -416,9 +423,14 @@ ommResult PipelineImpl::GetPipelineDesc(const ommGpuBakePipelineInfoDesc** outPi
     return ommResult_SUCCESS;
 }
 
-ommResult PipelineImpl::GetPreDispatchInfo(const ommGpuBakeDispatchConfigDesc& config, const size_t outOmmDescSizeInBytes, PreDispatchInfo& outInfo) const
+ommResult PipelineImpl::GetPreDispatchInfo(const ommGpuBakeDispatchConfigDesc& config, PreDispatchInfo& outInfo) const
 {
+    const bool doSetup = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_PerformSetup) == (uint32_t)ommGpuBakeFlags_PerformSetup);
+    const bool doBake = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_PerformBake) == (uint32_t)ommGpuBakeFlags_PerformBake);
     const bool computeOnly = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_ComputeOnly) == (uint32_t)ommGpuBakeFlags_ComputeOnly);
+    const bool enableTexCoordDedup = ((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_DisableTexCoordDeduplication) == 0;
+    const bool enableSpecialIndices = ((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_DisableSpecialIndices) != (uint32_t)ommGpuBakeFlags_DisableSpecialIndices;
+
     const uint32_t primitiveCount = config.indexCount / 3;
     const uint32_t defaultAlignment = 128;
 
@@ -428,41 +440,58 @@ ommResult PipelineImpl::GetPreDispatchInfo(const ommGpuBakeDispatchConfigDesc& c
     outInfo.indArgBuffer                    = { "indArgBuffer",                 ommGpuResourceType_TRANSIENT_POOL_BUFFER, 0xFFFFFFFF, BufferHeapAlloc() };
     outInfo.debugBuffer                     = { "debugBuffer",                  ommGpuResourceType_TRANSIENT_POOL_BUFFER, 0xFFFFFFFF, BufferHeapAlloc() };
 
+    // Todo: rename this to "workItemsBuffer"
+    {
+        const size_t rasterItemSize = (size_t)primitiveCount * ((size_t)config.maxSubdivisionLevel + 1) * sizeof(uint32_t) * 2;
+        RETURN_STATUS_IF_FAILED(outInfo.scratchBuffer.Allocate(rasterItemSize, defaultAlignment, outInfo.rasterItemsBuffer));
+    }
+
+    // Allocate memory - Memory must be allocated first, as the available scratch memory impact the
+    // worst case number of batches required to complete the workload.
+    if (enableTexCoordDedup && doSetup)
+    {
+        // Hash table consists of one entry per primitive. Each entry contains stores a hash and primitive index.
+        const uint32_t kHashTableLoadFactor = 16; // Why load factor of 16? Not sure.
+
+        const size_t hashTableSize = (size_t)primitiveCount * kHashTableLoadFactor * kHashTableEntrySize;
+        RETURN_STATUS_IF_FAILED(outInfo.scratchBuffer.Allocate(hashTableSize, defaultAlignment, outInfo.hashTableBuffer));
+    }
+    else
+    {
+        RETURN_STATUS_IF_FAILED(outInfo.scratchBuffer.Allocate(defaultAlignment, defaultAlignment, outInfo.hashTableBuffer));
+    }
+
+    {
+        // When writing out to the final index buffer we work on index pairs (in 16 bit mode), so we must always have at least primitiveCount as multiple of two.
+        const size_t tempOmmIndexBufferSize = (size_t)math::Align<size_t>(primitiveCount, 2u) * sizeof(uint32_t);
+        RETURN_STATUS_IF_FAILED(outInfo.scratchBuffer.Allocate(tempOmmIndexBufferSize, defaultAlignment, outInfo.tempOmmIndexBuffer));
+    }
+
+    if (doBake && !doSetup)
+    {
+        const size_t tempOmmBakeScheduleTrackerBufferSize = (size_t)math::Align<size_t>(primitiveCount, 2u) * sizeof(uint32_t);
+        RETURN_STATUS_IF_FAILED(outInfo.scratchBuffer.Allocate(tempOmmBakeScheduleTrackerBufferSize, defaultAlignment, outInfo.tempOmmBakeScheduleTrackerBuffer));
+    }
+
+    // Allocate space for the special indices buffer.
+    if (enableSpecialIndices)
+    {
+        const size_t bakeResultMacroSize = (size_t)primitiveCount * sizeof(uint32_t) * 3;
+        RETURN_STATUS_IF_FAILED(outInfo.scratchBuffer0.Allocate(bakeResultMacroSize, defaultAlignment, outInfo.specialIndicesStateBuffer));
+    }
+    else
+    {
+        RETURN_STATUS_IF_FAILED(outInfo.scratchBuffer0.Allocate(defaultAlignment, defaultAlignment, outInfo.specialIndicesStateBuffer));
+    }
+
+    {
+        const uint32_t assertBufferSize = sizeof(uint32_t) * 1024;
+        RETURN_STATUS_IF_FAILED(outInfo.debugBuffer.Allocate(assertBufferSize, defaultAlignment, outInfo.assertBuffer));
+    }
+
     if (computeOnly)
     {
-        // Todo: rename this to "workItemsBuffer"
-        {
-            const size_t rasterItemSize = (size_t)primitiveCount * ((size_t)config.maxSubdivisionLevel + 1) * sizeof(uint32_t) * 2;
-            RETURN_STATUS_IF_FAILED(outInfo.scratchBuffer.Allocate(rasterItemSize, defaultAlignment, outInfo.rasterItemsBuffer));
-        }
-
-        // Allocate memory - Memory must be allocated first, as the available scratch memory impact the
-        // worst case number of batches required to complete the workload.
-        if (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_DisableTexCoordDeduplication) == 0)
-        {
-            // Hash table consists of one entry per primitive. Each entry contains stores a hash and primitive index.
-            const uint32_t kHashTableLoadFactor = 16; // Why load factor of 16? Not sure.
-
-            const size_t hashTableSize = (size_t)primitiveCount * kHashTableLoadFactor * kHashTableEntrySize;
-            RETURN_STATUS_IF_FAILED(outInfo.scratchBuffer.Allocate(hashTableSize, defaultAlignment, outInfo.hashTableBuffer));
-        }
-        else
-        {
-            RETURN_STATUS_IF_FAILED(outInfo.scratchBuffer.Allocate(defaultAlignment, defaultAlignment, outInfo.hashTableBuffer));
-        }
-
-        {
-            // When writing out to the final index buffer we work on index pairs (in 16 bit mode), so we must always have at least primitiveCount as multiple of two.
-            const size_t tempOmmIndexBufferSize = (size_t)math::Align<size_t>(primitiveCount, 2u) * sizeof(uint32_t);
-            RETURN_STATUS_IF_FAILED(outInfo.scratchBuffer.Allocate(tempOmmIndexBufferSize, defaultAlignment, outInfo.tempOmmIndexBuffer));
-        }
-
-        {
-            const size_t tempOmmBakeScheduleTrackerBufferSize = (size_t)math::Align<size_t>(primitiveCount, 2u) * sizeof(uint32_t);
-            RETURN_STATUS_IF_FAILED(outInfo.scratchBuffer.Allocate(tempOmmBakeScheduleTrackerBufferSize, defaultAlignment, outInfo.tempOmmBakeScheduleTrackerBuffer));
-        }
-
-        // A buffer storing various counters. TODO: ideally it's cache-padded to avoid false sharing?
+        // A buffer storing various counters
         {
             RETURN_STATUS_IF_FAILED(outInfo.scratchBuffer.Allocate(sizeof(uint32_t) * size_t(config.maxSubdivisionLevel + 1), defaultAlignment, outInfo.bakeResultBufferCounter));
             RETURN_STATUS_IF_FAILED(outInfo.scratchBuffer.Allocate(sizeof(uint32_t), defaultAlignment, outInfo.ommArrayAllocatorCounter));
@@ -470,29 +499,11 @@ ommResult PipelineImpl::GetPreDispatchInfo(const ommGpuBakeDispatchConfigDesc& c
             RETURN_STATUS_IF_FAILED(outInfo.scratchBuffer.Allocate(sizeof(uint32_t), defaultAlignment, outInfo.IEBakeCsThreadCountBuffer));
         }
 
-        // Allocate space for the special indices buffer.
-        const bool enableSpecialIndices = ((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_DisableSpecialIndices) != (uint32_t)ommGpuBakeFlags_DisableSpecialIndices;
-
-        if (enableSpecialIndices)
-        {
-            const size_t bakeResultMacroSize = (size_t)primitiveCount * sizeof(uint32_t) * 3;
-            RETURN_STATUS_IF_FAILED(outInfo.scratchBuffer0.Allocate(bakeResultMacroSize, defaultAlignment, outInfo.specialIndicesStateBuffer));
-        }
-        else
-        {
-            RETURN_STATUS_IF_FAILED(outInfo.scratchBuffer0.Allocate(defaultAlignment, defaultAlignment, outInfo.specialIndicesStateBuffer));
-        }
-
         {
             const uint32_t indirectDispatchEntrySize = m_config.renderAPI == ommGpuRenderAPI_DX12 ? 12 : 12;
             const uint32_t IEBakeCountCs = (config.maxSubdivisionLevel + 1);
             const uint32_t IEBakeCountCsSize = IEBakeCountCs * indirectDispatchEntrySize;
             RETURN_STATUS_IF_FAILED(outInfo.indArgBuffer.Allocate(IEBakeCountCsSize, defaultAlignment, outInfo.IEBakeCsBuffer));
-        }
-
-        {
-            const uint32_t assertBufferSize = sizeof(uint32_t) * 1024;
-            RETURN_STATUS_IF_FAILED(outInfo.debugBuffer.Allocate(assertBufferSize, defaultAlignment, outInfo.assertBuffer));
         }
     }
     else
@@ -502,47 +513,6 @@ ommResult PipelineImpl::GetPreDispatchInfo(const ommGpuBakeDispatchConfigDesc& c
         // For high subdibision levels and large primitive counts, it can become multiple GB.
         // It's for this reason required to be split up in to multiple smaller batches.
         const size_t maxNumMicroTris = bird::GetNumMicroTriangles(config.maxSubdivisionLevel);
-
-        // The rest is reserved for raster output.
-        {
-            const size_t rasterItemSize = (size_t)primitiveCount * ((size_t)config.maxSubdivisionLevel + 1) * sizeof(uint32_t) * 2;
-
-            RETURN_STATUS_IF_FAILED(outInfo.scratchBuffer.Allocate(rasterItemSize, defaultAlignment, outInfo.rasterItemsBuffer));
-        }
-
-        // Allocate memory - Memory must be allocated first, as the available scratch memory impact the
-        // worst case number of batches required to complete the workload.
-        if (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_DisableTexCoordDeduplication) == 0)
-        {
-            // Hash table consists of one entry per primitive. Each entry contains stores a hash and primitive index.
-            const uint32_t kHashTableLoadFactor = 16; // Why load factor of 16? Not sure.
-
-            const size_t hashTableSize = (size_t)primitiveCount * kHashTableLoadFactor * kHashTableEntrySize;
-            RETURN_STATUS_IF_FAILED(outInfo.scratchBuffer.Allocate(hashTableSize, defaultAlignment, outInfo.hashTableBuffer));
-        }
-        else
-        {
-            RETURN_STATUS_IF_FAILED(outInfo.scratchBuffer.Allocate(defaultAlignment, defaultAlignment, outInfo.hashTableBuffer));
-        }
-
-        {
-            // When writing out to the final index buffer we work on index pairs (in 16 bit mode), so we must always have at least primitiveCount as multiple of two.
-            const size_t tempOmmIndexBufferSize = (size_t)math::Align<size_t>(primitiveCount, 2u) * sizeof(uint32_t);
-            RETURN_STATUS_IF_FAILED(outInfo.scratchBuffer.Allocate(tempOmmIndexBufferSize, defaultAlignment, outInfo.tempOmmIndexBuffer));
-        }
-
-        // Allocate space for the special indices buffer.
-        const bool enableSpecialIndices = ((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_DisableSpecialIndices) != (uint32_t)ommGpuBakeFlags_DisableSpecialIndices;
-
-        if (enableSpecialIndices)
-        {
-            const size_t bakeResultMacroSize = (size_t)primitiveCount * sizeof(uint32_t) * 3;
-            RETURN_STATUS_IF_FAILED(outInfo.scratchBuffer0.Allocate(bakeResultMacroSize, defaultAlignment, outInfo.specialIndicesStateBuffer));
-        }
-        else
-        {
-            RETURN_STATUS_IF_FAILED(outInfo.scratchBuffer0.Allocate(defaultAlignment, defaultAlignment, outInfo.specialIndicesStateBuffer));
-        }
 
         // The rest is reserved for raster output.
         {
@@ -583,7 +553,7 @@ ommResult PipelineImpl::GetPreDispatchInfo(const ommGpuBakeDispatchConfigDesc& c
             OMM_ASSERT(outInfo.MaxBatchCount <= primitiveCount);
         }
 
-        // A buffer storing various counters. TODO: ideally it's cache-padded to avoid false sharing?
+        // A buffer storing various counters
         {
             RETURN_STATUS_IF_FAILED(outInfo.scratchBuffer.Allocate(sizeof(uint32_t) * size_t(config.maxSubdivisionLevel + 1), defaultAlignment, outInfo.bakeResultBufferCounter));
             RETURN_STATUS_IF_FAILED(outInfo.scratchBuffer.Allocate(sizeof(uint32_t), defaultAlignment, outInfo.ommArrayAllocatorCounter));
@@ -604,11 +574,6 @@ ommResult PipelineImpl::GetPreDispatchInfo(const ommGpuBakeDispatchConfigDesc& c
             const uint32_t indirectPostCsCount = (config.maxSubdivisionLevel + 1) * outInfo.MaxBatchCount;
             const uint32_t indirectPostCsSize = indirectPostCsCount * indirectDispatchEntrySize;
             RETURN_STATUS_IF_FAILED(outInfo.indArgBuffer.Allocate(indirectPostCsSize, defaultAlignment, outInfo.IECompressCsBuffer));
-        }
-
-        {
-            const uint32_t assertBufferSize = sizeof(uint32_t) * 1024;
-            RETURN_STATUS_IF_FAILED(outInfo.debugBuffer.Allocate(assertBufferSize, defaultAlignment, outInfo.assertBuffer));
         }
     }
 
@@ -632,6 +597,7 @@ ommResult PipelineImpl::GetPreBakeInfo(const ommGpuBakeDispatchConfigDesc& confi
         return ommResult_INVALID_ARGUMENT;
 
     const bool force32BitIndices = ((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_Force32BitIndices) == (uint32_t)ommGpuBakeFlags_Force32BitIndices;
+    const bool doBake            = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_PerformBake) == (uint32_t)ommGpuBakeFlags_PerformBake);
 
     constexpr uint32_t kNumSpecialIndices = 4;
 
@@ -655,8 +621,6 @@ ommResult PipelineImpl::GetPreBakeInfo(const ommGpuBakeDispatchConfigDesc& confi
     const size_t outOmmHistogramSizeInBytes             = (size_t(config.maxSubdivisionLevel) + 1) * 2 * sizeof(uint64_t);
     const size_t outOmmPostBuildInfoSizeInBytes  	    = postBuildInfoEnabled ? sizeof(ommGpuPostBakeInfo) : 0;
 
-    if (outOmmArraySizeInBytes > std::numeric_limits<uint32_t>::max())
-        return ommResult_FAILURE;
     if (outOmmDescSizeInBytes > std::numeric_limits<uint32_t>::max())
         return ommResult_FAILURE;
     if (outOmmIndexBufferSizeInBytes > std::numeric_limits<uint32_t>::max())
@@ -673,7 +637,7 @@ ommResult PipelineImpl::GetPreBakeInfo(const ommGpuBakeDispatchConfigDesc& confi
     };
 
     PreDispatchInfo info;
-    RETURN_STATUS_IF_FAILED(GetPreDispatchInfo(config, outOmmDescSizeInBytes, info));
+    RETURN_STATUS_IF_FAILED(GetPreDispatchInfo(config, info));
 
     outPreBuildInfo->numTransientPoolBuffers = info.numTransientPoolBuffers;
 
@@ -689,7 +653,7 @@ ommResult PipelineImpl::GetPreBakeInfo(const ommGpuBakeDispatchConfigDesc& confi
 
     outPreBuildInfo->outOmmIndexCount = primitiveCount;
     RETURN_STATUS_IF_FAILED(SafeCast(outPreBuildInfo->outOmmArrayHistogramSizeInBytes, outOmmHistogramSizeInBytes));
-    RETURN_STATUS_IF_FAILED(SafeCast(outPreBuildInfo->outOmmArraySizeInBytes, outOmmArraySizeInBytes));
+    outPreBuildInfo->outOmmArraySizeInBytes = outOmmArraySizeInBytes;
     RETURN_STATUS_IF_FAILED(SafeCast(outPreBuildInfo->outOmmDescSizeInBytes, outOmmDescSizeInBytes));
     outPreBuildInfo->outOmmIndexBufferFormat = outOmmIndexBufferFormat;
     RETURN_STATUS_IF_FAILED(SafeCast(outPreBuildInfo->outOmmIndexBufferSizeInBytes, outOmmIndexBufferSizeInBytes));
@@ -730,7 +694,9 @@ ommResult PipelineImpl::InitGlobalConstants(const ommGpuBakeDispatchConfigDesc& 
     const bool enableSpecialIndices = ((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_DisableSpecialIndices) != (uint32_t)ommGpuBakeFlags_DisableSpecialIndices;
     const bool enableTexCoordDeduplication = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_DisableTexCoordDeduplication) != (uint32_t)ommGpuBakeFlags_DisableTexCoordDeduplication);
     const bool computeOnly = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_ComputeOnly) == (uint32_t)ommGpuBakeFlags_ComputeOnly);
-
+    const bool doSetup = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_PerformSetup) == (uint32_t)ommGpuBakeFlags_PerformSetup);
+    const bool enableLevelLine = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_DisableLevelLineIntersection) != (uint32_t)ommGpuBakeFlags_DisableLevelLineIntersection);
+    
     // The kMaxViewportPeriods dictates how many multiples of the alpha texture we allow to be rasterized,
     // wrap sample modes may extend beyond the texture dimensions (or below zero).
     // To avoid having these primitives clipped we increase the viewport size to accomodate for this type of periodic texture mapping.
@@ -746,7 +712,7 @@ ommResult PipelineImpl::InitGlobalConstants(const ommGpuBakeDispatchConfigDesc& 
     cbuffer.MaxBatchCount                              = info.MaxBatchCount;
     cbuffer.GlobalSubdivisionLevel                     = config.globalSubdivisionLevel;
     cbuffer.IsOmmIndexFormat16bit                      = IsOmmIndexFormat16bit;
-    cbuffer.ComputeOnly                                 = computeOnly;
+    cbuffer.DoSetup                                    = doSetup;
     cbuffer.SamplerIndex                               = m_pipelineBuilder.GetStaticSamplerIndex(config.runtimeSamplerDesc);
     cbuffer.BakeResultBufferSize                       = info.bakeResultBuffer.GetSize();
     cbuffer.ViewportSize                               = viewportSize;
@@ -765,8 +731,7 @@ ommResult PipelineImpl::InitGlobalConstants(const ommGpuBakeDispatchConfigDesc& 
     cbuffer.AlphaCutoff                                = config.alphaCutoff;
     cbuffer.AlphaTextureChannel                        = config.alphaTextureChannel;
     cbuffer.FilterType                                 = (uint32_t)config.runtimeSamplerDesc.filter;
-    cbuffer.MaxOutOmmArraySizeInBytes                  = (uint32_t)preBuildInfo.outOmmArraySizeInBytes;
-    cbuffer.MaxOutOmmDescSizeInBytes                   = (uint32_t)preBuildInfo.outOmmDescSizeInBytes;
+    cbuffer.EnableLevelLine                            = (uint32_t)enableLevelLine;
     cbuffer.EnableSpecialIndices                       = (uint32_t)enableSpecialIndices;
     cbuffer.EnableTexCoordDeduplication                = (uint32_t)enableTexCoordDeduplication;
     cbuffer.IEBakeBufferOffset                         = info.IEBakeBuffer.GetBufferOffset();
@@ -811,7 +776,7 @@ ommResult PipelineImpl::GetDispatchBakeDesc(const ommGpuBakeDispatchConfigDesc& 
     RETURN_STATUS_IF_FAILED(GetPreBakeInfo(config, &preBuildInfo));
 
     PreDispatchInfo info;
-    GetPreDispatchInfo(config, preBuildInfo.outOmmDescSizeInBytes, info);
+    GetPreDispatchInfo(config, info);
 
     GlobalConstants cbuffer;
     RETURN_STATUS_IF_FAILED(InitGlobalConstants(config, info, cbuffer));
@@ -819,7 +784,7 @@ ommResult PipelineImpl::GetDispatchBakeDesc(const ommGpuBakeDispatchConfigDesc& 
 
     const uint32_t primitiveCount = config.indexCount / 3;
     const bool computeOnly = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_ComputeOnly) == (uint32_t)ommGpuBakeFlags_ComputeOnly);
-    const bool doBuild = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_PerformBuild) == (uint32_t)ommGpuBakeFlags_PerformBuild);
+    const bool doSetup = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_PerformSetup) == (uint32_t)ommGpuBakeFlags_PerformSetup);
     const bool doBake = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_PerformBake) == (uint32_t)ommGpuBakeFlags_PerformBake);
     const bool postBuildInfo = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_EnablePostBuildInfo) == (uint32_t)ommGpuBakeFlags_EnablePostBuildInfo);
     const bool IsOmmIndexFormat16bit = preBuildInfo.outOmmIndexBufferFormat == ommIndexFormat_I16_UINT;
@@ -877,13 +842,10 @@ ommResult PipelineImpl::GetDispatchBakeDesc(const ommGpuBakeDispatchConfigDesc& 
             ClearBuffer("ClearScratchMemory2", &info.indArgBuffer);
         if (info.debugBuffer.allocator.GetCurrentReservation() != 0)
             ClearBuffer("ClearScratchMemory3", &info.debugBuffer);
-        if (doBake && (preBuildInfo.outOmmArraySizeInBytes != 0))
-            ClearResource("ClearOUT_OMM_ARRAY_DATA", ommGpuResourceType_OUT_OMM_ARRAY_DATA, preBuildInfo.outOmmArraySizeInBytes);
     }
 
     if (computeOnly)
     {
-        if (doBuild)
         {
             SCOPED_LABEL("Init");
 
@@ -899,38 +861,13 @@ ommResult PipelineImpl::GetDispatchBakeDesc(const ommGpuBakeDispatchConfigDesc& 
                 });
         }
 
-        if (!doBuild)
-        {
-            SCOPED_LABEL("WorkSetupBakeOnlyCs");
-
-            m_passBuilder.PushPass(
-                "WorkSetupBakeOnlyCs", ommGpuDispatchType_Compute, m_pipelines.ommWorkSetupBakeOnlyCsBindings,
-                [this, &config, &info, primitiveCount, doBuild](PassBuilder::PassConfig& p)
-                {
-                    p.UseGlobalCbuffer();
-
-                    p.BindResource("t_ommDescArrayBuffer", ommGpuResourceType_OUT_OMM_DESC_ARRAY);
-                    p.BindResource("t_ommIndexBuffer", ommGpuResourceType_OUT_OMM_INDEX_BUFFER);
-
-                    p.BindSubRange("TempOmmIndexBuffer", info.tempOmmIndexBuffer);
-                    p.BindSubRange("OmmArrayAllocatorCounterBuffer", info.ommArrayAllocatorCounter);
-                    p.BindSubRange("OmmDescAllocatorCounterBuffer", info.ommDescAllocatorCounter);
-                    p.BindSubRange("TempOmmBakeScheduleTrackerBuffer", info.tempOmmBakeScheduleTrackerBuffer);
-                    p.BindSubRange("IEBakeCsThreadCountBuffer", info.IEBakeCsThreadCountBuffer);
-                    p.BindSubRange("BakeResultBufferCounterBuffer", info.bakeResultBufferCounter);
-                    p.BindSubRange("RasterItemsBuffer", info.rasterItemsBuffer);
-                    p.BindSubRange("IEBakeCsBuffer", info.IEBakeCsBuffer);
-
-                    p.AddComputeDispatch(m_pipelines.ommWorkSetupBakeOnlyCsIdx, math::DivUp<uint32_t>(primitiveCount, 128u), 1);
-                });
-        }
-        else
+        if (doSetup)
         {
             SCOPED_LABEL("WorkSetupCs");
 
             m_passBuilder.PushPass(
-                "WorkSetupCs",  ommGpuDispatchType_Compute, m_pipelines.ommWorkSetupCsBindings,
-                [this, &config, &info, primitiveCount, doBuild](PassBuilder::PassConfig& p)
+                "WorkSetupCs", ommGpuDispatchType_Compute, m_pipelines.ommWorkSetupCsBindings,
+                [this, &config, &info, primitiveCount](PassBuilder::PassConfig& p)
                 {
                     p.UseGlobalCbuffer();
 
@@ -952,8 +889,33 @@ ommResult PipelineImpl::GetDispatchBakeDesc(const ommGpuBakeDispatchConfigDesc& 
                     p.AddComputeDispatch(m_pipelines.ommWorkSetupCsIdx, math::DivUp<uint32_t>(primitiveCount, 128u), 1);
                 });
         }
+        else
+        {
+            SCOPED_LABEL("WorkSetupBakeOnlyCs");
 
-        if (doBuild && postBuildInfo)
+            m_passBuilder.PushPass(
+                "WorkSetupBakeOnlyCs", ommGpuDispatchType_Compute, m_pipelines.ommWorkSetupBakeOnlyCsBindings,
+                [this, &config, &info, primitiveCount](PassBuilder::PassConfig& p)
+                {
+                    p.UseGlobalCbuffer();
+
+                    p.BindResource("t_ommDescArrayBuffer", ommGpuResourceType_OUT_OMM_DESC_ARRAY);
+                    p.BindResource("t_ommIndexBuffer", ommGpuResourceType_OUT_OMM_INDEX_BUFFER);
+
+                    p.BindSubRange("TempOmmIndexBuffer", info.tempOmmIndexBuffer);
+                    p.BindSubRange("OmmArrayAllocatorCounterBuffer", info.ommArrayAllocatorCounter);
+                    p.BindSubRange("OmmDescAllocatorCounterBuffer", info.ommDescAllocatorCounter);
+                    p.BindSubRange("TempOmmBakeScheduleTrackerBuffer", info.tempOmmBakeScheduleTrackerBuffer);
+                    p.BindSubRange("IEBakeCsThreadCountBuffer", info.IEBakeCsThreadCountBuffer);
+                    p.BindSubRange("BakeResultBufferCounterBuffer", info.bakeResultBufferCounter);
+                    p.BindSubRange("RasterItemsBuffer", info.rasterItemsBuffer);
+                    p.BindSubRange("IEBakeCsBuffer", info.IEBakeCsBuffer);
+
+                    p.AddComputeDispatch(m_pipelines.ommWorkSetupBakeOnlyCsIdx, math::DivUp<uint32_t>(primitiveCount, 128u), 1);
+                });
+        }
+
+        if (postBuildInfo)
         {
             SCOPED_LABEL("PostBuildInfo");
 
@@ -1073,31 +1035,58 @@ ommResult PipelineImpl::GetDispatchBakeDesc(const ommGpuBakeDispatchConfigDesc& 
         {
             SCOPED_LABEL("WorkSetup");
 
-            m_passBuilder.PushPass(
-                "WorkSetupCS",  ommGpuDispatchType_Compute, m_pipelines.ommWorkSetupGfxBindings,
-                [this, &config, &info, primitiveCount](PassBuilder::PassConfig& p)
-                {
-                    p.UseGlobalCbuffer();
+            if (doSetup)
+            {
+                m_passBuilder.PushPass(
+                    "WorkSetupCS", ommGpuDispatchType_Compute, m_pipelines.ommWorkSetupGfxBindings,
+                    [this, &config, &info, primitiveCount](PassBuilder::PassConfig& p)
+                    {
+                        p.UseGlobalCbuffer();
 
-                    p.BindResource("t_indexBuffer", ommGpuResourceType_IN_INDEX_BUFFER);
-                    p.BindResource("t_texCoordBuffer", ommGpuResourceType_IN_TEXCOORD_BUFFER);
+                        p.BindResource("t_indexBuffer", ommGpuResourceType_IN_INDEX_BUFFER);
+                        p.BindResource("t_texCoordBuffer", ommGpuResourceType_IN_TEXCOORD_BUFFER);
 
-                    p.BindResource("u_ommDescArrayBuffer", ommGpuResourceType_OUT_OMM_DESC_ARRAY);
+                        p.BindResource("u_ommDescArrayBuffer", ommGpuResourceType_OUT_OMM_DESC_ARRAY);
 
-                    p.BindResource("u_ommDescArrayHistogramBuffer", ommGpuResourceType_OUT_OMM_DESC_ARRAY_HISTOGRAM);
+                        p.BindResource("u_ommDescArrayHistogramBuffer", ommGpuResourceType_OUT_OMM_DESC_ARRAY_HISTOGRAM);
 
-                    p.BindSubRange("HashTableBuffer", info.hashTableBuffer);
-                    p.BindSubRange("TempOmmIndexBuffer", info.tempOmmIndexBuffer);
-                    p.BindSubRange("OmmArrayAllocatorCounterBuffer", info.ommArrayAllocatorCounter);
-                    p.BindSubRange("OmmDescAllocatorCounterBuffer", info.ommDescAllocatorCounter);
-                    p.BindSubRange("DispatchIndirectThreadCountBuffer", info.dispatchIndirectThreadCounter);
-                    p.BindSubRange("BakeResultBufferCounterBuffer", info.bakeResultBufferCounter);
-                    p.BindSubRange("RasterItemsBuffer", info.rasterItemsBuffer);
-                    p.BindSubRange("IEBakeBuffer", info.IEBakeBuffer);
-                    p.BindSubRange("IECompressCsBuffer", info.IECompressCsBuffer);
+                        p.BindSubRange("HashTableBuffer", info.hashTableBuffer);
+                        p.BindSubRange("TempOmmIndexBuffer", info.tempOmmIndexBuffer);
+                        p.BindSubRange("OmmArrayAllocatorCounterBuffer", info.ommArrayAllocatorCounter);
+                        p.BindSubRange("OmmDescAllocatorCounterBuffer", info.ommDescAllocatorCounter);
+                        p.BindSubRange("DispatchIndirectThreadCountBuffer", info.dispatchIndirectThreadCounter);
+                        p.BindSubRange("BakeResultBufferCounterBuffer", info.bakeResultBufferCounter);
+                        p.BindSubRange("RasterItemsBuffer", info.rasterItemsBuffer);
+                        p.BindSubRange("IEBakeBuffer", info.IEBakeBuffer);
+                        p.BindSubRange("IECompressCsBuffer", info.IECompressCsBuffer);
 
-                    p.AddComputeDispatch(m_pipelines.ommWorkSetupGfxIdx, math::DivUp<uint32_t>(primitiveCount, 128u), 1);
-                });
+                        p.AddComputeDispatch(m_pipelines.ommWorkSetupGfxIdx, math::DivUp<uint32_t>(primitiveCount, 128u), 1);
+                    });
+            }
+            else
+            {
+                m_passBuilder.PushPass(
+                    "WorkSetupBakeOnlyCS", ommGpuDispatchType_Compute, m_pipelines.ommWorkSetupBakeOnlyGfxBindings,
+                    [this, &config, &info, primitiveCount](PassBuilder::PassConfig& p)
+                    {
+                        p.UseGlobalCbuffer();
+
+                        p.BindResource("t_ommDescArrayBuffer", ommGpuResourceType_OUT_OMM_DESC_ARRAY);
+                        p.BindResource("t_ommIndexBuffer", ommGpuResourceType_OUT_OMM_INDEX_BUFFER);
+
+                        p.BindSubRange("TempOmmBakeScheduleTrackerBuffer", info.tempOmmBakeScheduleTrackerBuffer);
+                        p.BindSubRange("TempOmmIndexBuffer", info.tempOmmIndexBuffer);
+                        p.BindSubRange("OmmArrayAllocatorCounterBuffer", info.ommArrayAllocatorCounter);
+                        p.BindSubRange("OmmDescAllocatorCounterBuffer", info.ommDescAllocatorCounter);
+                        p.BindSubRange("DispatchIndirectThreadCountBuffer", info.dispatchIndirectThreadCounter);
+                        p.BindSubRange("BakeResultBufferCounterBuffer", info.bakeResultBufferCounter);
+                        p.BindSubRange("RasterItemsBuffer", info.rasterItemsBuffer);
+                        p.BindSubRange("IEBakeBuffer", info.IEBakeBuffer);
+                        p.BindSubRange("IECompressCsBuffer", info.IECompressCsBuffer);
+
+                        p.AddComputeDispatch(m_pipelines.ommWorkSetupBakeOnlyGfxIdx, math::DivUp<uint32_t>(primitiveCount, 128u), 1);
+                    });
+            }
         }
 
         if (postBuildInfo)
@@ -1246,7 +1235,6 @@ ommResult PipelineImpl::GetDispatchBakeDesc(const ommGpuBakeDispatchConfigDesc& 
             }
         }
        
-        if (doBuild)
         {
             SCOPED_LABEL("DescPatchCS");
 
@@ -1266,7 +1254,7 @@ ommResult PipelineImpl::GetDispatchBakeDesc(const ommGpuBakeDispatchConfigDesc& 
                 });
         }
 
-        if (doBuild)
+        
         {
             SCOPED_LABEL("IndexWriteCS");
 

@@ -196,7 +196,7 @@ namespace raster
 
         if (mode == TextureFilterMode::Linear)
         {
-#if ENABLE_LEVEL_LINE_INTERSECTION
+            if (g_GlobalConstants.EnableLevelLine)
             {
 
             #if IN_ALPHA_TEXTURE_CHANNEL == 0
@@ -352,29 +352,26 @@ namespace raster
                     }
                 }
             }
-#else
+            else
             {
+                #if IN_ALPHA_TEXTURE_CHANNEL == 0
+                    const PRECISE float4 alpha = t_alphaTexture.GatherRed(s_samplers[g_GlobalConstants.SamplerIndex], texCoord.xy, 0);
+                #elif IN_ALPHA_TEXTURE_CHANNEL == 1
+                    const PRECISE float4 alpha = t_alphaTexture.GatherGreen(s_samplers[g_GlobalConstants.SamplerIndex], texCoord.xy, 0);
+                #elif IN_ALPHA_TEXTURE_CHANNEL == 2
+                    const PRECISE float4 alpha = t_alphaTexture.GatherBlue(s_samplers[g_GlobalConstants.SamplerIndex], texCoord.xy, 0);
+                #elif IN_ALPHA_TEXTURE_CHANNEL == 3
+                    const PRECISE float4 alpha = t_alphaTexture.GatherAlpha(s_samplers[g_GlobalConstants.SamplerIndex], texCoord.xy, 0);
+                #else
+                #error "unexpected value of IN_ALPHA_TEXTURE_CHANNEL"
+                #endif
 
-            #if IN_ALPHA_TEXTURE_CHANNEL == 0
-                const PRECISE float4 alpha = t_alphaTexture.GatherRed(s_samplers[g_GlobalConstants.SamplerIndex], texCoord.xy, 0);
-            #elif IN_ALPHA_TEXTURE_CHANNEL == 1
-                const PRECISE float4 alpha = t_alphaTexture.GatherGreen(s_samplers[g_GlobalConstants.SamplerIndex], texCoord.xy, 0);
-            #elif IN_ALPHA_TEXTURE_CHANNEL == 2
-                const PRECISE float4 alpha = t_alphaTexture.GatherBlue(s_samplers[g_GlobalConstants.SamplerIndex], texCoord.xy, 0);
-            #elif IN_ALPHA_TEXTURE_CHANNEL == 3
-                const PRECISE float4 alpha = t_alphaTexture.GatherAlpha(s_samplers[g_GlobalConstants.SamplerIndex], texCoord.xy, 0);
-            #else
-            #error "unexpected value of IN_ALPHA_TEXTURE_CHANNEL"
-            #endif
+                    const PRECISE float min_a = min(alpha.x, min(alpha.y, min(alpha.z, alpha.w)));
+                    const PRECISE float max_a = max(alpha.x, max(alpha.y, max(alpha.z, alpha.w)));
 
-                const PRECISE float min_a = min(alpha.x, min(alpha.y, min(alpha.z, alpha.w)));
-                const PRECISE float max_a = max(alpha.x, max(alpha.y, max(alpha.z, alpha.w)));
-
-                IsOpaque = g_GlobalConstants.AlphaCutoff < max_a;
-                IsTransparent = g_GlobalConstants.AlphaCutoff >= min_a;
+                    IsOpaque |= g_GlobalConstants.AlphaCutoff < max_a;
+                    IsTransparent |= g_GlobalConstants.AlphaCutoff >= min_a;
             }
-#endif
-
         }
         else // if (mode == TextureFilterMode::Nearest)
         {

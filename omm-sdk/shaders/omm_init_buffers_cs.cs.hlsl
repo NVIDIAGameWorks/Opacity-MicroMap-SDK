@@ -44,8 +44,11 @@ void main(uint3 tid : SV_DispatchThreadID)
 			const uint formatAndLevel	= ((vmFormatIt + 1) << 16u) | subdivisionLevel;
 
 			// sizeof(VisibilityMapUsageDesc), [count32, format16, level16]
-			u_ommDescArrayHistogramBuffer.Store(8 * index, 0);
-			u_ommDescArrayHistogramBuffer.Store(8 * index + 4, formatAndLevel);
+			if (g_GlobalConstants.DoSetup)
+			{
+				u_ommDescArrayHistogramBuffer.Store(8 * index, 0);
+				u_ommDescArrayHistogramBuffer.Store(8 * index + 4, formatAndLevel);
+			}
 
 			u_ommIndexHistogramBuffer.Store(8 * index, 0);
 			u_ommIndexHistogramBuffer.Store(8 * index + 4, formatAndLevel);

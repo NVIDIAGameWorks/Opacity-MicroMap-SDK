@@ -506,33 +506,43 @@ void GpuBakeNvrhi::SetupPipelines(
 	}
 }
 
-omm::Gpu::BakeDispatchConfigDesc GpuBakeNvrhi::GetConfig(const Input& params, bool prePass)
+omm::Gpu::BakeDispatchConfigDesc GpuBakeNvrhi::GetConfig(const Input& params)
 {
 	using namespace omm;
+
+	assert(params.operation != Operation::Invalid);
 
 	Gpu::BakeDispatchConfigDesc config;
 	config.runtimeSamplerDesc.addressingMode	= GetTextureAddressMode(params.sampleMode);
 	config.runtimeSamplerDesc.filter			= params.bilinearFilter ? TextureFilterMode::Linear : TextureFilterMode::Nearest;
+	
+	if (((uint32_t)params.operation & (uint32_t)Operation::Setup) == (uint32_t)Operation::Setup)
+		config.bakeFlags = (omm::Gpu::BakeFlags)((uint32_t)config.bakeFlags | (uint32_t)omm::Gpu::BakeFlags::PerformSetup);
+
+	if (((uint32_t)params.operation & (uint32_t)Operation::Bake) == (uint32_t)Operation::Bake)
+		config.bakeFlags = (omm::Gpu::BakeFlags)((uint32_t)config.bakeFlags | (uint32_t)omm::Gpu::BakeFlags::PerformBake);
+
 	if (m_enableDebug)
 		config.bakeFlags = (omm::Gpu::BakeFlags)((uint32_t)config.bakeFlags | (uint32_t)omm::Gpu::BakeFlags::EnableNsightDebugMode);
 	config.bakeFlags = (omm::Gpu::BakeFlags)((uint32_t)config.bakeFlags | (uint32_t)omm::Gpu::BakeFlags::EnablePostBuildInfo);
 	
-	if (prePass)
-		config.bakeFlags = (omm::Gpu::BakeFlags)((uint32_t)config.bakeFlags | (uint32_t)omm::Gpu::BakeFlags::PerformBuild);
-	else
-		config.bakeFlags = (omm::Gpu::BakeFlags)((uint32_t)config.bakeFlags | (uint32_t)omm::Gpu::BakeFlags::PerformBake);
-
 	if (!params.enableSpecialIndices)
 		config.bakeFlags = (omm::Gpu::BakeFlags)((uint32_t)config.bakeFlags | (uint32_t)omm::Gpu::BakeFlags::DisableSpecialIndices);
 
 	if (params.force32BitIndices)
 		config.bakeFlags = (omm::Gpu::BakeFlags)((uint32_t)config.bakeFlags | (uint32_t)omm::Gpu::BakeFlags::Force32BitIndices);
 
-	if (!params.enableTexCoordDeuplication)
+	if (!params.enableTexCoordDeduplication)
 		config.bakeFlags = (omm::Gpu::BakeFlags)((uint32_t)config.bakeFlags | (uint32_t)omm::Gpu::BakeFlags::DisableTexCoordDeduplication);
 
 	if (params.computeOnly)
 		config.bakeFlags = (omm::Gpu::BakeFlags)((uint32_t)config.bakeFlags | (uint32_t)omm::Gpu::BakeFlags::ComputeOnly);
+	
+	if (!params.enableLevelLineIntersection)
+		config.bakeFlags = (omm::Gpu::BakeFlags)((uint32_t)config.bakeFlags | (uint32_t)omm::Gpu::BakeFlags::DisableLevelLineIntersection);
+
+	if (params.enableNsightDebugMode)
+		config.bakeFlags = (omm::Gpu::BakeFlags)((uint32_t)config.bakeFlags | (uint32_t)omm::Gpu::BakeFlags::EnableNsightDebugMode);
 
 	config.alphaTextureWidth					= params.alphaTexture ? params.alphaTexture->getDesc().width : 1;
 	config.alphaTextureHeight					= params.alphaTexture ? params.alphaTexture->getDesc().height : 1;
@@ -577,11 +587,11 @@ void GpuBakeNvrhi::ReserveScratchBuffers(const omm::Gpu::PreBakeInfo& info)
 	}
 }
 
-void GpuBakeNvrhi::GetPreBakeInfo(const Input& params, PreBakeInfo& info)
+void GpuBakeNvrhi::GetPreDispatchInfo(const Input& params, PreDispatchInfo& info)
 {
 	using namespace omm;
 
-	Gpu::BakeDispatchConfigDesc config = GetConfig(params, false /*prePass*/);
+	Gpu::BakeDispatchConfigDesc config = GetConfig(params);
 
 	Gpu::PreBakeInfo preBuildInfo;
 	omm::Result res = Gpu::GetPreBakeInfo(m_pipeline, config, &preBuildInfo);
@@ -597,42 +607,14 @@ void GpuBakeNvrhi::GetPreBakeInfo(const Input& params, PreBakeInfo& info)
 	info.ommPostBuildInfoBufferSize = preBuildInfo.outOmmPostBuildInfoSizeInBytes;
 }
 
-void GpuBakeNvrhi::RunBakePrePass(
+void GpuBakeNvrhi::Dispatch(
 	nvrhi::CommandListHandle commandList,
 	const Input& params,
-	const PrePassOutput& result)
+	const Buffers& result)
 {
 	using namespace omm;
 
-	Gpu::BakeDispatchConfigDesc config = GetConfig(params, true /*prepass*/);
-
-	Gpu::PreBakeInfo preBuildInfo;
-	omm::Result res = Gpu::GetPreBakeInfo(m_pipeline, config, &preBuildInfo);
-	assert(res == omm::Result::SUCCESS);
-
-	ReserveScratchBuffers(preBuildInfo);
-
-	const omm::Gpu::BakeDispatchChain* dispatchDesc = nullptr;
-	res = Gpu::Bake(m_pipeline, config, &dispatchDesc);
-	assert(res == omm::Result::SUCCESS);
-
-	Output output;
-	output.ommDescBuffer = result.ommDescBuffer;
-	output.ommIndexBuffer = result.ommIndexBuffer;
-	output.ommDescArrayHistogramBuffer = result.ommDescArrayHistogramBuffer;
-	output.ommIndexHistogramBuffer = result.ommIndexHistogramBuffer;
-	output.ommPostBuildInfoBuffer = result.ommPostBuildInfoBuffer;
-	ExecuteBakeOperation(commandList, params, output, dispatchDesc);
-}
-
-void GpuBakeNvrhi::RunBake(
-	nvrhi::CommandListHandle commandList,
-	const Input& params, 
-	const Output& result)
-{
-	using namespace omm;
-
-	Gpu::BakeDispatchConfigDesc config = GetConfig(params, false /*prepass*/);
+	Gpu::BakeDispatchConfigDesc config = GetConfig(params);
 
 	Gpu::PreBakeInfo preBuildInfo;
 	omm::Result res = Gpu::GetPreBakeInfo(m_pipeline, config, &preBuildInfo);
@@ -676,7 +658,7 @@ void GpuBakeNvrhi::ReadUsageDescBuffer(void* pData, size_t byteSize, std::vector
 	}
 }
 
-nvrhi::TextureHandle GpuBakeNvrhi::GetTextureResource(const Input& params, const Output& output, const omm::Gpu::Resource& resource)
+nvrhi::TextureHandle GpuBakeNvrhi::GetTextureResource(const Input& params, const Buffers& output, const omm::Gpu::Resource& resource)
 {
 	nvrhi::TextureHandle resourceHandle;
 	switch (resource.type)
@@ -696,7 +678,7 @@ nvrhi::TextureHandle GpuBakeNvrhi::GetTextureResource(const Input& params, const
 
 nvrhi::BufferHandle GpuBakeNvrhi::GetBufferResource(
 	const Input& params, 
-	const Output& output, 
+	const Buffers& output,
 	const omm::Gpu::Resource& resource,
 	uint32_t& offsetInBytes)
 {
@@ -751,7 +733,7 @@ nvrhi::BufferHandle GpuBakeNvrhi::GetBufferResource(
 void GpuBakeNvrhi::ExecuteBakeOperation(
 	nvrhi::CommandListHandle commandList,
 	const Input& params, 
-	const Output& output,
+	const Buffers& output,
 	const omm::Gpu::BakeDispatchChain* dispatchDesc)
 {
 	nvrhi::TextureHandle rtv = m_enableDebug ? m_nullFbo->getDesc().colorAttachments[0].texture : nullptr;

@@ -8,6 +8,9 @@ distribution of this software and related documentation without an express
 license agreement from NVIDIA CORPORATION is strictly prohibited.
 */
 
+#ifndef WORK_SETUP_COMMON_HLSLI
+#define WORK_SETUP_COMMON_HLSLI
+
 #include "platform.hlsli"
 #include "omm.hlsli"
 #include "omm_global_cb.hlsli"
@@ -96,66 +99,17 @@ uint GetHash(TexCoords tex, uint subdivisionLevel)
 		seed);
 }
 
-namespace hashTable
-{
-	enum class Result
-	{
-		Null, // not initialized
-
-		Found,
-		Inserted,
-		ReachedMaxAttemptCount, //
-	};
-
-	// returns offset in hash table for a given hash,
-	// if Inserted, return value will be input value.
-	// if Found, return value will be value at hash table entry location
-	// if ReachedMaxAttemptCount, return value is undefined.
-	Result FindOrInsertValue(uint hash, out uint hashTableEntryIndex)
-	{
-		hashTableEntryIndex = hash % g_GlobalConstants.TexCoordHashTableEntryCount;
-
-		const uint kMaxNumAttempts		= 16;	// Completely arbitrary.
-		const uint kInvalidEntryHash	= 0;	// Buffer must be cleared before dispatch.
-
-		ALLOW_UAV_CONDITION
-		for (uint attempts = 0; attempts < kMaxNumAttempts; ++attempts)
-		{
-			uint existingHash = 0;
-			OMM_SUBRESOURCE_CAS(HashTableBuffer, 8 * hashTableEntryIndex, kInvalidEntryHash, hash, existingHash); // Each entry consists of [hash|primitiveId]
-
-			// Inserted.
-			if (existingHash == kInvalidEntryHash)
-				return Result::Inserted;
-
-			// Entry was already inserted.
-			if (existingHash == hash)
-				return Result::Found;
-
-			// Conflict, keep searching using lienar probing 
-			hashTableEntryIndex = (hashTableEntryIndex + 1) % g_GlobalConstants.TexCoordHashTableEntryCount;
-		}
-
-		return Result::ReachedMaxAttemptCount;
-	}
-
-	void Store(uint hashTableEntryIndex, uint value)
-	{
-		OMM_SUBRESOURCE_STORE(HashTableBuffer, 8 * hashTableEntryIndex + 4, value);
-	}
-}
-
-TexCoords FetchTexCoords(uint primitiveIndex)
+TexCoords FetchTexCoords(Buffer<uint> indexBuffer, ByteAddressBuffer texCoordBuffer, uint primitiveIndex)
 {
 	uint3 indices;
-	indices.x		= t_indexBuffer[primitiveIndex * 3 + 0];
-	indices.y		= t_indexBuffer[primitiveIndex * 3 + 1];
-	indices.z		= t_indexBuffer[primitiveIndex * 3 + 2];
+	indices.x		= indexBuffer[primitiveIndex * 3 + 0];
+	indices.y		= indexBuffer[primitiveIndex * 3 + 1];
+	indices.z		= indexBuffer[primitiveIndex * 3 + 2];
 
 	float2 vertexUVs[3];
-	vertexUVs[0] = asfloat(t_texCoordBuffer.Load2(g_GlobalConstants.TexCoord1Offset + indices.x * g_GlobalConstants.TexCoord1Stride));											   
-	vertexUVs[1] = asfloat(t_texCoordBuffer.Load2(g_GlobalConstants.TexCoord1Offset + indices.y * g_GlobalConstants.TexCoord1Stride));											   
-	vertexUVs[2] = asfloat(t_texCoordBuffer.Load2(g_GlobalConstants.TexCoord1Offset + indices.z * g_GlobalConstants.TexCoord1Stride));
+	vertexUVs[0] = asfloat(texCoordBuffer.Load2(g_GlobalConstants.TexCoord1Offset + indices.x * g_GlobalConstants.TexCoord1Stride));
+	vertexUVs[1] = asfloat(texCoordBuffer.Load2(g_GlobalConstants.TexCoord1Offset + indices.y * g_GlobalConstants.TexCoord1Stride));
+	vertexUVs[2] = asfloat(texCoordBuffer.Load2(g_GlobalConstants.TexCoord1Offset + indices.z * g_GlobalConstants.TexCoord1Stride));
 
 	TexCoords tex;
 	tex.Init(vertexUVs[0], vertexUVs[1], vertexUVs[2]);
@@ -253,17 +207,20 @@ uint GetSubdivisionLevel(TexCoords texCoords)
 	}
 }
 
-hashTable::Result FindOrInsertOMMEntry(TexCoords texCoords, uint subdivisionLevel, out uint hashTableEntryIndex)
+int GetOmmDescOffset(ByteAddressBuffer ommIndexBuffer, uint primitiveIndex)
 {
-	hashTableEntryIndex = 0;
-	if (g_GlobalConstants.EnableTexCoordDeduplication)
+	// TODO: support 16-bit indices.
+	if (g_GlobalConstants.IsOmmIndexFormat16bit)
 	{
-		const uint hash = GetHash(texCoords, subdivisionLevel);
-
-		return hashTable::FindOrInsertValue(hash, hashTableEntryIndex);
+		const uint dwOffset = primitiveIndex.x >> 1u;
+		const uint shift = (primitiveIndex.x & 1u) << 4u; // 0 or 16
+		const uint val = ommIndexBuffer.Load(4 * dwOffset);
+		return (val >> shift) & 0xFFFF;
 	}
 	else
 	{
-		return hashTable::Result::Null;
+		return ommIndexBuffer.Load(4 * primitiveIndex);
 	}
 }
+
+#endif // WORK_SETUP_COMMON_HLSLI

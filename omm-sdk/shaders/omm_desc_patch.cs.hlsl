@@ -89,8 +89,13 @@ void main(uint3 tid : SV_DispatchThreadID)
 	}
 	else
 	{
-		const uint ommDescIndex = OMM_SUBRESOURCE_LOAD(TempOmmIndexBuffer, 4 * srcPrimitiveIndex);
-		IncrementIndexHistogram(ommDescIndex);
+		const int ommDescIndex = OMM_SUBRESOURCE_LOAD(TempOmmIndexBuffer, 4 * srcPrimitiveIndex);
+
+		if (ommDescIndex >= 0)
+		{
+			IncrementIndexHistogram(ommDescIndex);
+		}
+
 		if (srcPrimitiveIndex != dstPrimitiveIndex)
 		{
 			OMM_SUBRESOURCE_STORE(TempOmmIndexBuffer, 4 * dstPrimitiveIndex, ommDescIndex);

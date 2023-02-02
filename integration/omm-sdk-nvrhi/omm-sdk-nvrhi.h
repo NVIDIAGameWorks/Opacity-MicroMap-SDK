@@ -31,12 +31,22 @@ namespace omm
 		GpuBakeNvrhi(nvrhi::DeviceHandle device, nvrhi::CommandListHandle commandList, bool enableDebug, ShaderProviderCb* shaderProviderCb = nullptr);
 		~GpuBakeNvrhi();
 
+		enum class Operation
+		{
+			Invalid			= 0,
+			Setup			= 1u << 0,
+			Bake			= 1u << 1,
+			SetupAndBake	= Setup | Bake
+		};
+
 		struct Input
 		{
+			Operation							operation = Operation::Invalid;
 			nvrhi::TextureHandle				alphaTexture;
 			uint32_t							alphaTextureChannel = 3;
 			float								alphaCutoff = 0.5f;
 			bool								bilinearFilter = true;
+			bool								enableLevelLineIntersection = true;
 			nvrhi::SamplerAddressMode			sampleMode = nvrhi::SamplerAddressMode::Clamp;
 
 			nvrhi::BufferHandle					texCoordBuffer;
@@ -52,12 +62,12 @@ namespace omm
 			bool								minimalMemoryMode = false;
 			bool								enableSpecialIndices = true;
 			bool								force32BitIndices = false;
-			bool								enableTexCoordDeuplication = true;
+			bool								enableTexCoordDeduplication = true;
 			bool								computeOnly = false;
-			bool								onlySpecialIndices = false;
+			bool								enableNsightDebugMode = false;
 		};
 
-		struct PreBakeInfo
+		struct PreDispatchInfo
 		{
 			nvrhi::Format	ommIndexFormat;
 			uint32_t		ommIndexCount;
@@ -69,16 +79,7 @@ namespace omm
 			size_t			ommPostBuildInfoBufferSize;
 		};
 
-		struct PrePassOutput
-		{
-			nvrhi::BufferHandle ommDescBuffer;
-			nvrhi::BufferHandle ommIndexBuffer;
-			nvrhi::BufferHandle ommDescArrayHistogramBuffer;
-			nvrhi::BufferHandle ommIndexHistogramBuffer;
-			nvrhi::BufferHandle ommPostBuildInfoBuffer;
-		};
-
-		struct Output
+		struct Buffers
 		{
 			nvrhi::BufferHandle ommArrayBuffer;
 			nvrhi::BufferHandle ommDescBuffer;
@@ -102,19 +103,12 @@ namespace omm
 		};
 
 		// CPU side pre-build info.
-		void GetPreBakeInfo(const Input& params, PreBakeInfo& info);
+		void GetPreDispatchInfo(const Input& params, PreDispatchInfo& info);
 
-		// Run bake pre-pass on GPU
-		void RunBakePrePass(
+		void Dispatch(
 			nvrhi::CommandListHandle commandList,
 			const Input& params,
-			const PrePassOutput& result);
-
-		// Run bake on GPU
-		void RunBake(
-			nvrhi::CommandListHandle commandList,
-			const Input& params,
-			const Output& result);
+			const Buffers& buffers);
 
 		void Clear();
 
@@ -153,17 +147,17 @@ namespace omm
 			const omm::Gpu::BakePipelineInfoDesc* desc, 
 			ShaderProviderCb* shaderProviderCb);
 
-		omm::Gpu::BakeDispatchConfigDesc GetConfig(const Input& params, bool prePass);
+		omm::Gpu::BakeDispatchConfigDesc GetConfig(const Input& params);
 
 		void ReserveGlobalCBuffer(size_t size, uint32_t slot);
 		void ReserveScratchBuffers(const omm::Gpu::PreBakeInfo& info);
-		nvrhi::TextureHandle GetTextureResource(const Input& params, const Output& output, const omm::Gpu::Resource& resource);
-		nvrhi::BufferHandle GetBufferResource(const Input& params, const Output& output, const omm::Gpu::Resource& resource, uint32_t& offsetInBytes);
+		nvrhi::TextureHandle GetTextureResource(const Input& params, const Buffers& output, const omm::Gpu::Resource& resource);
+		nvrhi::BufferHandle GetBufferResource(const Input& params, const Buffers& output, const omm::Gpu::Resource& resource, uint32_t& offsetInBytes);
 
 		void ExecuteBakeOperation(
 			nvrhi::CommandListHandle commandList,
 			const Input& params,
-			const Output& output,
+			const Buffers& output,
 			const omm::Gpu::BakeDispatchChain* outDispatchDesc);
 
 		nvrhi::DeviceHandle m_device;

@@ -20,16 +20,7 @@ OMM_DECLARE_INPUT_RESOURCES
 OMM_DECLARE_OUTPUT_RESOURCES
 OMM_DECLARE_SUBRESOURCES
 
-int GetOmmDescOffset(uint primitiveIndex)
-{
-	// TODO: support 16-bit indices.
-	return t_ommIndexBuffer.Load(4 * primitiveIndex.x);
-}
-
-uint GetNumMicroTriangles(uint numSubdivisionLevels) 
-{
-	return 1u << (numSubdivisionLevels << 1u);
-}
+#include "omm_work_setup_common.hlsli"
 
 bool TryScheduledForBake(uint ommDescIndex)
 {
@@ -47,8 +38,9 @@ void main(uint3 tid : SV_DispatchThreadID)
 		return;
 
 	const uint primitiveIndex		= tid.x;
-	const int ommDescOffset			= GetOmmDescOffset(tid.x);
-	
+	const int ommDescOffset			= GetOmmDescOffset(t_ommIndexBuffer, tid.x);
+	const uint kOMMFormatNum		= 2;
+
 	// Must be done for later consumption.
 	OMM_SUBRESOURCE_STORE(TempOmmIndexBuffer, 4 * primitiveIndex, ommDescOffset);
 
@@ -73,13 +65,19 @@ void main(uint3 tid : SV_DispatchThreadID)
 		const uint numMicroTriangles	= GetNumMicroTriangles(subdivisionLevel);
 
 		{
+			const uint vmDataBitSize = GetOMMFormatBitCount((OMMFormat)ommFormat) * numMicroTriangles;
+
+			// spec allows 1 byte alignment but we require 4 byte to make sure UAV writes
+			// are DW aligned.
+			const uint vmDataByteSize = max(vmDataBitSize >> 3u, 4u);
+
 			uint _dummy;
-			OMM_SUBRESOURCE_INTERLOCKEDMAX(OmmArrayAllocatorCounterBuffer, 0, ommArrayOffset, _dummy);
+			OMM_SUBRESOURCE_INTERLOCKEDADD(OmmArrayAllocatorCounterBuffer, 0, vmDataByteSize, _dummy);
 		}
 
 		{
 			uint _dummy;
-			OMM_SUBRESOURCE_INTERLOCKEDMAX(OmmDescAllocatorCounterBuffer, 0, ommDescOffset, _dummy);
+			OMM_SUBRESOURCE_INTERLOCKEDADD(OmmDescAllocatorCounterBuffer, 0, 1, _dummy);
 		}
 
 		// Schedule the baking task.

@@ -963,14 +963,17 @@ namespace Gpu
             omm_post_build_info_cs_bindings ommPostBuildInfoBindings;
             uint32_t ommPostBuildInfoBuffersIdx = -1;
 
+            omm_work_setup_cs_cs_bindings ommWorkSetupCsBindings;
+            uint32_t ommWorkSetupCsIdx = -1;
+
             omm_work_setup_bake_only_cs_cs_bindings ommWorkSetupBakeOnlyCsBindings;
             uint32_t ommWorkSetupBakeOnlyCsIdx = -1;
 
-            omm_work_setup_cs_cs_bindings ommWorkSetupCsBindings;
-            uint32_t ommWorkSetupCsIdx = -1;
-            
             omm_work_setup_gfx_cs_bindings ommWorkSetupGfxBindings;
             uint32_t ommWorkSetupGfxIdx = -1;
+
+            omm_work_setup_bake_only_gfx_cs_bindings ommWorkSetupBakeOnlyGfxBindings;
+            uint32_t ommWorkSetupBakeOnlyGfxIdx = -1;
 
             omm_rasterize_bindings ommRasterizeBindings;
             uint32_t ommRasterizeRIdx = -1;
@@ -1005,6 +1008,7 @@ namespace Gpu
             , ommWorkSetupBakeOnlyCsBindings(stdAllocator)
             , ommWorkSetupCsBindings(stdAllocator)
             , ommWorkSetupGfxBindings(stdAllocator)
+            , ommWorkSetupBakeOnlyGfxBindings(stdAllocator)
             , ommRasterizeBindings(stdAllocator)
             , ommRasterizeCsBindings(stdAllocator)
             , ommCompressBindings(stdAllocator)
@@ -1045,7 +1049,7 @@ namespace Gpu
             bool MayContain4StateFormats = false;
         };
         ommResult ConfigurePipeline(const ommGpuBakePipelineConfigDesc& config);
-        ommResult GetPreDispatchInfo(const ommGpuBakeDispatchConfigDesc& config, const size_t outOmmDescSizeInBytes, PreDispatchInfo& outInfo) const;
+        ommResult GetPreDispatchInfo(const ommGpuBakeDispatchConfigDesc& config, PreDispatchInfo& outInfo) const;
         ommResult InitGlobalConstants(const ommGpuBakeDispatchConfigDesc& config, const PreDispatchInfo& info, GlobalConstants& cbuffer) const;
     };
 

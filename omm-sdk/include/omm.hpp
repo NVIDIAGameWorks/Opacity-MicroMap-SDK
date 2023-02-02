@@ -426,12 +426,13 @@ namespace omm
          None                         = 0,
 
          // OUT_OMM_DESC_ARRAY_HISTOGRAM, OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_DESC_ARRAY and (optionally)
-         // OUT_POST_BAKE_INFO will be written to.
-         PerformBuild                 = 1u << 0,
+         // OUT_POST_BAKE_INFO will be updated.
+         PerformSetup                 = 1u << 0,
 
-         // OUT_OMM_ARRAY_DATA will be written to. If special indices are detected OUT_OMM_INDEX_BUFFER is also modified.
-         // If PerformBuild is not set, OUT_OMM_DESC_ARRAY_HISTOGRAM, OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER,
-         // OUT_OMM_DESC_ARRAY must contain valid data.
+         // OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_ARRAY_DATA will be written to. If special indices are detected
+         // OUT_OMM_INDEX_BUFFER may also be modified.
+         // If PerformBuild is not used with this flag, OUT_OMM_DESC_ARRAY_HISTOGRAM, OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER,
+         // OUT_OMM_DESC_ARRAY must contain valid data from a prior PerformSetup pass.
          PerformBake                  = 1u << 1,
 
          // Baking will only be done using compute shaders and no gfx involvement (drawIndirect or graphics PSOs). (Beta)
@@ -456,8 +457,11 @@ namespace omm
          // Force 32-bit indices in OUT_OMM_INDEX_BUFFER
          Force32BitIndices            = 1u << 6,
 
+         // Use only for debug purposes. Level Line Intersection method is vastly superior in 4-state mode.
+         DisableLevelLineIntersection = 1u << 7,
+
          // Slightly modifies the dispatch to aid frame capture debugging.
-         EnableNsightDebugMode        = 1u << 7,
+         EnableNsightDebugMode        = 1u << 8,
       };
       OMM_DEFINE_ENUM_FLAG_OPERATORS(BakeFlags);
 
@@ -678,7 +682,7 @@ namespace omm
          uint32_t    outOmmIndexCount                   = 0xFFFFFFFF;
          // Min required size of OUT_OMM_ARRAY_DATA. GetBakeInfo returns most conservative estimation while less conservative number
          // can be obtained via BakePrepass
-         uint32_t    outOmmArraySizeInBytes             = 0xFFFFFFFF;
+         size_t      outOmmArraySizeInBytes             = 0xFFFFFFFF;
          // Min required size of OUT_OMM_DESC_ARRAY. GetBakeInfo returns most conservative estimation while less conservative number
          // can be obtained via BakePrepass
          uint32_t    outOmmDescSizeInBytes              = 0xFFFFFFFF;

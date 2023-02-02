@@ -1119,14 +1119,14 @@
                 "value": "0"
             },
             {
-                "name": "PerformBuild",
+                "name": "PerformSetup",
                 "value": "1u << 0",
-                "comment": "OUT_OMM_DESC_ARRAY_HISTOGRAM, OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_DESC_ARRAY and (optionally) OUT_POST_BAKE_INFO will be written to."
+                "comment": "OUT_OMM_DESC_ARRAY_HISTOGRAM, OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_DESC_ARRAY and (optionally) OUT_POST_BAKE_INFO will be updated."
             },
             {
                 "name": "PerformBake",
                 "value": "1u << 1",
-                "comment": "OUT_OMM_ARRAY_DATA will be written to. If special indices are detected OUT_OMM_INDEX_BUFFER is also modified.\nIf PerformBuild is not set, OUT_OMM_DESC_ARRAY_HISTOGRAM, OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_DESC_ARRAY must contain valid data."
+                "comment": "OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_ARRAY_DATA will be written to. If special indices are detected OUT_OMM_INDEX_BUFFER may also be modified.\nIf PerformBuild is not used with this flag, OUT_OMM_DESC_ARRAY_HISTOGRAM, OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_DESC_ARRAY must contain valid data from a prior PerformSetup pass."
             },
             {
                 "name": "ComputeOnly",
@@ -1154,8 +1154,13 @@
                 "comment": "Force 32-bit indices in OUT_OMM_INDEX_BUFFER"
             },
             {
-                "name": "EnableNsightDebugMode",
+                "name": "DisableLevelLineIntersection",
                 "value": "1u << 7",
+                "comment": "Use only for debug purposes. Level Line Intersection method is vastly superior in 4-state mode."
+            },
+            {
+                "name": "EnableNsightDebugMode",
+                "value": "1u << 8",
                 "comment": "Slightly modifies the dispatch to aid frame capture debugging."
             }
         ]
@@ -1909,7 +1914,7 @@
                 "value": "0xFFFFFFFF"
             },
             {
-                "type": "uint32_t",
+                "type": "size_t",
                 "name": "outOmmArraySizeInBytes",
                 "value": "0xFFFFFFFF",
                 "comment": "Min required size of OUT_OMM_ARRAY_DATA. GetBakeInfo returns most conservative estimation while less conservative number can be obtained via BakePrepass"

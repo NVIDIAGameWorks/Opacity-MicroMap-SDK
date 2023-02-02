@@ -19,7 +19,7 @@ OMM_CONSTANTS_START(GlobalConstants)							\
 	OMM_CONSTANT(uint, IsOmmIndexFormat16bit)					\
 	OMM_CONSTANT(uint, EnableSpecialIndices)					\
 	OMM_CONSTANT(uint, EnableTexCoordDeduplication)				\
-	OMM_CONSTANT(uint, ComputeOnly)								\
+	OMM_CONSTANT(uint, DoSetup)									\
 																\
 	OMM_CONSTANT(uint, SamplerIndex)							\
 	OMM_CONSTANT(uint, BakeResultBufferSize)					\
@@ -40,8 +40,8 @@ OMM_CONSTANTS_START(GlobalConstants)							\
 																\
 	OMM_CONSTANT(uint, AlphaTextureChannel)						\
 	OMM_CONSTANT(uint, FilterType) /* TextureFilterMode */ 		\
-	OMM_CONSTANT(uint, MaxOutOmmArraySizeInBytes)				\
-	OMM_CONSTANT(uint, MaxOutOmmDescSizeInBytes)				\
+	OMM_CONSTANT(uint, EnableLevelLine)							\
+	OMM_CONSTANT(uint, Pad1)									\
 																\
 	OMM_CONSTANT(float2, TexSize)								\
 	OMM_CONSTANT(float2, InvTexSize)							\

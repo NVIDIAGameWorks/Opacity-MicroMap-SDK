@@ -22,6 +22,7 @@ OMM_DECLARE_OUTPUT_RESOURCES
 OMM_DECLARE_SUBRESOURCES
 
 #include "omm_work_setup_common.hlsli"
+#include "omm_hash_table.hlsli"
 
 [numthreads(128, 1, 1)]
 void main(uint3 tid : SV_DispatchThreadID)
@@ -33,7 +34,7 @@ void main(uint3 tid : SV_DispatchThreadID)
 	const uint kOMMFormatNum		= 2;
 	const uint primitiveIndex		= tid.x;
 
-	const TexCoords texCoords		= FetchTexCoords(primitiveIndex);
+	const TexCoords texCoords		= FetchTexCoords(t_indexBuffer, t_texCoordBuffer, primitiveIndex);
 	const uint subdivisionLevel		= GetSubdivisionLevel(texCoords);
 
 	uint hashTableEntryIndex;
