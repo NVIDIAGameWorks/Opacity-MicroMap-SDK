@@ -1826,19 +1826,19 @@
             },
             {
                 "type": "uint8_t",
-                "name": "globalSubdivisionLevel",
-                "value": "4",
-                "comment": "Micro triangle count is 4^N, where N is the subdivision level. Subdivision level must be in range [0, MaxSubdivisionLevel]. The global subdivisionLevel. May be overriden by the per-triangle subdivision level setting. The subdivision level to allow in dynamic mode and value is used to allocate appropriate scratch memory."
-            },
-            {
-                "type": "uint8_t",
                 "name": "maxSubdivisionLevel",
                 "value": "8"
             },
             {
-                "type": "uint8_t",
+                "type": "bool",
                 "name": "enableSubdivisionLevelBuffer",
-                "value": "0"
+                "value": "false"
+            },
+            {
+                "type": "uint32_t",
+                "name": "maxOutOmmArraySize",
+                "value": "0xFFFFFFFF",
+                "comment": "The SDK will try to limit the omm array size of PreDispatchInfo::outOmmArraySizeInBytes and PostBakeInfo::outOmmArraySizeInBytes.\nCurrently a greedy algorithm is implemented with a first come-first serve order.\nThe SDK may (or may not) apply more sophisticated heuristics in the future."
             },
             {
                 "type": "ScratchMemoryBudget",
@@ -1915,7 +1915,7 @@
                 "value": "0xFFFFFFFF"
             },
             {
-                "type": "size_t",
+                "type": "uint32_t",
                 "name": "outOmmArraySizeInBytes",
                 "value": "0xFFFFFFFF",
                 "comment": "Min required size of OUT_OMM_ARRAY_DATA. GetBakeInfo returns most conservative estimation while less conservative number can be obtained via BakePrepass"

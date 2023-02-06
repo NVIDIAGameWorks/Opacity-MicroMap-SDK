@@ -31,6 +31,6 @@ void main(uint3 tid : SV_DispatchThreadID)
 	const uint ommDescCount			= OMM_SUBRESOURCE_LOAD(OmmDescAllocatorCounterBuffer, 0);
 	const uint ommDescByteSize		= ommDescCount * 8;
 
-	u_postBuildInfo.Store(0, ommArrayByteSize);
+	u_postBuildInfo.Store(0, min(ommArrayByteSize, g_GlobalConstants.MaxOutOmmArraySize));
 	u_postBuildInfo.Store(4, ommDescByteSize);
 }

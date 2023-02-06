@@ -203,7 +203,7 @@ uint GetSubdivisionLevel(TexCoords texCoords)
 	}
 	else
 	{
-		return g_GlobalConstants.GlobalSubdivisionLevel;
+		return g_GlobalConstants.MaxSubdivisionLevel;
 	}
 }
 

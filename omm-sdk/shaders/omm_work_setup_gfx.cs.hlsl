@@ -40,7 +40,7 @@ void main(uint3 tid : SV_DispatchThreadID)
 	uint hashTableEntryIndex;
 	hashTable::Result result		= FindOrInsertOMMEntry(texCoords, subdivisionLevel, hashTableEntryIndex);
 
-	uint vmDescOffset = 0;
+	uint vmDescOffset = -1;
 	if (result == hashTable::Result::Null ||
 		result == hashTable::Result::Inserted || 
 		result == hashTable::Result::ReachedMaxAttemptCount)
@@ -56,17 +56,19 @@ void main(uint3 tid : SV_DispatchThreadID)
 
 		// Allocate new VM-array offset & vm-index
 		uint vmArrayOffset = 0;
+		uint vmDataByteSize = 0;
 		{
 			const uint vmDataBitSize			= GetOMMFormatBitCount(ommFormat) * numMicroTriangles;
 
 			// spec allows 1 byte alignment but we require 4 byte to make sure UAV writes
 			// are DW aligned.
-			const uint vmDataByteSize			= max(vmDataBitSize >> 3u, 4u);
+			vmDataByteSize						= max(vmDataBitSize >> 3u, 4u);
 
 			OMM_SUBRESOURCE_INTERLOCKEDADD(OmmArrayAllocatorCounterBuffer, 0, vmDataByteSize, vmArrayOffset);
 		}
 
 		// Allocate new VM-desc for the vmArrayOffset
+		if ((vmArrayOffset + vmDataByteSize) < g_GlobalConstants.MaxOutOmmArraySize)
 		{
 			// The rasterItemOffset is the same things as the vmDescOffset,
 			OMM_SUBRESOURCE_INTERLOCKEDADD(OmmDescAllocatorCounterBuffer, 0, 1, vmDescOffset);

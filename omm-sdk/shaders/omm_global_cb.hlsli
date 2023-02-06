@@ -7,14 +7,12 @@ and any modifications thereto. Any use, reproduction, disclosure or
 distribution of this software and related documentation without an express
 license agreement from NVIDIA CORPORATION is strictly prohibited.
 */
-
-
 #define OMM_DECLARE_GLOBAL_CONSTANT_BUFFER						\
 OMM_CONSTANTS_START(GlobalConstants)							\
 	OMM_CONSTANT(uint, IndexCount)								\
 	OMM_CONSTANT(uint, PrimitiveCount)							\
 	OMM_CONSTANT(uint, MaxBatchCount)							\
-	OMM_CONSTANT(uint, GlobalSubdivisionLevel)					\
+	OMM_CONSTANT(uint, MaxOutOmmArraySize)						\
 																\
 	OMM_CONSTANT(uint, IsOmmIndexFormat16bit)					\
 	OMM_CONSTANT(uint, EnableSpecialIndices)					\
@@ -45,7 +43,6 @@ OMM_CONSTANTS_START(GlobalConstants)							\
 																\
 	OMM_CONSTANT(float2, TexSize)								\
 	OMM_CONSTANT(float2, InvTexSize)							\
-																\
 /*	---- Buffer offsets go here								  */\
 																\
 	OMM_CONSTANT(uint, IEBakeBufferOffset)						\
