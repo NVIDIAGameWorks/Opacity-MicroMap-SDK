@@ -175,7 +175,7 @@ namespace Gpu
             _staticSamplers.insert(_staticSamplers.end(), ranges.begin(), ranges.end());
         }
 
-        uint32_t GetStaticSamplerIndex(const ommSamplerDesc& desc)
+        uint32_t GetStaticSamplerIndex(const ommSamplerDesc& desc) const
         {
             OMM_ASSERT(_staticSamplers.size() < 16); // Keep linear search small.
 
@@ -280,7 +280,7 @@ namespace Gpu
         vector<ommGpuPipelineDesc> _pipelines;
         vector<ommGpuDescriptorRangeDesc> _ranges;
         vector<ommGpuStaticSamplerDesc> _staticSamplers;
-        ommGpuBakePipelineInfoDesc _desc;
+        ommGpuPipelineInfoDesc _desc;
     };
 
     struct StringCache
@@ -896,7 +896,7 @@ namespace Gpu
         vector<ommGpuResource> _resources;
         vector<uint8_t> _localCbufferData;
         vector<uint8_t> _globalCbufferData;
-        ommGpuBakeDispatchChain _result;
+        ommGpuDispatchChain _result;
         StringCache& _strings;
         bool _enableValidation;
     };
@@ -926,19 +926,19 @@ namespace Gpu
         {
             return m_stdAllocator;
         }
-        static ommResult Validate(const ommGpuBakePipelineConfigDesc& config);
-        ommResult Validate(const ommGpuBakeDispatchConfigDesc& config) const;
-        ommResult Create(const ommGpuBakePipelineConfigDesc& config);
-        ommResult GetPipelineDesc(const ommGpuBakePipelineInfoDesc** outPipelineDesc);
-        ommResult GetPreBakeInfo(const ommGpuBakeDispatchConfigDesc& config, ommGpuPreBakeInfo* outPreBuildInfo);
-        ommResult GetDispatcheDesc(const ommGpuBakeDispatchConfigDesc& dispatchConfig, const ommGpuBakeDispatchChain** outDispatchDesc);
+        static ommResult Validate(const ommGpuPipelineConfigDesc& config);
+        ommResult Validate(const ommGpuDispatchConfigDesc& config) const;
+        ommResult Create(const ommGpuPipelineConfigDesc& config);
+        ommResult GetPipelineDesc(const ommGpuPipelineInfoDesc** outPipelineDesc);
+        ommResult GetPreDispatchInfo(const ommGpuDispatchConfigDesc& config, ommGpuPreDispatchInfo* outPreBuildInfo) const;
+        ommResult GetDispatchDesc(const ommGpuDispatchConfigDesc& dispatchConfig, const ommGpuDispatchChain** outDispatchDesc);
 
     private:
-        ommResult ConfigurePipeline(const ommGpuBakePipelineConfigDesc& config);
 
         static constexpr uint32_t kHashTableEntrySize = sizeof(uint32_t) * 2;
+        static constexpr int32_t kViewportScale = 5; // Increasing this to 6 fails... TODO: investigate why!
 
-        ommGpuBakePipelineConfigDesc m_config;
+        ommGpuPipelineConfigDesc m_config;
         StdAllocator<uint8_t> m_stdAllocator;
         vector<ommGpuBufferDesc> m_scratchBufferDescs;
         PipelineBuilder m_pipelineBuilder;
@@ -966,8 +966,14 @@ namespace Gpu
             omm_work_setup_cs_cs_bindings ommWorkSetupCsBindings;
             uint32_t ommWorkSetupCsIdx = -1;
 
+            omm_work_setup_bake_only_cs_cs_bindings ommWorkSetupBakeOnlyCsBindings;
+            uint32_t ommWorkSetupBakeOnlyCsIdx = -1;
+
             omm_work_setup_gfx_cs_bindings ommWorkSetupGfxBindings;
             uint32_t ommWorkSetupGfxIdx = -1;
+
+            omm_work_setup_bake_only_gfx_cs_bindings ommWorkSetupBakeOnlyGfxBindings;
+            uint32_t ommWorkSetupBakeOnlyGfxIdx = -1;
 
             omm_rasterize_bindings ommRasterizeBindings;
             uint32_t ommRasterizeRIdx = -1;
@@ -999,8 +1005,10 @@ namespace Gpu
             , ommInitBuffersCsBindings(stdAllocator)
             , ommInitBuffersGfxBindings(stdAllocator)
             , ommPostBuildInfoBindings(stdAllocator)
+            , ommWorkSetupBakeOnlyCsBindings(stdAllocator)
             , ommWorkSetupCsBindings(stdAllocator)
             , ommWorkSetupGfxBindings(stdAllocator)
+            , ommWorkSetupBakeOnlyGfxBindings(stdAllocator)
             , ommRasterizeBindings(stdAllocator)
             , ommRasterizeCsBindings(stdAllocator)
             , ommCompressBindings(stdAllocator)
@@ -1021,6 +1029,7 @@ namespace Gpu
 
             BufferResource::SubRange hashTableBuffer;
             BufferResource::SubRange tempOmmIndexBuffer;
+            BufferResource::SubRange tempOmmBakeScheduleTrackerBuffer;
             BufferResource::SubRange bakeResultBufferCounter;
             BufferResource::SubRange ommArrayAllocatorCounter;
             BufferResource::SubRange ommDescAllocatorCounter;
@@ -1039,8 +1048,9 @@ namespace Gpu
             uint32_t MaxBatchCount = 0;
             bool MayContain4StateFormats = false;
         };
-
-        ommResult GetPreDispatchInfo(const ommGpuBakeDispatchConfigDesc& config, PreDispatchInfo& outInfo);
+        ommResult ConfigurePipeline(const ommGpuPipelineConfigDesc& config);
+        ommResult GetPreDispatchInfo(const ommGpuDispatchConfigDesc& config, PreDispatchInfo& outInfo) const;
+        ommResult InitGlobalConstants(const ommGpuDispatchConfigDesc& config, const PreDispatchInfo& info, GlobalConstants& cbuffer) const;
     };
 
     class BakerImpl
@@ -1058,7 +1068,7 @@ namespace Gpu
 
         ommResult Create(const ommBakerCreationDesc& bakeCreationDesc);
 
-        ommResult CreatePipeline(const ommGpuBakePipelineConfigDesc& config, ommGpuPipeline* outPipeline);
+        ommResult CreatePipeline(const ommGpuPipelineConfigDesc& config, ommGpuPipeline* outPipeline);
         ommResult DestroyPipeline(ommGpuPipeline pipeline);
 
     private:

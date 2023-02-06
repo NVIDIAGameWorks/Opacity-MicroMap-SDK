@@ -44,25 +44,25 @@ namespace omm
 		{
 			return (Result)ommGpuGetStaticResourceData((ommGpuResourceType)resource, data, outByteSize);
 		}
-		static inline Result CreatePipeline(Baker baker, const BakePipelineConfigDesc& pipelineCfg, Pipeline* outPipeline)
+		static inline Result CreatePipeline(Baker baker, const PipelineConfigDesc& pipelineCfg, Pipeline* outPipeline)
 		{
-			return (Result)ommGpuCreatePipeline((ommBaker)baker, reinterpret_cast<const ommGpuBakePipelineConfigDesc*>(&pipelineCfg), (ommGpuPipeline*)outPipeline);
+			return (Result)ommGpuCreatePipeline((ommBaker)baker, reinterpret_cast<const ommGpuPipelineConfigDesc*>(&pipelineCfg), (ommGpuPipeline*)outPipeline);
 		}
 		static inline Result DestroyPipeline(Baker baker, Pipeline pipeline)
 		{
 			return (Result)ommGpuDestroyPipeline((ommBaker)baker, (ommGpuPipeline)pipeline);
 		}
-		static inline Result GetPipelineDesc(Pipeline pipeline, const BakePipelineInfoDesc** outPipelineDesc)
+		static inline Result GetPipelineDesc(Pipeline pipeline, const PipelineInfoDesc** outPipelineDesc)
 		{
-			return (Result)ommGpuGetPipelineDesc((ommGpuPipeline)pipeline, reinterpret_cast<const ommGpuBakePipelineInfoDesc**>(outPipelineDesc));
+			return (Result)ommGpuGetPipelineDesc((ommGpuPipeline)pipeline, reinterpret_cast<const ommGpuPipelineInfoDesc**>(outPipelineDesc));
 		}
-		static inline Result GetPreBakeInfo(Pipeline pipeline, const BakeDispatchConfigDesc& config, PreBakeInfo* outPreBuildInfo)
+		static inline Result GetPreDispatchInfo(Pipeline pipeline, const DispatchConfigDesc& config, PreDispatchInfo* outPreBuildInfo)
 		{
-			return (Result)ommGpuGetPreBakeInfo((ommGpuPipeline)pipeline, reinterpret_cast<const ommGpuBakeDispatchConfigDesc*>(&config), reinterpret_cast<ommGpuPreBakeInfo*>(outPreBuildInfo));
+			return (Result)ommGpuGetPreDispatchInfo((ommGpuPipeline)pipeline, reinterpret_cast<const ommGpuDispatchConfigDesc*>(&config), reinterpret_cast<ommGpuPreDispatchInfo*>(outPreBuildInfo));
 		}
-		static inline Result Bake(Pipeline pipeline, const BakeDispatchConfigDesc& config, const BakeDispatchChain** outDispatchDesc)
+		static inline Result Dispatch(Pipeline pipeline, const DispatchConfigDesc& config, const DispatchChain** outDispatchDesc)
 		{
-			return (Result)ommGpuBake((ommGpuPipeline)pipeline, reinterpret_cast<const ommGpuBakeDispatchConfigDesc*>(&config), reinterpret_cast<const ommGpuBakeDispatchChain**>(outDispatchDesc));
+			return (Result)ommGpuDispatch((ommGpuPipeline)pipeline, reinterpret_cast<const ommGpuDispatchConfigDesc*>(&config), reinterpret_cast<const ommGpuDispatchChain**>(outDispatchDesc));
 		}
 	}
 	namespace Debug

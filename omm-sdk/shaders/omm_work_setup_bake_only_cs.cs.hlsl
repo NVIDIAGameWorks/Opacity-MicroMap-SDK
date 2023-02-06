@@ -12,7 +12,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include "omm.hlsli"
 #include "omm_global_cb.hlsli"
 #include "omm_global_samplers.hlsli"
-#include "omm_work_setup_cs.cs.resources.hlsli"
+#include "omm_work_setup_bake_only_cs.cs.resources.hlsli"
 
 OMM_DECLARE_GLOBAL_CONSTANT_BUFFER
 OMM_DECLARE_GLOBAL_SAMPLERS
@@ -21,7 +21,15 @@ OMM_DECLARE_OUTPUT_RESOURCES
 OMM_DECLARE_SUBRESOURCES
 
 #include "omm_work_setup_common.hlsli"
-#include "omm_hash_table.hlsli"
+
+bool TryScheduledForBake(uint ommDescIndex)
+{
+	const uint kNotScheduled = 0;
+	const uint kScheduled	 = 1;
+	uint existing			 = 0;
+	OMM_SUBRESOURCE_CAS(TempOmmBakeScheduleTrackerBuffer, 4 * ommDescIndex, kNotScheduled, kScheduled, existing);
+	return existing == kNotScheduled;
+}
 
 [numthreads(128, 1, 1)]
 void main(uint3 tid : SV_DispatchThreadID)
@@ -29,72 +37,51 @@ void main(uint3 tid : SV_DispatchThreadID)
 	if (tid.x >= g_GlobalConstants.PrimitiveCount)
 		return;
 
-	// TODO: subdivision level should be tuneable per VM.
-	const uint kOMMFormatNum		= 2;
 	const uint primitiveIndex		= tid.x;
+	const int ommDescOffset			= GetOmmDescOffset(t_ommIndexBuffer, tid.x);
+	const uint kOMMFormatNum		= 2;
 
-	const TexCoords texCoords		= FetchTexCoords(t_indexBuffer, t_texCoordBuffer, primitiveIndex);
-	const uint subdivisionLevel		= GetSubdivisionLevel(texCoords);
+	// Must be done for later consumption.
+	OMM_SUBRESOURCE_STORE(TempOmmIndexBuffer, 4 * primitiveIndex, ommDescOffset);
 
-	uint hashTableEntryIndex;
-	hashTable::Result result		= FindOrInsertOMMEntry(texCoords, subdivisionLevel, hashTableEntryIndex);
+	const bool IsSpecialIndex				= ommDescOffset < 0;
 
-	uint vmDescOffset = 0;
-	if (result == hashTable::Result::Null ||
-		result == hashTable::Result::Inserted || 
-		result == hashTable::Result::ReachedMaxAttemptCount)
+	if (IsSpecialIndex)
 	{
-		// Store the primitiveIndex in the hash table so it can be referenced later by primitives referencing this one
-		if (result == hashTable::Result::Inserted)
-		{
-			hashTable::Store(hashTableEntryIndex, primitiveIndex);
-		}
+		// No baking to do.
+		return;
+	}
+	
+	const bool scheduleSuccessful = TryScheduledForBake(ommDescOffset);
 
-		const OMMFormat ommFormat		= (OMMFormat)g_GlobalConstants.OMMFormat;
+	if ( scheduleSuccessful )
+	{
+		// Fetch the desc info.
+		const uint ommArrayOffset	= t_ommDescArrayBuffer.Load(ommDescOffset * 8);
+		const uint ommDescData		= t_ommDescArrayBuffer.Load(ommDescOffset * 8 + 4);
+
+		const uint ommFormat			= (ommDescData >> 16u) & 0x0000FFFF;
+		const uint subdivisionLevel		= ommDescData & 0x0000FFFF;
 		const uint numMicroTriangles	= GetNumMicroTriangles(subdivisionLevel);
 
-		// Allocate new VM-array offset & vm-index
-		uint vmArrayOffset = 0;
-		uint vmDataByteSize;
 		{
-			const uint vmDataBitSize			= GetOMMFormatBitCount(ommFormat) * numMicroTriangles;
+			const uint vmDataBitSize = GetOMMFormatBitCount((OMMFormat)ommFormat) * numMicroTriangles;
 
 			// spec allows 1 byte alignment but we require 4 byte to make sure UAV writes
 			// are DW aligned.
-			vmDataByteSize			= max(vmDataBitSize >> 3u, 4u);
+			const uint vmDataByteSize = max(vmDataBitSize >> 3u, 4u);
 
-			OMM_SUBRESOURCE_INTERLOCKEDADD(OmmArrayAllocatorCounterBuffer, 0, vmDataByteSize, vmArrayOffset);
+			uint _dummy;
+			OMM_SUBRESOURCE_INTERLOCKEDADD(OmmArrayAllocatorCounterBuffer, 0, vmDataByteSize, _dummy);
 		}
 
-		const uint kMaxVmArrayBudget = 0xFFFFFFFF;
-
-		if ((vmArrayOffset + vmDataByteSize) < kMaxVmArrayBudget)
 		{
-			// Allocate new VM-desc for the vmArrayOffset
-			{
-				// The rasterItemOffset is the same things as the vmDescOffset,
-				OMM_SUBRESOURCE_INTERLOCKEDADD(OmmDescAllocatorCounterBuffer, 0, 1, vmDescOffset);
+			uint _dummy;
+			OMM_SUBRESOURCE_INTERLOCKEDADD(OmmDescAllocatorCounterBuffer, 0, 1, _dummy);
+		}
 
-				// Store vmDesc for current primitive. 
-				// vmArrayOffset may be shared at this point.
-				{
-					const uint vmDescData = ((uint)ommFormat << 16u) | subdivisionLevel;
-
-					u_ommDescArrayBuffer.Store(vmDescOffset * 8, vmArrayOffset);
-					u_ommDescArrayBuffer.Store(vmDescOffset * 8 + 4, vmDescData);
-				}
-			}
-
-			// Increase UsageDesc info struct,
-			// resolve uniform vm's later by usage subtraction.
-			{
-				const uint strideInBytes = 8;	// sizeof(VisibilityMapUsageDesc), [count32, format16, level16]
-				const uint index = (kOMMFormatNum * subdivisionLevel + ((uint)ommFormat - 1));
-				const uint offset = strideInBytes * index;
-
-				InterlockedAdd(u_ommDescArrayHistogramBuffer, offset, 1);
-			}
-
+		// Schedule the baking task.
+		{
 			/// ---- Store the OMM-data common for all microtriangles ----- 
 
 			// Allocate a slot in the raster items array.
@@ -110,7 +97,7 @@ void main(uint3 tid : SV_DispatchThreadID)
 
 				const uint offset = 8 * (bakeResultGlobalOffset + subdivisionLevel * g_GlobalConstants.PrimitiveCount);
 
-				OMM_SUBRESOURCE_STORE(RasterItemsBuffer, offset, vmArrayOffset);
+				OMM_SUBRESOURCE_STORE(RasterItemsBuffer, offset, ommArrayOffset);
 				OMM_SUBRESOURCE_STORE(RasterItemsBuffer, offset + 4, ommFormatAndPrimitiveIndex);
 			}
 
@@ -144,11 +131,4 @@ void main(uint3 tid : SV_DispatchThreadID)
 			}
 		}
 	}
-	else // if (status == hashTable::Result::Found
-	{
-		// Store the hash-table offset and patch up the pointers later.
-		vmDescOffset = (uint)(-hashTableEntryIndex - 4);
-	}
-
-	OMM_SUBRESOURCE_STORE(TempOmmIndexBuffer, 4 * primitiveIndex, vmDescOffset);
 }

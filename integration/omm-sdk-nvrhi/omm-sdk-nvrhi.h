@@ -10,16 +10,18 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 #pragma once
 
-#include <omm.hpp>
 #include <nvrhi/nvrhi.h>
-#include <vector>
-#include <stdint.h>
-#include <utility>
+
+#include <algorithm>
 #include <functional>
+#include <vector>
+#include <memory>
+
+#include <omm.hpp>
 
 namespace omm
 {
-	class BindingCache;
+	class GpuBakeNvrhiImpl;
 
 	class GpuBakeNvrhi
 	{
@@ -28,35 +30,43 @@ namespace omm
 		// In case the shaders are compiled externally the ShaderProviderCb can be used.
 		using ShaderProviderCb = std::function<nvrhi::ShaderHandle(nvrhi::ShaderType type, const char* shaderName, const char* shaderEntryName)>;
 
-		GpuBakeNvrhi(nvrhi::DeviceHandle device, nvrhi::CommandListHandle commandList, bool enableDebug, ShaderProviderCb* shaderProviderCb = nullptr);
-		~GpuBakeNvrhi();
+		enum class Operation
+		{
+			Invalid			= 0,
+			Setup			= 1u << 0,
+			Bake			= 1u << 1,
+			SetupAndBake	= Setup | Bake
+		};
 
 		struct Input
 		{
-			nvrhi::TextureHandle		alphaTexture;
-			uint32_t					alphaTextureChannel = 3;
-			float						alphaCutoff = 0.5f;
-			bool						bilinearFilter = true;
-			nvrhi::SamplerAddressMode	sampleMode = nvrhi::SamplerAddressMode::Clamp;
+			Operation							operation = Operation::Invalid;
+			nvrhi::TextureHandle				alphaTexture;
+			uint32_t							alphaTextureChannel = 3;
+			float								alphaCutoff = 0.5f;
+			bool								bilinearFilter = true;
+			bool								enableLevelLineIntersection = true;
+			nvrhi::SamplerAddressMode			sampleMode = nvrhi::SamplerAddressMode::Clamp;
 
-			nvrhi::BufferHandle		texCoordBuffer;
-			uint32_t				texCoordBufferOffsetInBytes = 0;
-			uint32_t				texCoordStrideInBytes = 0;
-			nvrhi::BufferHandle		indexBuffer;
-			uint32_t				indexBufferOffsetInBytes = 0;
-			size_t					numIndices = 0;
+			nvrhi::BufferHandle					texCoordBuffer;
+			uint32_t							texCoordBufferOffsetInBytes = 0;
+			uint32_t							texCoordStrideInBytes = 0;
+			nvrhi::BufferHandle					indexBuffer;
+			uint32_t							indexBufferOffsetInBytes = 0;
+			uint32_t							numIndices = 0;
 
-			uint32_t				globalSubdivisionLevel = 0;
-			bool					use2State = false;
-			float					dynamicSubdivisionScale = 0.5f;
-			bool					minimalMemoryMode = false;
-			bool					enableSpecialIndices = true;
-			bool					force32BitIndices = false;
-			bool					enableTexCoordDeuplication = true;
-			bool					computeOnly = false;
+			uint32_t							maxSubdivisionLevel = 0;
+			nvrhi::rt::OpacityMicromapFormat	format = nvrhi::rt::OpacityMicromapFormat::OC1_4_State;
+			float								dynamicSubdivisionScale = 0.5f;
+			bool								minimalMemoryMode = false;
+			bool								enableSpecialIndices = true;
+			bool								force32BitIndices = false;
+			bool								enableTexCoordDeduplication = true;
+			bool								computeOnly = false;
+			bool								enableNsightDebugMode = false;
 		};
 
-		struct PreBakeInfo
+		struct PreDispatchInfo
 		{
 			nvrhi::Format	ommIndexFormat;
 			uint32_t		ommIndexCount;
@@ -68,7 +78,7 @@ namespace omm
 			size_t			ommPostBuildInfoBufferSize;
 		};
 
-		struct Output
+		struct Buffers
 		{
 			nvrhi::BufferHandle ommArrayBuffer;
 			nvrhi::BufferHandle ommDescBuffer;
@@ -76,13 +86,13 @@ namespace omm
 			nvrhi::BufferHandle ommDescArrayHistogramBuffer;
 			nvrhi::BufferHandle ommIndexHistogramBuffer;
 			nvrhi::BufferHandle ommPostBuildInfoBuffer;
-		};
 
-		struct OpacityMicromapUsageCount
-		{
-			uint32_t count = 0;
-			uint16_t subdivisionLevel = 0;
-			uint16_t format = 0;
+			uint32_t ommArrayBufferOffset = 0;
+			uint32_t ommDescBufferOffset = 0;
+			uint32_t ommIndexBufferOffset = 0;
+			uint32_t ommDescArrayHistogramBufferOffset = 0;
+			uint32_t ommIndexHistogramBufferOffset = 0;
+			uint32_t ommPostBuildInfoBufferOffset = 0;
 		};
 
 		struct PostBuildInfo
@@ -91,18 +101,34 @@ namespace omm
 			uint32_t ommDescBufferSize;
 		};
 
-		// CPU side pre-build info.
-		void GetPreBakeInfo(const Input& params, PreBakeInfo& info);
+		struct Stats
+		{
+			uint64_t totalOpaque = 0;
+			uint64_t totalTransparent = 0;
+			uint64_t totalUnknownTransparent = 0;
+			uint64_t totalUnknownOpaque = 0;
+			uint32_t totalFullyOpaque = 0;
+			uint32_t totalFullyTransparent = 0;
+			uint32_t totalFullyUnknownOpaque = 0;
+			uint32_t totalFullyUnknownTransparent = 0;
+		};
 
-		// Run VM bake on GPU
-		void RunBake(
+		GpuBakeNvrhi(nvrhi::DeviceHandle device, nvrhi::CommandListHandle commandList, bool enableDebug, ShaderProviderCb* shaderProviderCb = nullptr);
+		~GpuBakeNvrhi();
+
+		// CPU side pre-build info.
+		void GetPreDispatchInfo(const Input& params, PreDispatchInfo& info);
+
+		void Dispatch(
 			nvrhi::CommandListHandle commandList,
 			const Input& params,
-			const Output& result);
+			const Buffers& buffers);
+
+		void Clear();
 
 		// This assumes pData is the CPU-side pointer of the contents in vmUsageDescReadbackBufferSize.
 		static void ReadPostBuildInfo(void* pData, size_t byteSize, PostBuildInfo& outPostBuildInfo);
-		static void ReadUsageDescBuffer(void* pData, size_t byteSize, std::vector<OpacityMicromapUsageCount>& outVmUsages);
+		static void ReadUsageDescBuffer(void* pData, size_t byteSize, std::vector<nvrhi::rt::OpacityMicromapUsageCount>& outVmUsages);
 
 		// Debug dumping
 		void DumpDebug(
@@ -123,48 +149,9 @@ namespace omm
 			const uint32_t height
 		);
 
-		omm::Debug::Stats GetStats(const omm::Cpu::BakeResultDesc& desc);
+		Stats GetStats(const omm::Cpu::BakeResultDesc& desc);
 
 	private:
-
-		void InitStaticBuffers(nvrhi::CommandListHandle commandList);
-		void InitBaker(ShaderProviderCb* shaderProviderCb);
-		void DestroyBaker();
-
-		void SetupPipelines(
-			const omm::Gpu::BakePipelineInfoDesc* desc, 
-			ShaderProviderCb* shaderProviderCb);
-
-		omm::Gpu::BakeDispatchConfigDesc GetConfig(const Input& params);
-
-		void ReserveGlobalCBuffer(size_t size, uint32_t slot);
-		void ReserveScratchBuffers(const omm::Gpu::PreBakeInfo& info);
-		nvrhi::TextureHandle GetTextureResource(const Input& params, const Output& output, const omm::Gpu::Resource& resource);
-		nvrhi::BufferHandle GetBufferResource(const Input& params, const Output& output, const omm::Gpu::Resource& resource, uint32_t& offsetInBytes);
-
-		void ExecuteBakeOperation(
-			nvrhi::CommandListHandle commandList,
-			const Input& params,
-			const Output& output,
-			const omm::Gpu::BakeDispatchChain* outDispatchDesc);
-
-		nvrhi::DeviceHandle m_device;
-		nvrhi::BufferHandle m_staticIndexBuffer;
-		nvrhi::BufferHandle m_staticVertexBuffer;
-		nvrhi::BufferHandle m_globalCBuffer;
-		uint32_t m_globalCBufferSlot;
-		uint32_t m_localCBufferSlot;
-		uint32_t m_localCBufferSize;
-		nvrhi::FramebufferHandle m_nullFbo;
-		nvrhi::FramebufferHandle m_debugFbo;
-		std::vector<nvrhi::BufferHandle> m_transientPool;
-		std::vector<nvrhi::ResourceHandle> m_pipelines;
-		std::vector<std::pair<nvrhi::SamplerHandle, uint32_t>> m_samplers;
-		BindingCache* m_bindingCache;
-
-		omm::Baker m_baker;
-		omm::Baker m_cpuBaker;
-		omm::Gpu::Pipeline m_pipeline;
-		bool m_enableDebug = false;
+		std::unique_ptr< GpuBakeNvrhiImpl> m_impl;
 	};
 } // namespace omm

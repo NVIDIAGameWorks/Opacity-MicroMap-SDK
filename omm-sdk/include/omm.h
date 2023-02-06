@@ -518,7 +518,18 @@ typedef enum ommGpuScratchMemoryBudget
 
 typedef enum ommGpuBakeFlags
 {
-   ommGpuBakeFlags_None                         = 0,
+   // Either PerformSetup, PerformBake (or both simultaneously) must be set.
+   ommGpuBakeFlags_Invalid                      = 0,
+
+   // (Default) OUT_OMM_DESC_ARRAY_HISTOGRAM, OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_DESC_ARRAY and
+   // (optionally) OUT_POST_BAKE_INFO will be updated.
+   ommGpuBakeFlags_PerformSetup                 = 1u << 0,
+
+   // (Default) OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_ARRAY_DATA will be written to. If special indices are
+   // detected OUT_OMM_INDEX_BUFFER may also be modified.
+   // If PerformBuild is not used with this flag, OUT_OMM_DESC_ARRAY_HISTOGRAM, OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER,
+   // OUT_OMM_DESC_ARRAY must contain valid data from a prior PerformSetup pass.
+   ommGpuBakeFlags_PerformBake                  = 1u << 1,
 
    // Baking will only be done using compute shaders and no gfx involvement (drawIndirect or graphics PSOs). (Beta)
    // Will become default mode in the future.
@@ -527,23 +538,26 @@ typedef enum ommGpuBakeFlags
    // + Faster baking on low texel ratio to micro-triangle ratio (=rasterizing small triangles)
    // - May looses efficency when resampling large triangles (tail-effect). Potential mitigation is to batch multiple bake
    // jobs. However this is generally not a big problem.
-   ommGpuBakeFlags_ComputeOnly                  = 1u << 0,
+   ommGpuBakeFlags_ComputeOnly                  = 1u << 2,
 
    // Baking will also output post build info. (OUT_POST_BUILD_INFO).
-   ommGpuBakeFlags_EnablePostBuildInfo          = 1u << 1,
+   ommGpuBakeFlags_EnablePostBuildInfo          = 1u << 3,
 
    // Will disable the use of special indices in case the OMM-state is uniform. Only set this flag for debug purposes.
-   ommGpuBakeFlags_DisableSpecialIndices        = 1u << 2,
+   ommGpuBakeFlags_DisableSpecialIndices        = 1u << 4,
 
    // If texture coordinates are known to be unique tex cooord deduplication can be disabled to save processing time and free
    // up scratch memory.
-   ommGpuBakeFlags_DisableTexCoordDeduplication = 1u << 3,
+   ommGpuBakeFlags_DisableTexCoordDeduplication = 1u << 5,
 
    // Force 32-bit indices in OUT_OMM_INDEX_BUFFER
-   ommGpuBakeFlags_Force32BitIndices            = 1u << 4,
+   ommGpuBakeFlags_Force32BitIndices            = 1u << 6,
+
+   // Use only for debug purposes. Level Line Intersection method is vastly superior in 4-state mode.
+   ommGpuBakeFlags_DisableLevelLineIntersection = 1u << 7,
 
    // Slightly modifies the dispatch to aid frame capture debugging.
-   ommGpuBakeFlags_EnableNsightDebugMode        = 1u << 5,
+   ommGpuBakeFlags_EnableNsightDebugMode        = 1u << 8,
 } ommGpuBakeFlags;
 OMM_DEFINE_ENUM_FLAG_OPERATORS(ommGpuBakeFlags);
 
@@ -684,8 +698,8 @@ typedef struct ommGpuComputeDesc
    const uint8_t*        localConstantBufferData;
    uint32_t              localConstantBufferDataSize;
    uint16_t              pipelineIndex;
-   uint16_t              gridWidth;
-   uint16_t              gridHeight;
+   uint32_t              gridWidth;
+   uint32_t              gridHeight;
 } ommGpuComputeDesc;
 
 typedef struct ommGpuComputeIndirectDesc
@@ -753,20 +767,60 @@ typedef struct ommGpuSPIRVBindingOffsets
    uint32_t storageTextureAndBufferOffset;
 } ommGpuSPIRVBindingOffsets;
 
-typedef struct ommGpuBakePipelineConfigDesc
+typedef struct ommGpuPipelineConfigDesc
 {
    // API is required to make sure indirect buffers are written to in suitable format
    ommGpuRenderAPI renderAPI;
-} ommGpuBakePipelineConfigDesc;
+} ommGpuPipelineConfigDesc;
 
-inline ommGpuBakePipelineConfigDesc ommGpuBakePipelineConfigDescDefault()
+inline ommGpuPipelineConfigDesc ommGpuPipelineConfigDescDefault()
 {
-   ommGpuBakePipelineConfigDesc v;
+   ommGpuPipelineConfigDesc v;
    v.renderAPI  = ommGpuRenderAPI_DX12;
    return v;
 }
 
-typedef struct ommGpuBakeDispatchConfigDesc
+// Note: sizes may return size zero, this means the buffer will not be used in the dispatch.
+typedef struct ommGpuPreDispatchInfo
+{
+   // Format of outOmmIndexBuffer
+   ommIndexFormat outOmmIndexBufferFormat;
+   uint32_t       outOmmIndexCount;
+   // Min required size of OUT_OMM_ARRAY_DATA. GetBakeInfo returns most conservative estimation while less conservative number
+   // can be obtained via BakePrepass
+   size_t         outOmmArraySizeInBytes;
+   // Min required size of OUT_OMM_DESC_ARRAY. GetBakeInfo returns most conservative estimation while less conservative number
+   // can be obtained via BakePrepass
+   uint32_t       outOmmDescSizeInBytes;
+   // Min required size of OUT_OMM_INDEX_BUFFER
+   uint32_t       outOmmIndexBufferSizeInBytes;
+   // Min required size of OUT_OMM_ARRAY_HISTOGRAM
+   uint32_t       outOmmArrayHistogramSizeInBytes;
+   // Min required size of OUT_OMM_INDEX_HISTOGRAM
+   uint32_t       outOmmIndexHistogramSizeInBytes;
+   // Min required size of OUT_POST_BUILD_INFO
+   uint32_t       outOmmPostBuildInfoSizeInBytes;
+   // Min required sizes of TRANSIENT_POOL_BUFFERs
+   uint32_t       transientPoolBufferSizeInBytes[8];
+   uint32_t       numTransientPoolBuffers;
+} ommGpuPreDispatchInfo;
+
+inline ommGpuPreDispatchInfo ommGpuPreDispatchInfoDefault()
+{
+   ommGpuPreDispatchInfo v;
+   v.outOmmIndexBufferFormat            = ommIndexFormat_MAX_NUM;
+   v.outOmmIndexCount                   = 0xFFFFFFFF;
+   v.outOmmArraySizeInBytes             = 0xFFFFFFFF;
+   v.outOmmDescSizeInBytes              = 0xFFFFFFFF;
+   v.outOmmIndexBufferSizeInBytes       = 0xFFFFFFFF;
+   v.outOmmArrayHistogramSizeInBytes    = 0xFFFFFFFF;
+   v.outOmmIndexHistogramSizeInBytes    = 0xFFFFFFFF;
+   v.outOmmPostBuildInfoSizeInBytes     = 0xFFFFFFFF;
+   v.numTransientPoolBuffers            = 0;
+   return v;
+}
+
+typedef struct ommGpuDispatchConfigDesc
 {
    ommGpuBakeFlags           bakeFlags;
    // RuntimeSamplerDesc describes the texture sampler that will be used in the runtime alpha test shader code.
@@ -800,16 +854,15 @@ typedef struct ommGpuBakeDispatchConfigDesc
    uint8_t                   globalSubdivisionLevel;
    uint8_t                   maxSubdivisionLevel;
    uint8_t                   enableSubdivisionLevelBuffer;
-   uint32_t                  maxOutOmmArraySizeInBytes;
    // Target scratch memory budget, The SDK will try adjust the sum of the transient pool buffers to match this value. Higher
    // budget more efficiently executes the baking operation. May return INSUFFICIENT_SCRATCH_MEMORY if set too low.
    ommGpuScratchMemoryBudget maxScratchMemorySize;
-} ommGpuBakeDispatchConfigDesc;
+} ommGpuDispatchConfigDesc;
 
-inline ommGpuBakeDispatchConfigDesc ommGpuBakeDispatchConfigDescDefault()
+inline ommGpuDispatchConfigDesc ommGpuDispatchConfigDescDefault()
 {
-   ommGpuBakeDispatchConfigDesc v;
-   v.bakeFlags                     = ommGpuBakeFlags_None;
+   ommGpuDispatchConfigDesc v;
+   v.bakeFlags                     = ommGpuBakeFlags_Invalid;
    v.runtimeSamplerDesc            = ommSamplerDescDefault();
    v.alphaMode                     = ommAlphaMode_MAX_NUM;
    v.alphaTextureWidth             = 0;
@@ -827,12 +880,11 @@ inline ommGpuBakeDispatchConfigDesc ommGpuBakeDispatchConfigDescDefault()
    v.globalSubdivisionLevel        = 4;
    v.maxSubdivisionLevel           = 8;
    v.enableSubdivisionLevelBuffer  = 0;
-   v.maxOutOmmArraySizeInBytes     = 0xFFFFFFFF;
    v.maxScratchMemorySize          = ommGpuScratchMemoryBudget_Default;
    return v;
 }
 
-typedef struct ommGpuBakePipelineInfoDesc
+typedef struct ommGpuPipelineInfoDesc
 {
    ommGpuSPIRVBindingOffsets      spirvBindingOffsets;
    const ommGpuPipelineDesc*      pipelines;
@@ -842,32 +894,7 @@ typedef struct ommGpuBakePipelineInfoDesc
    ommGpuDescriptorSetDesc        descriptorSetDesc;
    const ommGpuStaticSamplerDesc* staticSamplers;
    uint32_t                       staticSamplersNum;
-} ommGpuBakePipelineInfoDesc;
-
-// Note: sizes may return size zero, this means the buffer will not be used in the dispatch.
-typedef struct ommGpuPreBakeInfo
-{
-   // Format of outOmmIndexBuffer
-   ommIndexFormat outOmmIndexBufferFormat;
-   uint32_t       outOmmIndexCount;
-   // Min required size of OUT_OMM_ARRAY_DATA. GetPreBakeInfo returns most conservative estimation while less conservative
-   // number can be obtained via BakePrepass
-   uint32_t       outOmmArraySizeInBytes;
-   // Min required size of OUT_OMM_DESC_ARRAY. GetPreBakeInfo returns most conservative estimation while less conservative
-   // number can be obtained via BakePrepass
-   uint32_t       outOmmDescSizeInBytes;
-   // Min required size of OUT_OMM_INDEX_BUFFER
-   uint32_t       outOmmIndexBufferSizeInBytes;
-   // Min required size of OUT_OMM_ARRAY_HISTOGRAM
-   uint32_t       outOmmArrayHistogramSizeInBytes;
-   // Min required size of OUT_OMM_INDEX_HISTOGRAM
-   uint32_t       outOmmIndexHistogramSizeInBytes;
-   // Min required size of OUT_POST_BUILD_INFO
-   uint32_t       outOmmPostBuildInfoSizeInBytes;
-   // Min required sizes of TRANSIENT_POOL_BUFFERs
-   uint32_t       transientPoolBufferSizeInBytes[8];
-   uint32_t       numTransientPoolBuffers;
-} ommGpuPreBakeInfo;
+} ommGpuPipelineInfoDesc;
 
 // Format of OUT_POST_BAKE_INFO
 typedef struct ommGpuPostBakeInfo
@@ -876,33 +903,32 @@ typedef struct ommGpuPostBakeInfo
    uint32_t outOmmDescSizeInBytes;
 } ommGpuPostBakeInfo;
 
-// Format of OUT_POST_BAKE_INFO
-typedef struct ommGpuBakeDispatchChain
+typedef struct ommGpuDispatchChain
 {
    const ommGpuDispatchDesc* dispatches;
    uint32_t                  numDispatches;
    const uint8_t*            globalCBufferData;
    uint32_t                  globalCBufferDataSize;
-} ommGpuBakeDispatchChain;
+} ommGpuDispatchChain;
 
 // Global immutable resources. These contain the static immutable resources being shared acroess all bake calls.  Currently
 // it's the specific IB and VB that represents a tesselated triangle arranged in bird curve order, for different
 // subdivision levels.
 OMM_API ommResult ommGpuGetStaticResourceData(ommGpuResourceType resource, uint8_t* data, size_t* outByteSize);
 
-OMM_API ommResult ommGpuCreatePipeline(ommBaker baker, const ommGpuBakePipelineConfigDesc* pipelineCfg, ommGpuPipeline* outPipeline);
+OMM_API ommResult ommGpuCreatePipeline(ommBaker baker, const ommGpuPipelineConfigDesc* pipelineCfg, ommGpuPipeline* outPipeline);
 
 OMM_API ommResult ommGpuDestroyPipeline(ommBaker baker, ommGpuPipeline pipeline);
 
 // Return the required pipelines. Does not depend on per-dispatch settings.
-OMM_API ommResult ommGpuGetPipelineDesc(ommGpuPipeline pipeline, const ommGpuBakePipelineInfoDesc** outPipelineDesc);
+OMM_API ommResult ommGpuGetPipelineDesc(ommGpuPipeline pipeline, const ommGpuPipelineInfoDesc** outPipelineDesc);
 
 // Returns the scratch and output memory requirements of the baking operation.
-OMM_API ommResult ommGpuGetPreBakeInfo(ommGpuPipeline pipeline, const ommGpuBakeDispatchConfigDesc* config, ommGpuPreBakeInfo* outPreBuildInfo);
+OMM_API ommResult ommGpuGetPreDispatchInfo(ommGpuPipeline pipeline, const ommGpuDispatchConfigDesc* config, ommGpuPreDispatchInfo* outPreDispatchInfo);
 
 // Returns the dispatch order to perform the baking operation. Once complete the OUT_OMM_* resources will be written to and
 // can be consumed by the application.
-OMM_API ommResult ommGpuBake(ommGpuPipeline pipeline, const ommGpuBakeDispatchConfigDesc* config, const ommGpuBakeDispatchChain** outDispatchDesc);
+OMM_API ommResult ommGpuDispatch(ommGpuPipeline pipeline, const ommGpuDispatchConfigDesc* config, const ommGpuDispatchChain** outDispatchDesc);
 
 typedef struct ommDebugSaveImagesDesc
 {

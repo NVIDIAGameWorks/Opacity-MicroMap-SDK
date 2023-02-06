@@ -9,18 +9,16 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 */
 
 #define OMM_DECLARE_INPUT_RESOURCES \
-    OMM_INPUT_RESOURCE( Buffer<uint>, t_indexBuffer, t, 0 ) \
-    OMM_INPUT_RESOURCE( ByteAddressBuffer, t_texCoordBuffer, t, 1 )
+    OMM_INPUT_RESOURCE(ByteAddressBuffer, t_ommDescArrayBuffer, t, 0) \
+    OMM_INPUT_RESOURCE(ByteAddressBuffer, t_ommIndexBuffer, t, 1 )
 
 #define OMM_DECLARE_OUTPUT_RESOURCES \
-    OMM_OUTPUT_RESOURCE( RWByteAddressBuffer, u_ommDescArrayBuffer, u, 0 ) \
-    OMM_OUTPUT_RESOURCE( RWByteAddressBuffer, u_ommDescArrayHistogramBuffer, u, 1 ) \
-    OMM_OUTPUT_RESOURCE( RWByteAddressBuffer, u_heap0, u, 2 ) \
-    OMM_OUTPUT_RESOURCE( RWByteAddressBuffer, u_heap1, u, 3 ) \
+    OMM_OUTPUT_RESOURCE( RWByteAddressBuffer, u_heap0, u, 0 ) \
+    OMM_OUTPUT_RESOURCE( RWByteAddressBuffer, u_heap1, u, 1 )
 
 #define OMM_DECLARE_SUBRESOURCES \
     OMM_SUBRESOURCE(RWByteAddressBuffer, TempOmmIndexBuffer, u_heap0)                   \
-    OMM_SUBRESOURCE(RWByteAddressBuffer, HashTableBuffer, u_heap0)                   \
+    OMM_SUBRESOURCE(RWByteAddressBuffer, TempOmmBakeScheduleTrackerBuffer, u_heap0) \
     OMM_SUBRESOURCE(RWByteAddressBuffer, OmmArrayAllocatorCounterBuffer, u_heap0)     \
     OMM_SUBRESOURCE(RWByteAddressBuffer, OmmDescAllocatorCounterBuffer, u_heap0)      \
     OMM_SUBRESOURCE(RWByteAddressBuffer, IEBakeCsThreadCountBuffer, u_heap0) \

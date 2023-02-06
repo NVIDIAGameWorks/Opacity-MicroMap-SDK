@@ -1115,37 +1115,53 @@
         "injectNewLine": true,
         "values": [
             {
-                "name": "None",
-                "value": "0"
+                "name": "Invalid",
+                "value": "0",
+                "comment": "Either PerformSetup, PerformBake (or both simultaneously) must be set."
+            },
+            {
+                "name": "PerformSetup",
+                "value": "1u << 0",
+                "comment": "(Default) OUT_OMM_DESC_ARRAY_HISTOGRAM, OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_DESC_ARRAY and (optionally) OUT_POST_BAKE_INFO will be updated."
+            },
+            {
+                "name": "PerformBake",
+                "value": "1u << 1",
+                "comment": "(Default) OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_ARRAY_DATA will be written to. If special indices are detected OUT_OMM_INDEX_BUFFER may also be modified.\nIf PerformBuild is not used with this flag, OUT_OMM_DESC_ARRAY_HISTOGRAM, OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_DESC_ARRAY must contain valid data from a prior PerformSetup pass."
             },
             {
                 "name": "ComputeOnly",
-                "value": "1u << 0",
+                "value": "1u << 2",
                 "comment": "Baking will only be done using compute shaders and no gfx involvement (drawIndirect or graphics PSOs). (Beta)\nWill become default mode in the future.\n+ Useful for async workloads\n+ Less memory hungry\n+ Faster baking on low texel ratio to micro-triangle ratio (=rasterizing small triangles)\n- May looses efficency when resampling large triangles (tail-effect). Potential mitigation is to batch multiple bake jobs. However this is generally not a big problem."
             },
             {
                 "name": "EnablePostBuildInfo",
-                "value": "1u << 1",
+                "value": "1u << 3",
                 "comment": "Baking will also output post build info. (OUT_POST_BUILD_INFO)."
             },
             {
                 "name": "DisableSpecialIndices",
-                "value": "1u << 2",
+                "value": "1u << 4",
                 "comment": "Will disable the use of special indices in case the OMM-state is uniform. Only set this flag for debug purposes."
             },
             {
                 "name": "DisableTexCoordDeduplication",
-                "value": "1u << 3",
+                "value": "1u << 5",
                 "comment": "If texture coordinates are known to be unique tex cooord deduplication can be disabled to save processing time and free up scratch memory."
             },
             {
                 "name": "Force32BitIndices",
-                "value": "1u << 4",
+                "value": "1u << 6",
                 "comment": "Force 32-bit indices in OUT_OMM_INDEX_BUFFER"
             },
             {
+                "name": "DisableLevelLineIntersection",
+                "value": "1u << 7",
+                "comment": "Use only for debug purposes. Level Line Intersection method is vastly superior in 4-state mode."
+            },
+            {
                 "name": "EnableNsightDebugMode",
-                "value": "1u << 5",
+                "value": "1u << 8",
                 "comment": "Slightly modifies the dispatch to aid frame capture debugging."
             }
         ]
@@ -1495,11 +1511,11 @@
                 "name": "pipelineIndex"
             },
             {
-                "type": "uint16_t",
+                "type": "uint32_t",
                 "name": "gridWidth"
             },
             {
-                "type": "uint16_t",
+                "type": "uint32_t",
                 "name": "gridHeight"
             }
         ]
@@ -1689,9 +1705,9 @@
         ]
     },
 
-    "BakePipelineConfigDesc": {
+    "PipelineConfigDesc": {
         "type": "struct",
-        "name": "BakePipelineConfigDesc",
+        "name": "PipelineConfigDesc",
         "members": [
             {
                 "type": "RenderAPI",
@@ -1705,16 +1721,16 @@
         ]
     },
 
-    "BakeDispatchConfigDesc": {
+    "DispatchConfigDesc": {
         "type": "struct",
-        "name": "BakeDispatchConfigDesc",
+        "name": "DispatchConfigDesc",
         "members": [
             {
                 "type": "gpuBakeFlags",
                 "name": "bakeFlags",
                 "value": {
                     "type": "BakeFlags",
-                    "value": "None"
+                    "value": "Invalid"
                 }
             },
             {
@@ -1825,11 +1841,6 @@
                 "value": "0"
             },
             {
-                "type": "uint32_t",
-                "name": "maxOutOmmArraySizeInBytes",
-                "value": "0xFFFFFFFF"
-            },
-            {
                 "type": "ScratchMemoryBudget",
                 "name": "maxScratchMemorySize",
                 "value": {
@@ -1841,9 +1852,9 @@
         ]
     },
 
-    "BakePipelineInfoDesc": {
+    "PipelineInfoDesc": {
         "type": "struct",
-        "name": "BakePipelineInfoDesc",
+        "name": "PipelineInfoDesc",
         "members": [
             {
                 "type": "SPIRVBindingOffsets",
@@ -1884,48 +1895,59 @@
         ]
     },
 
-    "PreBakeInfo": {
+    "PreDispatchInfo": {
         "type": "struct",
-        "name": "PreBakeInfo",
+        "name": "PreDispatchInfo",
         "comment": "Note: sizes may return size zero, this means the buffer will not be used in the dispatch.",
         "members": [
             {
                 "type": "IndexFormat",
                 "name": "outOmmIndexBufferFormat",
+                "value": {
+                    "type": "IndexFormat",
+                    "value": "MAX_NUM"
+                },
                 "comment": "Format of outOmmIndexBuffer"
             },
             {
                 "type": "uint32_t",
-                "name": "outOmmIndexCount"
+                "name": "outOmmIndexCount",
+                "value": "0xFFFFFFFF"
             },
             {
-                "type": "uint32_t",
+                "type": "size_t",
                 "name": "outOmmArraySizeInBytes",
-                "comment": "Min required size of OUT_OMM_ARRAY_DATA. GetPreBakeInfo returns most conservative estimation while less conservative number can be obtained via BakePrepass"
+                "value": "0xFFFFFFFF",
+                "comment": "Min required size of OUT_OMM_ARRAY_DATA. GetBakeInfo returns most conservative estimation while less conservative number can be obtained via BakePrepass"
             },
             {
                 "type": "uint32_t",
                 "name": "outOmmDescSizeInBytes",
-                "comment": "Min required size of OUT_OMM_DESC_ARRAY. GetPreBakeInfo returns most conservative estimation while less conservative number can be obtained via BakePrepass"
+                "value": "0xFFFFFFFF",
+                "comment": "Min required size of OUT_OMM_DESC_ARRAY. GetBakeInfo returns most conservative estimation while less conservative number can be obtained via BakePrepass"
             },
             {
                 "type": "uint32_t",
                 "name": "outOmmIndexBufferSizeInBytes",
+                "value": "0xFFFFFFFF",
                 "comment": "Min required size of OUT_OMM_INDEX_BUFFER"
             },
             {
                 "type": "uint32_t",
                 "name": "outOmmArrayHistogramSizeInBytes",
+                "value": "0xFFFFFFFF",
                 "comment": "Min required size of OUT_OMM_ARRAY_HISTOGRAM"
             },
             {
                 "type": "uint32_t",
                 "name": "outOmmIndexHistogramSizeInBytes",
+                "value": "0xFFFFFFFF",
                 "comment": "Min required size of OUT_OMM_INDEX_HISTOGRAM"
             },
             {
                 "type": "uint32_t",
                 "name": "outOmmPostBuildInfoSizeInBytes",
+                "value": "0xFFFFFFFF",
                 "comment": "Min required size of OUT_POST_BUILD_INFO"
             },
             {
@@ -1935,7 +1957,33 @@
             },
             {
                 "type": "uint32_t",
-                "name": "numTransientPoolBuffers"
+                "name": "numTransientPoolBuffers",
+                "value": "0"
+            }
+        ]
+    },
+
+    "BufferSizes": {
+        "type": "struct",
+        "name": "BufferSizes",
+        "members": [
+            {
+                "type": "uint32_t",
+                "name": "ommArraySizeInBytes",
+                "value": "0xFFFFFFFF",
+                "comment": "Maximum size of OUT_OMM_ARRAY_DATA"
+            },
+            {
+                "type": "uint32_t",
+                "name": "ommDescSizeInBytes",
+                "value": "0xFFFFFFFF",
+                "comment": "Maximum size of OUT_OMM_DESC_ARRAY"
+            },
+            {
+                "type": "uint32_t",
+                "name": "preBakeResult",
+                "value": "0xFFFFFFFF",
+                "comment": "Data passed from preBakePass. Used for validation purposes."
             }
         ]
     },
@@ -1956,10 +2004,9 @@
         ]
     },
 
-    "BakeDispatchChain": {
+    "DispatchChain": {
         "type": "struct",
-        "name": "BakeDispatchChain",
-        "comment": "Format of OUT_POST_BAKE_INFO",
+        "name": "DispatchChain",
         "members": [
             {
                 "type": "DispatchDesc",
@@ -2017,7 +2064,7 @@
                 "name": "baker"
             },
             {
-                "type": "BakePipelineConfigDesc",
+                "type": "PipelineConfigDesc",
                 "const": true,
                 "ref": true,
                 "name": "pipelineCfg"
@@ -2061,7 +2108,7 @@
                 "name": "pipeline"
             },
             {
-                "type": "BakePipelineInfoDesc",
+                "type": "PipelineInfoDesc",
                 "const": true,
                 "ptr2x": true,
                 "name": "outPipelineDesc"
@@ -2069,9 +2116,9 @@
         ]
     },
 
-    "fnGetPreBakeInfo": {
+    "fnGetPreDispatchInfo": {
         "type": "function",
-        "name": "GetPreBakeInfo",
+        "name": "GetPreDispatchInfo",
         "comment": "Returns the scratch and output memory requirements of the baking operation.",
         "ret": {
             "type": "Result"
@@ -2082,22 +2129,22 @@
                 "name": "pipeline"
             },
             {
-                "type": "BakeDispatchConfigDesc",
+                "type": "DispatchConfigDesc",
                 "const": true,
                 "ref": true,
                 "name": "config"
             },
             {
-                "type": "PreBakeInfo",
+                "type": "PreDispatchInfo",
                 "ptr": true,
-                "name": "outPreBuildInfo"
+                "name": "outPreDispatchInfo"
             }
         ]
     },
 
-    "fnBakeGPU": {
+    "fnDispatchGPU": {
         "type": "function",
-        "name": "Bake",
+        "name": "Dispatch",
         "comment": "Returns the dispatch order to perform the baking operation. Once complete the OUT_OMM_* resources will be written to and can be consumed by the application.",
         "ret": {
             "type": "Result"
@@ -2108,13 +2155,13 @@
                 "name": "pipeline"
             },
             {
-                "type": "BakeDispatchConfigDesc",
+                "type": "DispatchConfigDesc",
                 "const": true,
                 "ref": true,
                 "name": "config"
             },
             {
-                "type": "BakeDispatchChain",
+                "type": "DispatchChain",
                 "const": true,
                 "ptr2x": true,
                 "name": "outDispatchDesc"
@@ -2325,18 +2372,18 @@
             "DispatchDesc",
             "StaticSamplerDesc",
             "SPIRVBindingOffsets",
-            "BakePipelineConfigDesc",
-            "BakeDispatchConfigDesc",
-            "BakePipelineInfoDesc",
-            "PreBakeInfo",
+            "PipelineConfigDesc",
+            "PreDispatchInfo",
+            "DispatchConfigDesc",
+            "PipelineInfoDesc",
             "PostBakeInfo",
-            "BakeDispatchChain",
+            "DispatchChain",
             "fnGetStaticResourceData",
             "fnCreatePipeline",
             "fnDestroyPipeline",
             "fnGetPipelineDesc",
-            "fnGetPreBakeInfo",
-            "fnBakeGPU"
+            "fnGetPreDispatchInfo",
+            "fnDispatchGPU"
         ]
     },
 
