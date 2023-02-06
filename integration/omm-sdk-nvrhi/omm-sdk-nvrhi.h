@@ -86,6 +86,13 @@ namespace omm
 			nvrhi::BufferHandle ommDescArrayHistogramBuffer;
 			nvrhi::BufferHandle ommIndexHistogramBuffer;
 			nvrhi::BufferHandle ommPostBuildInfoBuffer;
+
+			uint32_t ommArrayBufferOffset = 0;
+			uint32_t ommDescBufferOffset = 0;
+			uint32_t ommIndexBufferOffset = 0;
+			uint32_t ommDescArrayHistogramBufferOffset = 0;
+			uint32_t ommIndexHistogramBufferOffset = 0;
+			uint32_t ommPostBuildInfoBufferOffset = 0;
 		};
 
 		struct PostBuildInfo

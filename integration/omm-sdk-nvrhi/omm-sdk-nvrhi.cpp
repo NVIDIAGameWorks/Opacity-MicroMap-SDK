@@ -780,21 +780,27 @@ nvrhi::BufferHandle GpuBakeNvrhiImpl::GetBufferResource(
 	{
 	case omm::Gpu::ResourceType::OUT_OMM_ARRAY_DATA:
 		resourceHandle = output.ommArrayBuffer;
+		offsetInBytes = output.ommArrayBufferOffset;
 		break;
 	case omm::Gpu::ResourceType::OUT_OMM_DESC_ARRAY:
 		resourceHandle = output.ommDescBuffer;
+		offsetInBytes = output.ommDescBufferOffset;
 		break;
 	case omm::Gpu::ResourceType::OUT_OMM_INDEX_BUFFER:
 		resourceHandle = output.ommIndexBuffer;
+		offsetInBytes = output.ommIndexBufferOffset;
 		break;
 	case omm::Gpu::ResourceType::OUT_OMM_DESC_ARRAY_HISTOGRAM:
 		resourceHandle = output.ommDescArrayHistogramBuffer;
+		offsetInBytes = output.ommDescArrayHistogramBufferOffset;
 		break;
 	case omm::Gpu::ResourceType::OUT_OMM_INDEX_HISTOGRAM:
 		resourceHandle = output.ommIndexHistogramBuffer;
+		offsetInBytes = output.ommIndexHistogramBufferOffset;
 		break;
 	case omm::Gpu::ResourceType::OUT_POST_BAKE_INFO:
 		resourceHandle = output.ommPostBuildInfoBuffer;
+		offsetInBytes = output.ommPostBuildInfoBufferOffset;
 		break;
 	case omm::Gpu::ResourceType::IN_INDEX_BUFFER:
 		resourceHandle = params.indexBuffer;
@@ -828,7 +834,7 @@ void GpuBakeNvrhiImpl::ExecuteDispatchChain(
 	const GpuBakeNvrhi::Buffers& output,
 	const omm::Gpu::DispatchChain* dispatchDesc)
 {
-	nvrhi::TextureHandle rtv = m_enableDebug ? m_nullFbo->getDesc().colorAttachments[0].texture : nullptr;
+	nvrhi::TextureHandle rtv = m_nullFbo->getDesc().colorAttachments[0].texture;
 
 	commandList->beginTrackingBufferState(m_globalCBuffer, nvrhi::ResourceStates::ConstantBuffer);
 	
