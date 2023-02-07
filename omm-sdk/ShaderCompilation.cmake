@@ -59,12 +59,14 @@ else()
 
     if (OMM_ENABLE_PRECOMPILED_SHADERS_SPIRV)
         # On Linux, VulkanSDK does not set VULKAN_SDK, but DXC can be called directly assuming vulkan-sdk is installed
-        find_program(DXC_SPIRV_PATH "dxc")
-        if(NOT DXC_SPIRV_PATH)
-            find_program(DXC_SPIRV_PATH "${NRD_DXC_CUSTOM_PATH}")
-            if(NOT DXC_SPIRV_PATH)
-                message(FATAL_ERROR "Can't find DXC: Specify custom path using 'NRD_DXC_CUSTOM_PATH' parameter or install VulkanSDK")
-            endif()
+        find_program(OMM_VULKAN_DXC_SPIRV_PATH "dxc")
+        if (OMM_VULKAN_DXC_SPIRV_PATH)
+            message(STATUS "SPIRV dxc was found in ${OMM_VULKAN_DXC_SPIRV_PATH}" )
+        else()
+            message(FATAL_ERROR "SPIRV dxc was not found on the system. Is the Vulkan SDK installed? Resolve this by either:
+            1. Disable embedded SPIRV shaders OMM_ENABLE_PRECOMPILED_SHADERS_SPIRV OFF
+            2. Provide a custom path to Vulkan dxc.exe (OMM_VULKAN_DXC_SPIRV_PATH)
+            3. Install Vulkan SDK on the system and make sure environment variable VULKAN_SDK is set.\n")
         endif()
    endif()
 endif()
