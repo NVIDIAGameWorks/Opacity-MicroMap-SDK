@@ -734,6 +734,8 @@ namespace omm
          // PostBakeInfo::outOmmArraySizeInBytes.
          // Currently a greedy algorithm is implemented with a first come-first serve order.
          // The SDK may (or may not) apply more sophisticated heuristics in the future.
+         // If no memory is available to allocate an OMM Array Block the state will default to Unknown Opaque (ignoring any bake
+         // flags do disable special indices).
          uint32_t            maxOutOmmArraySize            = 0xFFFFFFFF;
          // Target scratch memory budget, The SDK will try adjust the sum of the transient pool buffers to match this value. Higher
          // budget more efficiently executes the baking operation. May return INSUFFICIENT_SCRATCH_MEMORY if set too low.

@@ -209,13 +209,19 @@ uint GetSubdivisionLevel(TexCoords texCoords)
 
 int GetOmmDescOffset(ByteAddressBuffer ommIndexBuffer, uint primitiveIndex)
 {
-	// TODO: support 16-bit indices.
 	if (g_GlobalConstants.IsOmmIndexFormat16bit)
 	{
 		const uint dwOffset = primitiveIndex.x >> 1u;
-		const uint shift = (primitiveIndex.x & 1u) << 4u; // 0 or 16
-		const uint val = ommIndexBuffer.Load(4 * dwOffset);
-		return (val >> shift) & 0xFFFF;
+		const uint shift	= (primitiveIndex.x & 1u) << 4u; // 0 or 16
+		const uint raw		= ommIndexBuffer.Load(4 * dwOffset);
+		const uint raw16	= (raw >> shift) & 0xFFFFu;
+
+		if (raw16 > 0xFFFB) // e.g special index
+		{
+			return (raw16 - 0xFFFF) - 1; // -1, -2, -3 or -4
+		}
+
+		return raw16;
 	}
 	else
 	{

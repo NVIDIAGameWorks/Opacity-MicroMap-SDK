@@ -70,22 +70,39 @@ namespace {
 			return 3;
 		}
 
-		omm::Debug::Stats RunVmBake(
-			float alphaCutoff,
-			uint32_t subdivisionLevel,
-			int2 texSize,
-			uint32_t indexBufferSize,
-			uint32_t* triangleIndices,
-			float* texCoords,
-			uint32_t texCoordBufferSize,
-			std::function<float(int i, int j)> texCb,
-			omm::Format format = omm::Format::OC1_4_State) {
+		struct OmmBakeParams
+		{
+			float alphaCutoff = 0.5f;
+			uint32_t subdivisionLevel = 5;
+			int2 texSize = { 1024, 1024 };
+			uint32_t indexBufferSize = 0;
+			uint32_t* triangleIndices = nullptr;
+			float* texCoords = nullptr;
+			uint32_t texCoordBufferSize = 0;
+			uint32_t maxOutOmmArraySize = 0xFFFFFFFF;
+			std::function<float(int i, int j)> texCb;
+			omm::Format format = omm::Format::OC1_4_State;
 
+			static OmmBakeParams InitQuad()
+			{
+				OmmBakeParams p;
+				static uint32_t s_triangleIndices[] = { 0, 1, 2, 3, 1, 2 };
+				static float s_texCoords[] = { 0.f, 0.f,	0.f, 1.f,	1.f, 0.f,	 1.f, 1.f };
+				p.triangleIndices = s_triangleIndices;
+				p.indexBufferSize = sizeof(s_triangleIndices);
+				p.texCoords = s_texCoords;
+				p.texCoordBufferSize = sizeof(s_texCoords);
+				return p;
+			}
+		};
+
+		omm::Debug::Stats RunOmmBake(const OmmBakeParams& p) 
+		{
 			const uint32_t alphaTextureChannel = GetAlphaChannelIndex();
 
 			nvrhi::TextureDesc desc;
-			desc.width = texSize.x;
-			desc.height = texSize.y;
+			desc.width = p.texSize.x;
+			desc.height = p.texSize.y;
 			desc.format = nvrhi::Format::RGBA32_FLOAT;
 
 			nvrhi::StagingTextureHandle staging = m_device->createStagingTexture(desc, nvrhi::CpuAccessMode::Write);
@@ -100,7 +117,7 @@ namespace {
 				for (uint32_t i = 0; i < desc.width; ++i)
 				{
 					float* rgba = (float*)((uint8_t*)data + j * rowPitch + (4 * i) * sizeof(float));
-					float val = texCb(i, j);
+					float val = p.texCb(i, j);
 					rgba[0] = alphaTextureChannel == 0 ? val : 0.f;
 					rgba[1] = alphaTextureChannel == 1 ? val : 0.f;
 					rgba[2] = alphaTextureChannel == 2 ? val : 0.f;
@@ -123,18 +140,18 @@ namespace {
 			// Upload index buffer
 			nvrhi::BufferHandle ib;
 			{
-				ib = m_device->createBuffer({ .byteSize = indexBufferSize, .debugName = "ib", .format = nvrhi::Format::R32_UINT, .canHaveUAVs = true, .canHaveTypedViews = true, .canHaveRawViews = true });
+				ib = m_device->createBuffer({ .byteSize = p.indexBufferSize, .debugName = "ib", .format = nvrhi::Format::R32_UINT, .canHaveUAVs = true, .canHaveTypedViews = true, .canHaveRawViews = true });
 				m_commandList->beginTrackingBufferState(ib, nvrhi::ResourceStates::Common);
-				m_commandList->writeBuffer(ib, triangleIndices, indexBufferSize);
+				m_commandList->writeBuffer(ib, p.triangleIndices, p.indexBufferSize);
 			}
 
 			// Upload texcoords
 			nvrhi::BufferHandle vb;
 			{
-				vb = m_device->createBuffer({ .byteSize = texCoordBufferSize, .debugName = "vb", .canHaveUAVs = true, .canHaveRawViews = true });
+				vb = m_device->createBuffer({ .byteSize = p.texCoordBufferSize, .debugName = "vb", .canHaveUAVs = true, .canHaveRawViews = true });
 				m_commandList->beginTrackingBufferState(vb, nvrhi::ResourceStates::Common);
 
-				m_commandList->writeBuffer(vb, texCoords, texCoordBufferSize);
+				m_commandList->writeBuffer(vb, p.texCoords, p.texCoordBufferSize);
 			}
 
 			// Upload index buffer
@@ -147,22 +164,25 @@ namespace {
 			input.texCoordBuffer = vb;
 			input.texCoordStrideInBytes = sizeof(float2);
 			input.indexBuffer = ib;
-			input.numIndices = indexBufferSize / sizeof(uint32_t);
-			input.maxSubdivisionLevel = subdivisionLevel;
-			input.format = format == omm::Format::OC1_2_State ? nvrhi::rt::OpacityMicromapFormat::OC1_2_State : nvrhi::rt::OpacityMicromapFormat::OC1_4_State;
+			input.numIndices = p.indexBufferSize / sizeof(uint32_t);
+			input.maxSubdivisionLevel = p.subdivisionLevel;
+			input.format = p.format == omm::Format::OC1_2_State ? nvrhi::rt::OpacityMicromapFormat::OC1_2_State : nvrhi::rt::OpacityMicromapFormat::OC1_4_State;
 			input.dynamicSubdivisionScale = 0.f;
 			input.enableSpecialIndices = EnableSpecialIndices();
 			input.force32BitIndices = Force32BitIndices();
 			input.enableTexCoordDeduplication = EnableTexCoordDeduplication();
 			input.computeOnly = ComputeOnly();
+			input.maxOutOmmArraySize = p.maxOutOmmArraySize;
 
 			// Readback.
-			auto ReadBuffer = [this](nvrhi::BufferHandle buffer, size_t size = 0)->std::vector<uint8_t>
+			auto ReadBuffer = [this](nvrhi::BufferHandle buffer, size_t size = 0xFFFFFFFF)->std::vector<uint8_t>
 			{
+				if (size == 0)
+					return {};
 				std::vector<uint8_t> data;
 				void* pData = m_device->mapBuffer(buffer, nvrhi::CpuAccessMode::Read);
 				assert(pData);
-				size_t byteSize = size == 0 ? buffer->getDesc().byteSize : size;
+				size_t byteSize = size == 0xFFFFFFFF ? buffer->getDesc().byteSize : size;
 				assert(size <= buffer->getDesc().byteSize);
 				data.resize(byteSize);
 				memcpy(data.data(), pData, byteSize);
@@ -224,7 +244,7 @@ namespace {
 				EXPECT_LE(postBuildInfo.ommArrayBufferSize, info.ommArrayBufferSize);
 				EXPECT_LE(postBuildInfo.ommDescBufferSize, info.ommDescBufferSize);
 
-				res.ommArrayBuffer = m_device->createBuffer({ .byteSize = postBuildInfo.ommArrayBufferSize, .debugName = "omArrayBuffer", .canHaveUAVs = true, .canHaveRawViews = true });
+				res.ommArrayBuffer = m_device->createBuffer({ .byteSize = std::max(postBuildInfo.ommArrayBufferSize, 4u), .debugName = "omArrayBuffer", .canHaveUAVs = true, .canHaveRawViews = true});
 
 				m_commandList->open();
 
@@ -256,10 +276,10 @@ namespace {
 				ommIndexFormat = info.ommIndexFormat;
 				ommIndexCount = info.ommIndexCount;
 
-				res.ommArrayBuffer = m_device->createBuffer({ .byteSize = info.ommArrayBufferSize, .debugName = "omArrayBuffer", .canHaveUAVs = true, .canHaveRawViews = true });
-				res.ommDescBuffer = m_device->createBuffer({ .byteSize = info.ommDescBufferSize, .debugName = "omDescBuffer", .canHaveUAVs = true, .canHaveRawViews = true });
-				res.ommIndexBuffer = m_device->createBuffer({ .byteSize = info.ommIndexBufferSize, .debugName = "omIndexBuffer", .canHaveUAVs = true, .canHaveRawViews = true });
-				res.ommDescArrayHistogramBuffer = m_device->createBuffer({ .byteSize = info.ommDescArrayHistogramSize , .debugName = "omUsageDescBuffer" , .canHaveUAVs = true, .canHaveRawViews = true });
+				res.ommArrayBuffer = m_device->createBuffer({ .byteSize = std::max<size_t>(info.ommArrayBufferSize, 4u), .debugName = "ommArrayBuffer", .canHaveUAVs = true, .canHaveRawViews = true });
+				res.ommDescBuffer = m_device->createBuffer({ .byteSize = info.ommDescBufferSize, .debugName = "ommDescBuffer", .canHaveUAVs = true, .canHaveRawViews = true });
+				res.ommIndexBuffer = m_device->createBuffer({ .byteSize = info.ommIndexBufferSize, .debugName = "ommIndexBuffer", .canHaveUAVs = true, .canHaveRawViews = true });
+				res.ommDescArrayHistogramBuffer = m_device->createBuffer({ .byteSize = info.ommDescArrayHistogramSize , .debugName = "ommUsageDescBuffer" , .canHaveUAVs = true, .canHaveRawViews = true });
 				res.ommIndexHistogramBuffer = m_device->createBuffer({ .byteSize = info.ommIndexHistogramSize , .debugName = "ommIndexHistogramBuffer" , .canHaveUAVs = true, .canHaveRawViews = true });
 				res.ommPostBuildInfoBuffer = m_device->createBuffer({ .byteSize = info.ommPostBuildInfoBufferSize , .debugName = "ommPostBuildInfoBuffer" , .canHaveUAVs = true, .canHaveRawViews = true });
 
@@ -375,7 +395,31 @@ namespace {
 			};
 		}
 
-		omm::Debug::Stats RunVmBake(
+		omm::Debug::Stats RunOmmBake(
+			float alphaCutoff,
+			uint32_t subdivisionLevel,
+			int2 texSize,
+			uint32_t indexBufferSize,
+			uint32_t* triangleIndices,
+			float* texCoords,
+			uint32_t texCoordBufferSize,
+			std::function<float(int i, int j)> texCb,
+			omm::Format format = omm::Format::OC1_4_State)
+		{
+			OmmBakeParams p;
+			p.alphaCutoff = alphaCutoff;
+			p.subdivisionLevel = subdivisionLevel;
+			p.texSize = texSize;
+			p.texCb = texCb;
+			p.format = format;
+			p.triangleIndices = triangleIndices;
+			p.indexBufferSize = indexBufferSize;
+			p.texCoords = texCoords;
+			p.texCoordBufferSize = texCoordBufferSize;
+			return RunOmmBake(p);
+		}
+
+		omm::Debug::Stats RunOmmBake(
 			float alphaCutoff,
 			uint32_t subdivisionLevel,
 			int2 texSize,
@@ -383,7 +427,18 @@ namespace {
 			omm::Format format = omm::Format::OC1_4_State) {
 			uint32_t triangleIndices[] = { 0, 1, 2, 3, 1, 2 };
 			float texCoords[] = { 0.f, 0.f,	0.f, 1.f,	1.f, 0.f,	 1.f, 1.f };
-			return RunVmBake(alphaCutoff, subdivisionLevel, texSize, sizeof(triangleIndices), triangleIndices, texCoords, sizeof(texCoords), tex, format);
+
+			OmmBakeParams p;
+			p.alphaCutoff = alphaCutoff;
+			p.subdivisionLevel = subdivisionLevel;
+			p.texSize = texSize;
+			p.texCb = tex;
+			p.format = format;
+			p.triangleIndices = triangleIndices;
+			p.indexBufferSize = sizeof(triangleIndices);
+			p.texCoords = texCoords;
+			p.texCoordBufferSize = sizeof(texCoords);
+			return RunOmmBake(p);
 		}
 
 		void ExpectEqual(const omm::Debug::Stats& stats, const omm::Debug::Stats& expectedStats) {
@@ -408,7 +463,7 @@ namespace {
 		uint32_t subdivisionLevel = 4;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j)->float {
+		omm::Debug::Stats stats = RunOmmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j)->float {
 			return 0.6f;
 			});
 
@@ -427,7 +482,7 @@ namespace {
 		uint32_t subdivisionLevel = 3;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j)->float {
+		omm::Debug::Stats stats = RunOmmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j)->float {
 			return 0.6f;
 			});
 
@@ -446,7 +501,7 @@ namespace {
 		uint32_t subdivisionLevel = 2;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j)->float {
+		omm::Debug::Stats stats = RunOmmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j)->float {
 			return 0.6f;
 			});
 
@@ -465,7 +520,7 @@ namespace {
 		uint32_t subdivisionLevel = 1;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j)->float {
+		omm::Debug::Stats stats = RunOmmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j)->float {
 			return 0.6f;
 			});
 
@@ -484,7 +539,7 @@ namespace {
 		uint32_t subdivisionLevel = 0;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j)->float {
+		omm::Debug::Stats stats = RunOmmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j)->float {
 			return 0.6f;
 			});
 
@@ -503,7 +558,7 @@ namespace {
 		uint32_t subdivisionLevel = 4;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j)->float {
+		omm::Debug::Stats stats = RunOmmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j)->float {
 			return 0.4f;
 			});
 
@@ -522,7 +577,7 @@ namespace {
 		uint32_t subdivisionLevel = 3;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j)->float {
+		omm::Debug::Stats stats = RunOmmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j)->float {
 			return 0.4f;
 			});
 
@@ -541,7 +596,7 @@ namespace {
 		uint32_t subdivisionLevel = 2;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j)->float {
+		omm::Debug::Stats stats = RunOmmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j)->float {
 			return 0.4f;
 			});
 
@@ -560,7 +615,7 @@ namespace {
 		uint32_t subdivisionLevel = 1;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j)->float {
+		omm::Debug::Stats stats = RunOmmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j)->float {
 			return 0.4f;
 			});
 
@@ -579,7 +634,7 @@ namespace {
 		uint32_t subdivisionLevel = 0;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j)->float {
+		omm::Debug::Stats stats = RunOmmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j)->float {
 			return 0.4f;
 			});
 
@@ -598,7 +653,7 @@ namespace {
 
 		uint32_t subdivisionLevel = 1;
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j)->float {
+		omm::Debug::Stats stats = RunOmmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j)->float {
 			if ((i) % 8 != (j) % 8)
 				return 0.f;
 			else
@@ -619,7 +674,7 @@ namespace {
 
 		uint32_t subdivisionLevel = 1;
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j)->float {
+		omm::Debug::Stats stats = RunOmmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j)->float {
 			if ((i) % 8 != (j) % 8)
 				return 1.f;
 			else
@@ -641,7 +696,7 @@ namespace {
 		uint32_t subdivisionLevel = 4;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j)->float {
+		omm::Debug::Stats stats = RunOmmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j)->float {
 			if (i == 0 && j == 0)
 				return 0.6f;
 			return 0.4f;
@@ -664,12 +719,63 @@ namespace {
 		}
 	}
 
+	TEST_P(OMMBakeTestGPU, ZeroOmmArraySizeBudget) {
+
+		uint32_t subdivisionLevel = 4;
+		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
+
+		OmmBakeParams p = OmmBakeParams::InitQuad();
+		p.subdivisionLevel = 4;
+		p.maxOutOmmArraySize = 0;
+		p.texCb = [](int i, int j)->float {
+			if (i == 0 && j == 0)
+				return 0.6f;
+			return 0.4f;
+		};
+
+		omm::Debug::Stats stats = RunOmmBake(p);
+
+		ExpectEqual(stats, {
+			.totalFullyUnknownOpaque = 2,
+			});
+	}
+
+	TEST_P(OMMBakeTestGPU, HalfOmmArraySizeBudget) {
+
+		uint32_t subdivisionLevel = 4;
+		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
+
+		OmmBakeParams p = OmmBakeParams::InitQuad();
+		p.subdivisionLevel = 4;
+		p.maxOutOmmArraySize = 64u; // 64 bytes covers a single subdivlvl 4 prim
+		p.texCb = [](int i, int j)->float {
+			return 0.4f;
+		};
+
+		omm::Debug::Stats stats = RunOmmBake(p);
+
+		if (EnableSpecialIndices())
+		{
+			ExpectEqual(stats, { 
+				.totalFullyTransparent = 1, 
+				.totalFullyUnknownOpaque = 1,  // one triangle is "out of memory"
+				});
+		}
+		else
+		{
+			ExpectEqual(stats, { 
+				.totalTransparent = 256,
+				.totalFullyUnknownOpaque = 1 // one triangle is "out of memory"
+				});
+		}
+	}
+
 	TEST_P(OMMBakeTestGPU, Circle) {
 
 		uint32_t subdivisionLevel = 4;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j)->float {
+		omm::Debug::Stats stats = RunOmmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j)->float {
 			if (i == 0 && j == 0)
 				return 0.6f;
 
@@ -695,7 +801,7 @@ namespace {
 		uint32_t subdivisionLevel = 4;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j)->float {
+		omm::Debug::Stats stats = RunOmmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j)->float {
 			if (i == 0 && j == 0)
 				return 0.6f;
 
@@ -719,7 +825,7 @@ namespace {
 		uint32_t subdivisionLevel = 4;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j)->float {
+		omm::Debug::Stats stats = RunOmmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j)->float {
 			if (i == 0 && j == 0)
 				return 0.6f;
 
@@ -741,7 +847,7 @@ namespace {
 		uint32_t subdivisionLevel = 4;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j)->float {
+		omm::Debug::Stats stats = RunOmmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j)->float {
 			if (i == 0 && j == 0)
 				return 0.6f;
 
@@ -762,7 +868,7 @@ namespace {
 		uint32_t subdivisionLevel = 4;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j)->float {
+		omm::Debug::Stats stats = RunOmmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j)->float {
 			if (i == 0 && j == 0)
 				return 0.6f;
 
@@ -782,7 +888,7 @@ namespace {
 		uint32_t subdivisionLevel = 5;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j)->float {
+		omm::Debug::Stats stats = RunOmmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j)->float {
 
 			auto complexMultiply = [](float2 a, float2 b)->float2 {
 				return float2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x);
@@ -826,7 +932,7 @@ namespace {
 		uint32_t triangleIndices[] = { 0, 1, 2, };
 		float texCoords[] = { 0.2f, 0.f,  0.1f, 0.8f,  0.9f, 0.1f };
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, sizeof(triangleIndices), triangleIndices, texCoords, sizeof(texCoords), [](int i, int j)->float {
+		omm::Debug::Stats stats = RunOmmBake(0.5f, subdivisionLevel, { 1024, 1024 }, sizeof(triangleIndices), triangleIndices, texCoords, sizeof(texCoords), [](int i, int j)->float {
 
 			auto complexMultiply = [](float2 a, float2 b)->float2 {
 				return float2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x);
@@ -882,7 +988,7 @@ namespace {
 		uint32_t triangleIndices[] = { 0, 1, 2, };
 		float texCoords[] = { 0.2f, 0.f,  0.1f, 0.8f,  0.9f, 0.1f };
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, sizeof(triangleIndices), triangleIndices, texCoords, sizeof(texCoords), [](int i, int j)->float {
+		omm::Debug::Stats stats = RunOmmBake(0.5f, subdivisionLevel, { 1024, 1024 }, sizeof(triangleIndices), triangleIndices, texCoords, sizeof(texCoords), [](int i, int j)->float {
 
 			auto complexMultiply = [](float2 a, float2 b)->float2 {
 				return float2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x);
@@ -938,7 +1044,7 @@ namespace {
 		uint32_t triangleIndices[] = { 0, 1, 2, };
 		float texCoords[] = { 0.2f, 0.f,  0.1f, 0.8f,  0.9f, 0.1f };
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, sizeof(triangleIndices), triangleIndices, texCoords, sizeof(texCoords), [](int i, int j)->float {
+		omm::Debug::Stats stats = RunOmmBake(0.5f, subdivisionLevel, { 1024, 1024 }, sizeof(triangleIndices), triangleIndices, texCoords, sizeof(texCoords), [](int i, int j)->float {
 
 			auto multiply = [](float2 x, float2 y)->float2 {
 				return float2(x.x * y.x - x.y * y.y, x.x * y.y + x.y * y.x);
@@ -996,7 +1102,7 @@ namespace {
 		uint32_t triangleIndices[] = { 0, 1, 2, 3, 4, 5, };
 		float texCoords[] = { 0.2f, 0.f,  0.1f, 0.8f,  0.9f, 0.1f, 0.2f, 0.f,  0.1f, 0.8f,  0.9f, 0.1f };
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, sizeof(triangleIndices), triangleIndices, texCoords, sizeof(texCoords), [](int i, int j)->float {
+		omm::Debug::Stats stats = RunOmmBake(0.5f, subdivisionLevel, { 1024, 1024 }, sizeof(triangleIndices), triangleIndices, texCoords, sizeof(texCoords), [](int i, int j)->float {
 
 			auto multiply = [](float2 x, float2 y)->float2 {
 				return float2(x.x * y.x - x.y * y.y, x.x * y.y + x.y * y.x);
@@ -1055,7 +1161,7 @@ namespace {
 		//float texCoords[8] = { 0.25f, 0.25f,  0.25f, 0.75f,  0.75f, 0.25f };
 		float texCoords[] = { 0.f, 0.f,  0.f, 1.0f,  1.f, 1.f, 1.f, 0.f };
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 4, 4 }, sizeof(triangleIndices), triangleIndices, texCoords, sizeof(texCoords), [](int i, int j)->float {
+		omm::Debug::Stats stats = RunOmmBake(0.5f, subdivisionLevel, { 4, 4 }, sizeof(triangleIndices), triangleIndices, texCoords, sizeof(texCoords), [](int i, int j)->float {
 
 			uint32_t x = (i) % 2;
 			uint32_t y = (j) % 2;

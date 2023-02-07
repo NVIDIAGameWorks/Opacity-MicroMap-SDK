@@ -51,7 +51,7 @@ uint GetSourcePrimitiveIndex(uint primitiveIndex)
 
 	if (primitiveIndexOrHashTableEntryIndex < -4)
 	{
-		const uint hashTableEntryIndex = -(primitiveIndexOrHashTableEntryIndex + 4);
+		const uint hashTableEntryIndex = -(primitiveIndexOrHashTableEntryIndex + 5);
 		const uint primitiveIndexRef =  OMM_SUBRESOURCE_LOAD(HashTableBuffer, 8 * hashTableEntryIndex + 4); // [hash|primitiveIndex]
 		return primitiveIndexRef;
 	}

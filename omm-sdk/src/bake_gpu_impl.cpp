@@ -606,7 +606,7 @@ ommResult PipelineImpl::GetPreDispatchInfo(const ommGpuDispatchConfigDesc& confi
     const size_t maxNumMicroTris        = bird::GetNumMicroTriangles(config.maxSubdivisionLevel);
     const size_t bitsPerState           = size_t(config.globalFormat);
     const size_t vmArraySizeInBits      = size_t(primitiveCount) * std::max<size_t>(maxNumMicroTris * bitsPerState, 32u);
-    ommIndexFormat outOmmIndexBufferFormat = primitiveCount < std::numeric_limits<uint16_t>::max() - kNumSpecialIndices ? ommIndexFormat_I16_UINT : ommIndexFormat_I32_UINT;
+    ommIndexFormat outOmmIndexBufferFormat = primitiveCount < std::numeric_limits<int16_t>::max() - kNumSpecialIndices ? ommIndexFormat_I16_UINT : ommIndexFormat_I32_UINT;
     if (force32BitIndices)
         outOmmIndexBufferFormat = ommIndexFormat_I32_UINT;
 
