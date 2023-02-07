@@ -1838,7 +1838,7 @@
                 "type": "uint32_t",
                 "name": "maxOutOmmArraySize",
                 "value": "0xFFFFFFFF",
-                "comment": "The SDK will try to limit the omm array size of PreDispatchInfo::outOmmArraySizeInBytes and PostBakeInfo::outOmmArraySizeInBytes.\nCurrently a greedy algorithm is implemented with a first come-first serve order.\nThe SDK may (or may not) apply more sophisticated heuristics in the future."
+                "comment": "The SDK will try to limit the omm array size of PreDispatchInfo::outOmmArraySizeInBytes and PostBakeInfo::outOmmArraySizeInBytes.\nCurrently a greedy algorithm is implemented with a first come-first serve order.\nThe SDK may (or may not) apply more sophisticated heuristics in the future.\nIf no memory is available to allocate an OMM Array Block the state will default to Unknown Opaque (ignoring any bake flags do disable special indices)."
             },
             {
                 "type": "ScratchMemoryBudget",
