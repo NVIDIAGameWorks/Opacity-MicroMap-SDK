@@ -70,19 +70,31 @@ jobs:
           path: build/install
           
   Build-Ubuntu:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       -
         name : Checkout
         uses: actions/checkout@v3
         with:
           submodules: true
-      - name: Setup CMake
+      - 
+        name: Setup CMake
         uses: jwlawson/actions-setup-cmake@v1.13
         with:
           cmake-version: '3.16.x'
-      - name: Setup Ninja
+      - 
+        name: Setup Ninja
         uses: seanmiddleditch/gha-setup-ninja@master
+        
+      - 
+        name: Install Vulkan SDK
+        run: |
+          sudo apt install -y wget
+          wget -qO- https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo tee /etc/apt/trusted.gpg.d/lunarg.asc
+          sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-jammy.list http://packages.lunarg.com/vulkan/lunarg-vulkan-jammy.list
+          sudo apt update
+          sudo apt install -y vulkan-sdk
+          
       -
         name: CMake Generate
         run: |
