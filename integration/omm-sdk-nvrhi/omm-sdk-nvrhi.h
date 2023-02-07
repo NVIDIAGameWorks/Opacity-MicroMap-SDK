@@ -56,6 +56,7 @@ namespace omm
 			uint32_t							numIndices = 0;
 
 			uint32_t							maxSubdivisionLevel = 0;
+			uint32_t							maxOutOmmArraySize = 0xFFFFFFFF;
 			nvrhi::rt::OpacityMicromapFormat	format = nvrhi::rt::OpacityMicromapFormat::OC1_4_State;
 			float								dynamicSubdivisionScale = 0.5f;
 			bool								minimalMemoryMode = false;

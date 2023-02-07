@@ -40,7 +40,8 @@ void main(uint3 tid : SV_DispatchThreadID)
 	uint hashTableEntryIndex;
 	hashTable::Result result		= FindOrInsertOMMEntry(texCoords, subdivisionLevel, hashTableEntryIndex);
 
-	uint vmDescOffset = 0;
+	int vmDescOffset = (int)SpecialIndex::FullyUnknownOpaque;
+
 	if (result == hashTable::Result::Null ||
 		result == hashTable::Result::Inserted || 
 		result == hashTable::Result::ReachedMaxAttemptCount)
@@ -56,17 +57,19 @@ void main(uint3 tid : SV_DispatchThreadID)
 
 		// Allocate new VM-array offset & vm-index
 		uint vmArrayOffset = 0;
+		uint vmDataByteSize = 0;
 		{
 			const uint vmDataBitSize			= GetOMMFormatBitCount(ommFormat) * numMicroTriangles;
 
 			// spec allows 1 byte alignment but we require 4 byte to make sure UAV writes
 			// are DW aligned.
-			const uint vmDataByteSize			= max(vmDataBitSize >> 3u, 4u);
+			vmDataByteSize						= max(vmDataBitSize >> 3u, 4u);
 
 			OMM_SUBRESOURCE_INTERLOCKEDADD(OmmArrayAllocatorCounterBuffer, 0, vmDataByteSize, vmArrayOffset);
 		}
 
 		// Allocate new VM-desc for the vmArrayOffset
+		if ((vmArrayOffset + vmDataByteSize) <= g_GlobalConstants.MaxOutOmmArraySize)
 		{
 			// The rasterItemOffset is the same things as the vmDescOffset,
 			OMM_SUBRESOURCE_INTERLOCKEDADD(OmmDescAllocatorCounterBuffer, 0, 1, vmDescOffset);
@@ -79,84 +82,84 @@ void main(uint3 tid : SV_DispatchThreadID)
 				u_ommDescArrayBuffer.Store(vmDescOffset * 8, vmArrayOffset);
 				u_ommDescArrayBuffer.Store(vmDescOffset * 8 + 4, vmDescData);
 			}
-		}
 
-		// Increase UsageDesc info struct,
-		// resolve uniform vm's later by usage subtraction.
-		{
-			const uint strideInBytes		= 8;	// sizeof(VisibilityMapUsageDesc), [count32, format16, level16]
-			const uint index				= (kOMMFormatNum * subdivisionLevel + ((uint)ommFormat - 1));
-			const uint offset				= strideInBytes * index;
+			// Increase UsageDesc info struct,
+			// resolve uniform vm's later by usage subtraction.
+			{
+				const uint strideInBytes		= 8;	// sizeof(VisibilityMapUsageDesc), [count32, format16, level16]
+				const uint index				= (kOMMFormatNum * subdivisionLevel + ((uint)ommFormat - 1));
+				const uint offset				= strideInBytes * index;
 
-			InterlockedAdd(u_ommDescArrayHistogramBuffer, offset, 1);
-		}
+				InterlockedAdd(u_ommDescArrayHistogramBuffer, offset, 1);
+			}
 
-		/// ---- Setup baking parameters ----- 
+			/// ---- Setup baking parameters ----- 
 
-		// Allocate a slot in the raster items array.
-		uint bakeResultGlobalOffset	= 0;
-		uint bakeResultBatchIndex	= 0;
-		{
-			const uint offset						= 4 * subdivisionLevel;
+			// Allocate a slot in the raster items array.
+			uint bakeResultGlobalOffset	= 0;
+			uint bakeResultBatchIndex	= 0;
+			{
+				const uint offset						= 4 * subdivisionLevel;
 
-			OMM_SUBRESOURCE_INTERLOCKEDADD(BakeResultBufferCounterBuffer, offset, 1, bakeResultGlobalOffset);
+				OMM_SUBRESOURCE_INTERLOCKEDADD(BakeResultBufferCounterBuffer, offset, 1, bakeResultGlobalOffset);
 
-			const uint maxItemsPerBatch				= GetMaxItemsPerBatch(subdivisionLevel);
-			bakeResultBatchIndex					= bakeResultGlobalOffset / maxItemsPerBatch;
-		}
+				const uint maxItemsPerBatch				= GetMaxItemsPerBatch(subdivisionLevel);
+				bakeResultBatchIndex					= bakeResultGlobalOffset / maxItemsPerBatch;
+			}
 
-		// Store the VM-that will be procesed by the rasterizer.
-		{
-			const uint ommFormatAndPrimitiveIndex = (primitiveIndex) | ((uint)ommFormat << 30);
+			// Store the VM-that will be procesed by the rasterizer.
+			{
+				const uint ommFormatAndPrimitiveIndex = (primitiveIndex) | ((uint)ommFormat << 30);
 
-			const uint offset					 = 8 * (bakeResultGlobalOffset + subdivisionLevel * g_GlobalConstants.PrimitiveCount);
+				const uint offset					 = 8 * (bakeResultGlobalOffset + subdivisionLevel * g_GlobalConstants.PrimitiveCount);
 
-			OMM_SUBRESOURCE_STORE(RasterItemsBuffer, offset, vmArrayOffset);
-			OMM_SUBRESOURCE_STORE(RasterItemsBuffer, offset + 4, ommFormatAndPrimitiveIndex);
-		}
+				OMM_SUBRESOURCE_STORE(RasterItemsBuffer, offset, vmArrayOffset);
+				OMM_SUBRESOURCE_STORE(RasterItemsBuffer, offset + 4, ommFormatAndPrimitiveIndex);
+			}
 
-		// Increment the drawcall count for the current batch & subdivisiolevel.
-		{
-			const uint strideInBytes					= 20;	// arg count of DrawIndexedInstanced 
-			const uint InstanceCountOffsetInBytes		= 4;	// offset of InstanceCount in DrawIndexedInstanced
-			const uint offset							= InstanceCountOffsetInBytes + strideInBytes * (subdivisionLevel * g_GlobalConstants.MaxBatchCount + bakeResultBatchIndex);
+			// Increment the drawcall count for the current batch & subdivisiolevel.
+			{
+				const uint strideInBytes					= 20;	// arg count of DrawIndexedInstanced 
+				const uint InstanceCountOffsetInBytes		= 4;	// offset of InstanceCount in DrawIndexedInstanced
+				const uint offset							= InstanceCountOffsetInBytes + strideInBytes * (subdivisionLevel * g_GlobalConstants.MaxBatchCount + bakeResultBatchIndex);
 
-			OMM_SUBRESOURCE_INTERLOCKEDADD(IEBakeBuffer, offset, 1, bakeResultGlobalOffset);
-		}
+				OMM_SUBRESOURCE_INTERLOCKEDADD(IEBakeBuffer, offset, 1, bakeResultGlobalOffset);
+			}
 
-		// Increment the thread count for the current batch & subdivisiolevel.
-		uint threadGroupCountX = 0;
-		{
-			// This is the most number of micro-triangles that will be processed per thread
-			// 32 allows non-atomic writes to the vmArrayBuffer for 2 and 4-state vm formats.
-			const uint kMaxNumMicroTrianglePerThread	= 32;
-			const uint numMicroTrianglePerThread		= min(kMaxNumMicroTrianglePerThread, numMicroTriangles);
-			const uint numThreadsNeeded					= max(numMicroTriangles / numMicroTrianglePerThread, 1u);
+			// Increment the thread count for the current batch & subdivisiolevel.
+			uint threadGroupCountX = 0;
+			{
+				// This is the most number of micro-triangles that will be processed per thread
+				// 32 allows non-atomic writes to the vmArrayBuffer for 2 and 4-state vm formats.
+				const uint kMaxNumMicroTrianglePerThread	= 32;
+				const uint numMicroTrianglePerThread		= min(kMaxNumMicroTrianglePerThread, numMicroTriangles);
+				const uint numThreadsNeeded					= max(numMicroTriangles / numMicroTrianglePerThread, 1u);
 
-			const uint strideInBytes					= 4; // sizeof(uint32_t)
-			const uint offset							= strideInBytes * (subdivisionLevel * g_GlobalConstants.MaxBatchCount + bakeResultBatchIndex);
+				const uint strideInBytes					= 4; // sizeof(uint32_t)
+				const uint offset							= strideInBytes * (subdivisionLevel * g_GlobalConstants.MaxBatchCount + bakeResultBatchIndex);
 
-			uint oldGlobalThreadCountX;
-			OMM_SUBRESOURCE_INTERLOCKEDADD(DispatchIndirectThreadCountBuffer, offset, numThreadsNeeded, oldGlobalThreadCountX);
-			uint newGlobalThreadCountX = numThreadsNeeded + oldGlobalThreadCountX;
+				uint oldGlobalThreadCountX;
+				OMM_SUBRESOURCE_INTERLOCKEDADD(DispatchIndirectThreadCountBuffer, offset, numThreadsNeeded, oldGlobalThreadCountX);
+				uint newGlobalThreadCountX = numThreadsNeeded + oldGlobalThreadCountX;
 
-			threadGroupCountX = (newGlobalThreadCountX + 127) / 128;
-		}
+				threadGroupCountX = (newGlobalThreadCountX + 127) / 128;
+			}
 
-		// Increment the thread GROUP count for the current batch & subdivisiolevel.
-		{
-			const uint strideInBytes			 = 12; // arg count of Dispatch
-			const uint ThreadCountXOffsetInBytes = 0;	 // offset of ThreadCountX in Dispatch
-			const uint offset					 = ThreadCountXOffsetInBytes + strideInBytes * (subdivisionLevel * g_GlobalConstants.MaxBatchCount + bakeResultBatchIndex);
+			// Increment the thread GROUP count for the current batch & subdivisiolevel.
+			{
+				const uint strideInBytes			 = 12; // arg count of Dispatch
+				const uint ThreadCountXOffsetInBytes = 0;	 // offset of ThreadCountX in Dispatch
+				const uint offset					 = ThreadCountXOffsetInBytes + strideInBytes * (subdivisionLevel * g_GlobalConstants.MaxBatchCount + bakeResultBatchIndex);
 
-			uint _dummy;
-			OMM_SUBRESOURCE_INTERLOCKEDMAX(IECompressCsBuffer, offset, threadGroupCountX, _dummy);
+				uint _dummy;
+				OMM_SUBRESOURCE_INTERLOCKEDMAX(IECompressCsBuffer, offset, threadGroupCountX, _dummy);
+			}
 		}
 	}
 	else // if (status == hashTable::Result::Found
 	{
 		// Store the hash-table offset and patch up the pointers later.
-		vmDescOffset = (uint)(-hashTableEntryIndex - 4);
+		vmDescOffset = (uint)(-hashTableEntryIndex - 5);
 	}
 
 	OMM_SUBRESOURCE_STORE(TempOmmIndexBuffer, 4 * primitiveIndex, vmDescOffset);

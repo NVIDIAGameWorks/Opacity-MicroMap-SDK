@@ -16,7 +16,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 #define OMM_VERSION_MAJOR 0
 #define OMM_VERSION_MINOR 9
-#define OMM_VERSION_BUILD 1
+#define OMM_VERSION_BUILD 2
 
 #if defined(_MSC_VER)
     #define OMM_CALL __fastcall
@@ -788,7 +788,7 @@ typedef struct ommGpuPreDispatchInfo
    uint32_t       outOmmIndexCount;
    // Min required size of OUT_OMM_ARRAY_DATA. GetBakeInfo returns most conservative estimation while less conservative number
    // can be obtained via BakePrepass
-   size_t         outOmmArraySizeInBytes;
+   uint32_t       outOmmArraySizeInBytes;
    // Min required size of OUT_OMM_DESC_ARRAY. GetBakeInfo returns most conservative estimation while less conservative number
    // can be obtained via BakePrepass
    uint32_t       outOmmDescSizeInBytes;
@@ -848,12 +848,15 @@ typedef struct ommGpuDispatchConfigDesc
    float                     dynamicSubdivisionScale;
    // The global Format. May be overriden by the per-triangle config.
    ommFormat                 globalFormat;
-   // Micro triangle count is 4^N, where N is the subdivision level. Subdivision level must be in range [0,
-   // MaxSubdivisionLevel]. The global subdivisionLevel. May be overriden by the per-triangle subdivision level setting. The
-   // subdivision level to allow in dynamic mode and value is used to allocate appropriate scratch memory.
-   uint8_t                   globalSubdivisionLevel;
    uint8_t                   maxSubdivisionLevel;
-   uint8_t                   enableSubdivisionLevelBuffer;
+   ommBool                   enableSubdivisionLevelBuffer;
+   // The SDK will try to limit the omm array size of PreDispatchInfo::outOmmArraySizeInBytes and
+   // PostBakeInfo::outOmmArraySizeInBytes.
+   // Currently a greedy algorithm is implemented with a first come-first serve order.
+   // The SDK may (or may not) apply more sophisticated heuristics in the future.
+   // If no memory is available to allocate an OMM Array Block the state will default to Unknown Opaque (ignoring any bake
+   // flags do disable special indices).
+   uint32_t                  maxOutOmmArraySize;
    // Target scratch memory budget, The SDK will try adjust the sum of the transient pool buffers to match this value. Higher
    // budget more efficiently executes the baking operation. May return INSUFFICIENT_SCRATCH_MEMORY if set too low.
    ommGpuScratchMemoryBudget maxScratchMemorySize;
@@ -877,9 +880,9 @@ inline ommGpuDispatchConfigDesc ommGpuDispatchConfigDescDefault()
    v.alphaCutoff                   = 0.5f;
    v.dynamicSubdivisionScale       = 2;
    v.globalFormat                  = ommFormat_OC1_4_State;
-   v.globalSubdivisionLevel        = 4;
    v.maxSubdivisionLevel           = 8;
    v.enableSubdivisionLevelBuffer  = 0;
+   v.maxOutOmmArraySize            = 0xFFFFFFFF;
    v.maxScratchMemorySize          = ommGpuScratchMemoryBudget_Default;
    return v;
 }

@@ -683,7 +683,7 @@ namespace omm
          uint32_t    outOmmIndexCount                   = 0xFFFFFFFF;
          // Min required size of OUT_OMM_ARRAY_DATA. GetBakeInfo returns most conservative estimation while less conservative number
          // can be obtained via BakePrepass
-         size_t      outOmmArraySizeInBytes             = 0xFFFFFFFF;
+         uint32_t    outOmmArraySizeInBytes             = 0xFFFFFFFF;
          // Min required size of OUT_OMM_DESC_ARRAY. GetBakeInfo returns most conservative estimation while less conservative number
          // can be obtained via BakePrepass
          uint32_t    outOmmDescSizeInBytes              = 0xFFFFFFFF;
@@ -728,12 +728,15 @@ namespace omm
          float               dynamicSubdivisionScale       = 2;
          // The global Format. May be overriden by the per-triangle config.
          Format              globalFormat                  = Format::OC1_4_State;
-         // Micro triangle count is 4^N, where N is the subdivision level. Subdivision level must be in range [0,
-         // MaxSubdivisionLevel]. The global subdivisionLevel. May be overriden by the per-triangle subdivision level setting. The
-         // subdivision level to allow in dynamic mode and value is used to allocate appropriate scratch memory.
-         uint8_t             globalSubdivisionLevel        = 4;
          uint8_t             maxSubdivisionLevel           = 8;
-         uint8_t             enableSubdivisionLevelBuffer  = 0;
+         bool                enableSubdivisionLevelBuffer  = false;
+         // The SDK will try to limit the omm array size of PreDispatchInfo::outOmmArraySizeInBytes and
+         // PostBakeInfo::outOmmArraySizeInBytes.
+         // Currently a greedy algorithm is implemented with a first come-first serve order.
+         // The SDK may (or may not) apply more sophisticated heuristics in the future.
+         // If no memory is available to allocate an OMM Array Block the state will default to Unknown Opaque (ignoring any bake
+         // flags do disable special indices).
+         uint32_t            maxOutOmmArraySize            = 0xFFFFFFFF;
          // Target scratch memory budget, The SDK will try adjust the sum of the transient pool buffers to match this value. Higher
          // budget more efficiently executes the baking operation. May return INSUFFICIENT_SCRATCH_MEMORY if set too low.
          ScratchMemoryBudget maxScratchMemorySize          = ScratchMemoryBudget::Default;

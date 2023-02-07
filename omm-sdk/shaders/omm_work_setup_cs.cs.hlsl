@@ -39,7 +39,8 @@ void main(uint3 tid : SV_DispatchThreadID)
 	uint hashTableEntryIndex;
 	hashTable::Result result		= FindOrInsertOMMEntry(texCoords, subdivisionLevel, hashTableEntryIndex);
 
-	uint vmDescOffset = 0;
+	int vmDescOffset = (int)SpecialIndex::FullyUnknownOpaque;
+
 	if (result == hashTable::Result::Null ||
 		result == hashTable::Result::Inserted || 
 		result == hashTable::Result::ReachedMaxAttemptCount)
@@ -66,9 +67,7 @@ void main(uint3 tid : SV_DispatchThreadID)
 			OMM_SUBRESOURCE_INTERLOCKEDADD(OmmArrayAllocatorCounterBuffer, 0, vmDataByteSize, vmArrayOffset);
 		}
 
-		const uint kMaxVmArrayBudget = 0xFFFFFFFF;
-
-		if ((vmArrayOffset + vmDataByteSize) < kMaxVmArrayBudget)
+		if ((vmArrayOffset + vmDataByteSize) <= g_GlobalConstants.MaxOutOmmArraySize)
 		{
 			// Allocate new VM-desc for the vmArrayOffset
 			{
@@ -147,7 +146,7 @@ void main(uint3 tid : SV_DispatchThreadID)
 	else // if (status == hashTable::Result::Found
 	{
 		// Store the hash-table offset and patch up the pointers later.
-		vmDescOffset = (uint)(-hashTableEntryIndex - 4);
+		vmDescOffset = (uint)(-hashTableEntryIndex - 5);
 	}
 
 	OMM_SUBRESOURCE_STORE(TempOmmIndexBuffer, 4 * primitiveIndex, vmDescOffset);

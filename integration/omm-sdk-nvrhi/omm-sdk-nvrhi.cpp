@@ -649,8 +649,8 @@ omm::Gpu::DispatchConfigDesc GpuBakeNvrhiImpl::GetConfig(const GpuBakeNvrhi::Inp
 	config.indexCount							= (uint32_t)params.numIndices;
 	config.globalFormat							= params.format == nvrhi::rt::OpacityMicromapFormat::OC1_2_State ? Format::OC1_2_State : Format::OC1_4_State;
 	config.maxScratchMemorySize					= params.minimalMemoryMode ? Gpu::ScratchMemoryBudget::MB_4 : Gpu::ScratchMemoryBudget::MB_256;
+	config.maxOutOmmArraySize				    = params.maxOutOmmArraySize;
 	config.maxSubdivisionLevel					= params.maxSubdivisionLevel;
-	config.globalSubdivisionLevel				= params.maxSubdivisionLevel;
 	config.dynamicSubdivisionScale				= params.dynamicSubdivisionScale;
 	return config;
 }

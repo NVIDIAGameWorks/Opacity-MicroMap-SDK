@@ -250,7 +250,8 @@ ommResult  PipelineImpl::Validate(const ommGpuPipelineConfigDesc& config)
 ommResult  PipelineImpl::Validate(const ommGpuDispatchConfigDesc& config) const
 {
     const uint32_t MaxSubdivLevelAPI    = kMaxSubdivLevel;
-    const uint32_t MaxSubdivLevel       = std::min<uint32_t>(MaxSubdivLevelAPI, OmmStaticBuffersImpl::kMaxSubdivisionLevelNum);
+    const uint32_t MaxSubdivLevelGfx    = std::min<uint32_t>(MaxSubdivLevelAPI, OmmStaticBuffersImpl::kMaxSubdivisionLevelNum);
+    const uint32_t MaxSubdivLevelCS     = 12;
     const bool computeOnly              = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_ComputeOnly) == (uint32_t)ommGpuBakeFlags_ComputeOnly);
     const bool doSetup                  = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_PerformSetup) == (uint32_t)ommGpuBakeFlags_PerformSetup);
     const bool doBake                   = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_PerformBake) == (uint32_t)ommGpuBakeFlags_PerformBake);
@@ -259,9 +260,9 @@ ommResult  PipelineImpl::Validate(const ommGpuDispatchConfigDesc& config) const
         return ommResult_INVALID_ARGUMENT;
     if (config.indexCount % 3 != 0)
         return ommResult_INVALID_ARGUMENT;
-    if (!computeOnly && config.maxSubdivisionLevel > MaxSubdivLevel)
+    if (!computeOnly && config.maxSubdivisionLevel > MaxSubdivLevelGfx)
         return ommResult_INVALID_ARGUMENT;
-    if (config.maxSubdivisionLevel < config.globalSubdivisionLevel)
+    if (computeOnly && config.maxSubdivisionLevel > MaxSubdivLevelCS)
         return ommResult_INVALID_ARGUMENT;
     if (config.enableSubdivisionLevelBuffer)
         return ommResult_NOT_IMPLEMENTED;
@@ -605,7 +606,7 @@ ommResult PipelineImpl::GetPreDispatchInfo(const ommGpuDispatchConfigDesc& confi
     const size_t maxNumMicroTris        = bird::GetNumMicroTriangles(config.maxSubdivisionLevel);
     const size_t bitsPerState           = size_t(config.globalFormat);
     const size_t vmArraySizeInBits      = size_t(primitiveCount) * std::max<size_t>(maxNumMicroTris * bitsPerState, 32u);
-    ommIndexFormat outOmmIndexBufferFormat = primitiveCount < std::numeric_limits<uint16_t>::max() - kNumSpecialIndices ? ommIndexFormat_I16_UINT : ommIndexFormat_I32_UINT;
+    ommIndexFormat outOmmIndexBufferFormat = primitiveCount < std::numeric_limits<int16_t>::max() - kNumSpecialIndices ? ommIndexFormat_I16_UINT : ommIndexFormat_I32_UINT;
     if (force32BitIndices)
         outOmmIndexBufferFormat = ommIndexFormat_I32_UINT;
 
@@ -615,7 +616,7 @@ ommResult PipelineImpl::GetPreDispatchInfo(const ommGpuDispatchConfigDesc& confi
 
     const size_t outMaxTheoreticalOmmArraySizeInBytes   = math::Align<size_t>(math::DivUp<size_t>(vmArraySizeInBits, 8u), 4u);
 
-    const size_t outOmmArraySizeInBytes                 = outMaxTheoreticalOmmArraySizeInBytes;
+    const size_t outOmmArraySizeInBytes                 = std::min<size_t>(outMaxTheoreticalOmmArraySizeInBytes, config.maxOutOmmArraySize);
     const size_t outOmmDescSizeInBytes                  = primitiveCount * sizeof(uint64_t);
     const size_t outOmmIndexBufferSizeInBytes           = math::Align<size_t>(primitiveCount * indexBufferFormatSize, 4u);
     const size_t outOmmHistogramSizeInBytes             = (size_t(config.maxSubdivisionLevel) + 1) * 2 * sizeof(uint64_t);
@@ -653,7 +654,7 @@ ommResult PipelineImpl::GetPreDispatchInfo(const ommGpuDispatchConfigDesc& confi
 
     outPreBuildInfo->outOmmIndexCount = primitiveCount;
     RETURN_STATUS_IF_FAILED(SafeCast(outPreBuildInfo->outOmmArrayHistogramSizeInBytes, outOmmHistogramSizeInBytes));
-    outPreBuildInfo->outOmmArraySizeInBytes = outOmmArraySizeInBytes;
+    RETURN_STATUS_IF_FAILED(SafeCast(outPreBuildInfo->outOmmArraySizeInBytes, outOmmArraySizeInBytes));
     RETURN_STATUS_IF_FAILED(SafeCast(outPreBuildInfo->outOmmDescSizeInBytes, outOmmDescSizeInBytes));
     outPreBuildInfo->outOmmIndexBufferFormat = outOmmIndexBufferFormat;
     RETURN_STATUS_IF_FAILED(SafeCast(outPreBuildInfo->outOmmIndexBufferSizeInBytes, outOmmIndexBufferSizeInBytes));
@@ -710,7 +711,7 @@ ommResult PipelineImpl::InitGlobalConstants(const ommGpuDispatchConfigDesc& conf
     cbuffer.IndexCount                                 = config.indexCount;
     cbuffer.PrimitiveCount                             = primitiveCount;
     cbuffer.MaxBatchCount                              = info.MaxBatchCount;
-    cbuffer.GlobalSubdivisionLevel                     = config.globalSubdivisionLevel;
+    cbuffer.MaxOutOmmArraySize                         = preBuildInfo.outOmmArraySizeInBytes;
     cbuffer.IsOmmIndexFormat16bit                      = IsOmmIndexFormat16bit;
     cbuffer.DoSetup                                    = doSetup;
     cbuffer.SamplerIndex                               = m_pipelineBuilder.GetStaticSamplerIndex(config.runtimeSamplerDesc);
