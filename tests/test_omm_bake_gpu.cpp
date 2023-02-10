@@ -340,9 +340,12 @@ namespace {
 			std::replace(tname.begin(), tname.end(), '/', '_');
 
 #if OMM_TEST_ENABLE_IMAGE_DUMP
-			bool dumpDebug = true;
+			constexpr bool kDumpDebug = true;
+#else
+			constexpr bool kDumpDebug = false;
+#endif
 
-			if (dumpDebug)
+			if constexpr (kDumpDebug)
 			{
 				bake.DumpDebug(
 					"OmmBakeOutput_GPU",
@@ -354,15 +357,14 @@ namespace {
 					ommIndexFormat,
 					ommArrayHistogramData,
 					ommIndexHistogramData,
-					triangleIndices,
-					indexBufferSize / sizeof(uint32_t),
-					texCoords,
+					p.triangleIndices,
+					p.indexBufferSize / sizeof(uint32_t),
+					p.texCoords,
 					imageData.data(),
-					texSize.x,
-					texSize.y
+					p.texSize.x,
+					p.texSize.y
 				);
 			}
-#endif
 			size_t indexFormatSize = nvrhi::getFormatInfo(ommIndexFormat).bytesPerBlock;
 
 			omm::Cpu::BakeResultDesc resDesc;

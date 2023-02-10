@@ -46,7 +46,7 @@ namespace {
 
 			omm::Cpu::Texture tex_04 = 0;
 			{
-				vmtest::Texture texture(1024, 1024, 1, [](int i, int j, int w, int h, int mip) {
+				vmtest::TextureFP32 texture(1024, 1024, 1, [](int i, int j, int w, int h, int mip) {
 					if ((i) % 2 != (j) % 2)
 						return 0.f;
 					else

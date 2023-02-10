@@ -35,7 +35,7 @@ namespace omm
 
         ommResult Create(const ommCpuTextureDesc& desc);
 
-        template<TilingMode eTilingMode>
+        template<ommCpuTextureFormat eFormat, TilingMode eTilingMode>
         float Load(const int2& texCoord, int32_t mip) const;
 
         float Load(const int2& texCoord, int32_t mip) const;
@@ -44,6 +44,10 @@ namespace omm
 
         TilingMode GetTilingMode() const {
             return m_tilingMode;
+        }
+        
+        ommCpuTextureFormat GetTextureFormat() const {
+            return m_textureFormat;
         }
 
         int2 GetSize(int32_t mip) const {
@@ -83,14 +87,16 @@ namespace omm
 
         vector<Mips> m_mips;
         TilingMode m_tilingMode;
+        ommCpuTextureFormat m_textureFormat;
         uint8_t* m_data;
         size_t m_dataSize;
     };
 
-    template<TilingMode eTilingMode>
+    template<ommCpuTextureFormat eFormat, TilingMode eTilingMode>
     float TextureImpl::Load(const int2& texCoord, int32_t mip) const
     {
         OMM_ASSERT(eTilingMode == m_tilingMode);
+        OMM_ASSERT(eFormat == m_textureFormat);
         OMM_ASSERT(texCoord.x >= 0);
         OMM_ASSERT(texCoord.y >= 0);
         OMM_ASSERT(texCoord.x < m_mips[mip].size.x);
@@ -99,7 +105,16 @@ namespace omm
         OMM_ASSERT(glm::all(glm::notEqual(texCoord, kTexCoordInvalid2)));
         const uint64_t idx = From2Dto1D<eTilingMode>(texCoord, m_mips[mip].size);
         OMM_ASSERT(idx < m_mips[mip].numElements);
-        return ((float*)(m_data + m_mips[mip].dataOffset))[idx];
+
+        if constexpr (eFormat == ommCpuTextureFormat_FP32)
+            return ((float*)(m_data + m_mips[mip].dataOffset))[idx];
+        else if constexpr (eFormat == ommCpuTextureFormat_UNORM8)
+            return (float)((uint8_t*)(m_data + m_mips[mip].dataOffset))[idx] * (1.f / 255.f);
+        else
+        {
+            assert(false);
+            return 0;
+        }
     }
 
    	template<> uint64_t TextureImpl::From2Dto1D<TilingMode::Linear>(const int2& idx, const int2& size);

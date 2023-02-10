@@ -24,6 +24,7 @@ namespace omm
     TextureImpl::TextureImpl(const StdAllocator<uint8_t>& stdAllocator) :
         m_stdAllocator(stdAllocator),
         m_mips(stdAllocator),
+        m_textureFormat(ommCpuTextureFormat_MAX_NUM),
         m_tilingMode(TilingMode::MAX_NUM),
         m_data(nullptr)
     {
@@ -65,6 +66,19 @@ namespace omm
 
         m_mips.resize(desc.mipCount);
         m_tilingMode = !!((uint32_t)desc.flags & (uint32_t)ommCpuTextureFlags_DisableZOrder) ? TilingMode::Linear : TilingMode::MortonZ;
+        m_textureFormat = desc.format;
+
+        auto GetSizePerPixel = [](ommCpuTextureFormat format)->size_t
+        {
+            if (format == ommCpuTextureFormat_UNORM8)
+                return sizeof(uint8_t);
+            else if (format == ommCpuTextureFormat_FP32)
+                return sizeof(float);
+            OMM_ASSERT(false);
+            return 0;
+        };
+
+        const size_t sizePerPixel = GetSizePerPixel(m_textureFormat);
 
         size_t totalSize = 0;
         for (uint32_t mipIt = 0; mipIt < desc.mipCount; ++mipIt)
@@ -74,22 +88,14 @@ namespace omm
             m_mips[mipIt].rcpSize = 1.f / (float2)m_mips[mipIt].size;
             m_mips[mipIt].dataOffset = totalSize;
 
-            if (desc.format == ommCpuTextureFormat_FP32)
+            if (m_tilingMode == TilingMode::Linear)
             {
-                if (m_tilingMode == TilingMode::Linear)
-                {
-                    m_mips[mipIt].numElements = size_t(m_mips[mipIt].size.x) * m_mips[mipIt].size.y;
-                }
-                else if (m_tilingMode == TilingMode::MortonZ)
-                {
-                    size_t maxDim = nextPow2(std::max(m_mips[mipIt].size.x, m_mips[mipIt].size.y));
-                    m_mips[mipIt].numElements = maxDim * maxDim;
-                }
-                else
-                {
-                    OMM_ASSERT(false);
-                    return ommResult_INVALID_ARGUMENT;
-                }
+                m_mips[mipIt].numElements = size_t(m_mips[mipIt].size.x) * m_mips[mipIt].size.y;
+            }
+            else if (m_tilingMode == TilingMode::MortonZ)
+            {
+                size_t maxDim = nextPow2(std::max(m_mips[mipIt].size.x, m_mips[mipIt].size.y));
+                m_mips[mipIt].numElements = maxDim * maxDim;
             }
             else
             {
@@ -97,7 +103,7 @@ namespace omm
                 return ommResult_INVALID_ARGUMENT;
             }
 
-            totalSize += sizeof(float) * m_mips[mipIt].numElements;
+            totalSize += sizePerPixel * m_mips[mipIt].numElements;
             totalSize = math::Align(totalSize, kAlignment);
         }
 
@@ -105,58 +111,54 @@ namespace omm
 
         for (uint32_t mipIt = 0; mipIt < desc.mipCount; ++mipIt)
         {
-            if (desc.format == ommCpuTextureFormat_FP32)
+            if (m_tilingMode == TilingMode::Linear)
             {
-                if (m_tilingMode == TilingMode::Linear)
+                const size_t kDefaultRowPitch = sizePerPixel * desc.mips[mipIt].width;
+                const size_t srcRowPitch = desc.mips[mipIt].rowPitch == 0 ? kDefaultRowPitch : desc.mips[mipIt].rowPitch;
+
+                if (kDefaultRowPitch == srcRowPitch)
                 {
-                    const size_t kDefaultRowPitch = sizeof(float) * desc.mips[mipIt].width;
-                    const size_t srcRowPitch = desc.mips[mipIt].rowPitch == 0 ? kDefaultRowPitch : desc.mips[mipIt].rowPitch;
-
-                    if (kDefaultRowPitch == srcRowPitch)
-                    {
-                       void* dst = m_data + m_mips[mipIt].dataOffset;
-                       const float* src = (float*)(desc.mips[mipIt].textureData);
-                       std::memcpy(dst, src, sizeof(float) * m_mips[mipIt].numElements);
-                    }
-                    else
-                    {
-                        uint8_t* dstBegin = m_data + m_mips[mipIt].dataOffset;
-                        const uint8_t* srcBegin = (const uint8_t*)desc.mips[mipIt].textureData;
-
-                        const size_t dstRowPitch = m_mips[mipIt].size.x * sizeof(float);
-                        for (uint32_t rowIt = 0; rowIt < desc.mips[mipIt].height; rowIt++)
-                        {
-                            uint8_t* dst = dstBegin + rowIt * dstRowPitch;
-                            const uint8_t* src = srcBegin + rowIt * srcRowPitch;
-                            std::memcpy(dst, src, dstRowPitch);
-                        }
-                    }
-                }
-                else if (m_tilingMode == TilingMode::MortonZ)
-                {
-                    float* dst = (float*)(m_data + m_mips[mipIt].dataOffset);
-                    const float* src = (float*)(desc.mips[mipIt].textureData);
-
-                    const size_t rowPitch = desc.mips[mipIt].rowPitch == 0 ? desc.mips[mipIt].width : desc.mips[mipIt].rowPitch;
-
-                    for (int j = 0; j < m_mips[mipIt].size.y; ++j)
-                    {
-                        for (int i = 0; i < m_mips[mipIt].size.x; ++i)
-                        {
-                            const uint64_t idx = From2Dto1D<TilingMode::MortonZ>(int2(i, j), m_mips[mipIt].size);
-                            OMM_ASSERT(idx < m_mips[mipIt].numElements);
-                            dst[idx] = src[i + j * rowPitch];
-                        }
-                    }
-
-                    size_t maxDim = nextPow2(std::max(m_mips[mipIt].size.x, m_mips[mipIt].size.y));
-                    m_mips[mipIt].numElements = maxDim * maxDim;
+                    void* dst = m_data + m_mips[mipIt].dataOffset;
+                    const void* src = (desc.mips[mipIt].textureData);
+                    std::memcpy(dst, src, sizePerPixel * m_mips[mipIt].numElements);
                 }
                 else
                 {
-                    OMM_ASSERT(false);
-                    return ommResult_INVALID_ARGUMENT;
+                    uint8_t* dstBegin = m_data + m_mips[mipIt].dataOffset;
+                    const uint8_t* srcBegin = (const uint8_t*)desc.mips[mipIt].textureData;
+
+                    const size_t dstRowPitch = m_mips[mipIt].size.x * sizePerPixel;
+                    for (uint32_t rowIt = 0; rowIt < desc.mips[mipIt].height; rowIt++)
+                    {
+                        uint8_t* dst = dstBegin + rowIt * dstRowPitch;
+                        const uint8_t* src = srcBegin + rowIt * srcRowPitch;
+                        std::memcpy(dst, src, dstRowPitch);
+                    }
                 }
+            }
+            else if (m_tilingMode == TilingMode::MortonZ)
+            {
+                uint8_t* dst = (uint8_t*)(m_data + m_mips[mipIt].dataOffset);
+                const uint8_t* src = (uint8_t*)(desc.mips[mipIt].textureData);
+
+                const size_t rowPitch = desc.mips[mipIt].rowPitch == 0 ? desc.mips[mipIt].width : desc.mips[mipIt].rowPitch;
+
+                for (int j = 0; j < m_mips[mipIt].size.y; ++j)
+                {
+                    for (int i = 0; i < m_mips[mipIt].size.x; ++i)
+                    {
+                        const uint64_t idx = From2Dto1D<TilingMode::MortonZ>(int2(i, j), m_mips[mipIt].size);
+                        OMM_ASSERT(idx < m_mips[mipIt].numElements);
+
+                        uint8_t* cpyDst         = dst + idx * sizePerPixel;
+                        const uint8_t* cpySrc   = src + (i + j * rowPitch) * sizePerPixel;
+
+                        memcpy(cpyDst, cpySrc, sizePerPixel);
+                    }
+                }
+
+                size_t maxDim = nextPow2(std::max(m_mips[mipIt].size.x, m_mips[mipIt].size.y));
+                m_mips[mipIt].numElements = maxDim * maxDim;
             }
             else
             {
@@ -180,10 +182,20 @@ namespace omm
 
     float TextureImpl::Load(const int2& texCoord, int32_t mip) const 
     {
-        if (m_tilingMode == TilingMode::Linear)
-            return Load<TilingMode::Linear>(texCoord, mip);
-        else if (m_tilingMode == TilingMode::MortonZ)
-            return Load<TilingMode::MortonZ>(texCoord, mip);
+        if (m_textureFormat == ommCpuTextureFormat_FP32)
+        {
+            if (m_tilingMode == TilingMode::Linear)
+                return Load<ommCpuTextureFormat_FP32, TilingMode::Linear>(texCoord, mip);
+            else if (m_tilingMode == TilingMode::MortonZ)
+                return Load<ommCpuTextureFormat_FP32, TilingMode::MortonZ>(texCoord, mip);
+        }
+        else if (m_textureFormat == ommCpuTextureFormat_UNORM8)
+        {
+            if (m_tilingMode == TilingMode::Linear)
+                return Load<ommCpuTextureFormat_UNORM8, TilingMode::Linear>(texCoord, mip);
+            else if (m_tilingMode == TilingMode::MortonZ)
+                return Load<ommCpuTextureFormat_UNORM8, TilingMode::MortonZ>(texCoord, mip);
+        }
         OMM_ASSERT(false);
         return 0.f;
     }

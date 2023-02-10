@@ -159,6 +159,7 @@ namespace omm
 
       enum class TextureFormat
       {
+         UNORM8,
          FP32,
          MAX_NUM,
       };
