@@ -26,37 +26,44 @@ protected:
 	void SetUp(const ::benchmark::State& state) override {
 		omm::CreateBaker({ .type = omm::BakerType::CPU }, &_baker);
 
-		omm::Cpu::TextureFlags flags = (omm::Cpu::TextureFlags)state.range(0);
-		_extraBakeFlags = (omm::Cpu::BakeFlags)state.range(1);
+		omm::Cpu::TextureFormat texFormat = (omm::Cpu::TextureFormat)state.range(0);
+		omm::Cpu::TextureFlags flags = (omm::Cpu::TextureFlags)state.range(1);
+		_extraBakeFlags = (omm::Cpu::BakeFlags)state.range(2);
 
 		uint32_t w = 1024 * 3;
 		uint32_t h = 1024 * 3;
-
 
 		uint32_t seed = 32;
 		std::default_random_engine eng(seed);
 		std::uniform_real_distribution<float> distr(0.f, 1.f);
 
-		std::vector<float> texture(w * h);
+		std::vector<float> fp32(w * h);
+		std::vector<uint8_t> unorm8(w * h);
+
 		for (uint32_t j = 0; j < h; ++j)
 		{
 			for (uint32_t i = 0; i < w; ++i)
 			{
-				float val = distr(eng);
-				texture.push_back(val);
+				float valf = distr(eng);
+				fp32.push_back(valf);
+
+				uint8_t val = (uint8_t)(255.f * valf);
+				unorm8.push_back(val);
 			}
 		}
-
+		
 		omm::Cpu::TextureMipDesc mip;
 		mip.width = w;
 		mip.height = h;
-		mip.textureData = (uint8_t*)texture.data();
+		mip.textureData = texFormat == omm::Cpu::TextureFormat::FP32 ? (uint8_t*)fp32.data() : (uint8_t*)unorm8.data();
 
 		omm::Cpu::TextureDesc desc;
-		desc.format = omm::Cpu::TextureFormat::FP32;
+		desc.format = texFormat;
 		desc.mipCount = 1;
 		desc.mips = &mip;
 		desc.flags = flags;
+
+		omm::Cpu::CreateTexture(_baker, desc, &_texture);
 
 		uint32_t idxCount = 512 * 8;
 		_indices.resize(idxCount);
@@ -65,8 +72,6 @@ protected:
 			_indices[i] = i;
 			_texCoords[i] = float2(distr(eng), distr(eng));
 		}
-
-		omm::Cpu::CreateTexture(_baker, desc, &_texture);
 	}
 
 	void TearDown(const ::benchmark::State& state) override {
@@ -146,29 +151,36 @@ BENCHMARK_DEFINE_F(OMMBake, BakeParallelLinear)(benchmark::State& st) {
 	}
 }
 
-BENCHMARK_REGISTER_F(OMMBake, BakeSerial)->Iterations(2)->Unit(benchmark::kSecond)->Name("Warmup")
-->Args({ (uint32_t)omm::Cpu::TextureFlags::None, (uint32_t)omm::Cpu::BakeFlags::None});
+static constexpr uint32_t kNumIterations = 10;
 
-BENCHMARK_REGISTER_F(OMMBake, BakeSerial)->Iterations(2)->Unit(benchmark::kSecond)->Name("Morton")
-->Args({ (uint32_t)omm::Cpu::TextureFlags::None, (uint32_t)omm::Cpu::BakeFlags::None});
-BENCHMARK_REGISTER_F(OMMBake, BakeSerial)->Iterations(2)->Unit(benchmark::kSecond)->Name("Linear")
-->Args({ (uint32_t)omm::Cpu::TextureFlags::DisableZOrder, (uint32_t)omm::Cpu::BakeFlags::None});
+BENCHMARK_REGISTER_F(OMMBake, BakeSerial)->Iterations(kNumIterations)->Unit(benchmark::kSecond)->Name("Warmup")
+->Args({ (uint32_t)omm::Cpu::TextureFormat::FP32, (uint32_t)omm::Cpu::TextureFlags::None, (uint32_t)omm::Cpu::BakeFlags::None});
 
-BENCHMARK_REGISTER_F(OMMBake, BakeParallel)->Iterations(2)->Unit(benchmark::kSecond)->Name("Morton")
-->Args({ (uint32_t)omm::Cpu::TextureFlags::None, (uint32_t)omm::Cpu::BakeFlags::None});
-BENCHMARK_REGISTER_F(OMMBake, BakeParallel)->Iterations(2)->Unit(benchmark::kSecond)->Name("Linear")
-->Args({ (uint32_t)omm::Cpu::TextureFlags::DisableZOrder, (uint32_t)omm::Cpu::BakeFlags::None});
+BENCHMARK_REGISTER_F(OMMBake, BakeSerial)->Iterations(kNumIterations)->Unit(benchmark::kSecond)->Name("Morton")
+->Args({ (uint32_t)omm::Cpu::TextureFormat::FP32,(uint32_t)omm::Cpu::TextureFlags::None, (uint32_t)omm::Cpu::BakeFlags::None});
+BENCHMARK_REGISTER_F(OMMBake, BakeSerial)->Iterations(kNumIterations)->Unit(benchmark::kSecond)->Name("Linear")
+->Args({ (uint32_t)omm::Cpu::TextureFormat::FP32,(uint32_t)omm::Cpu::TextureFlags::DisableZOrder, (uint32_t)omm::Cpu::BakeFlags::None});
+
+BENCHMARK_REGISTER_F(OMMBake, BakeParallel)->Iterations(kNumIterations)->Unit(benchmark::kSecond)->Name("Morton")
+->Args({ (uint32_t)omm::Cpu::TextureFormat::FP32,(uint32_t)omm::Cpu::TextureFlags::None, (uint32_t)omm::Cpu::BakeFlags::None});
+BENCHMARK_REGISTER_F(OMMBake, BakeParallel)->Iterations(kNumIterations)->Unit(benchmark::kSecond)->Name("Linear")
+->Args({ (uint32_t)omm::Cpu::TextureFormat::FP32,(uint32_t)omm::Cpu::TextureFlags::DisableZOrder, (uint32_t)omm::Cpu::BakeFlags::None});
+
+BENCHMARK_REGISTER_F(OMMBake, BakeParallel)->Iterations(kNumIterations)->Unit(benchmark::kSecond)->Name("MortonUNORM8")
+->Args({ (uint32_t)omm::Cpu::TextureFormat::UNORM8,(uint32_t)omm::Cpu::TextureFlags::None, (uint32_t)omm::Cpu::BakeFlags::None });
+BENCHMARK_REGISTER_F(OMMBake, BakeParallel)->Iterations(kNumIterations)->Unit(benchmark::kSecond)->Name("LinearUNORM8")
+->Args({ (uint32_t)omm::Cpu::TextureFormat::UNORM8,(uint32_t)omm::Cpu::TextureFlags::DisableZOrder, (uint32_t)omm::Cpu::BakeFlags::None });
 
 static constexpr omm::Cpu::BakeFlags DisableLevelLineIntersection = (omm::Cpu::BakeFlags)(1u << 8);
-BENCHMARK_REGISTER_F(OMMBake, BakeParallel)->Iterations(2)->Unit(benchmark::kSecond)->Name("EnableLevelLineIntersection")
-->Args({ (uint32_t)omm::Cpu::TextureFlags::DisableZOrder, (uint32_t)omm::Cpu::BakeFlags::None });
-BENCHMARK_REGISTER_F(OMMBake, BakeParallel)->Iterations(2)->Unit(benchmark::kSecond)->Name("DisableLevelLineIntersection")
-->Args({(uint32_t)omm::Cpu::TextureFlags::DisableZOrder, (uint32_t)DisableLevelLineIntersection });
+BENCHMARK_REGISTER_F(OMMBake, BakeParallel)->Iterations(kNumIterations)->Unit(benchmark::kSecond)->Name("EnableLevelLineIntersection")
+->Args({ (uint32_t)omm::Cpu::TextureFormat::FP32, (uint32_t)omm::Cpu::TextureFlags::DisableZOrder, (uint32_t)omm::Cpu::BakeFlags::None });
+BENCHMARK_REGISTER_F(OMMBake, BakeParallel)->Iterations(kNumIterations)->Unit(benchmark::kSecond)->Name("DisableLevelLineIntersection")
+->Args({ (uint32_t)omm::Cpu::TextureFormat::FP32, (uint32_t)omm::Cpu::TextureFlags::DisableZOrder, (uint32_t)DisableLevelLineIntersection });
 
 static constexpr omm::Cpu::BakeFlags EnableNearDuplicateDetectionBruteForce = (omm::Cpu::BakeFlags)(1u << 9);
-BENCHMARK_REGISTER_F(OMMBake, BakeParallel)->Iterations(2)->Unit(benchmark::kSecond)->Name("EnableNearDuplicateDetectionApprox")
-->Args({ (uint32_t)omm::Cpu::TextureFlags::DisableZOrder, (uint32_t)omm::Cpu::BakeFlags::EnableNearDuplicateDetection });
-BENCHMARK_REGISTER_F(OMMBake, BakeParallel)->Iterations(2)->Unit(benchmark::kSecond)->Name("EnableNearDuplicateDetectionBruteForce")
-->Args({ (uint32_t)omm::Cpu::TextureFlags::DisableZOrder, (uint32_t)omm::Cpu::BakeFlags::EnableNearDuplicateDetection | (uint32_t) EnableNearDuplicateDetectionBruteForce });
+BENCHMARK_REGISTER_F(OMMBake, BakeParallel)->Iterations(kNumIterations)->Unit(benchmark::kSecond)->Name("EnableNearDuplicateDetectionApprox")
+->Args({ (uint32_t)omm::Cpu::TextureFormat::FP32, (uint32_t)omm::Cpu::TextureFlags::DisableZOrder, (uint32_t)omm::Cpu::BakeFlags::EnableNearDuplicateDetection });
+BENCHMARK_REGISTER_F(OMMBake, BakeParallel)->Iterations(kNumIterations)->Unit(benchmark::kSecond)->Name("EnableNearDuplicateDetectionBruteForce")
+->Args({ (uint32_t)omm::Cpu::TextureFormat::FP32, (uint32_t)omm::Cpu::TextureFlags::DisableZOrder, (uint32_t)omm::Cpu::BakeFlags::EnableNearDuplicateDetection | (uint32_t) EnableNearDuplicateDetectionBruteForce });
 
 BENCHMARK_MAIN();
