@@ -151,7 +151,7 @@ BENCHMARK_DEFINE_F(OMMBake, BakeParallelLinear)(benchmark::State& st) {
 	}
 }
 
-static constexpr uint32_t kNumIterations = 10;
+static constexpr uint32_t kNumIterations = 2;
 
 BENCHMARK_REGISTER_F(OMMBake, BakeSerial)->Iterations(kNumIterations)->Unit(benchmark::kSecond)->Name("Warmup")
 ->Args({ (uint32_t)omm::Cpu::TextureFormat::FP32, (uint32_t)omm::Cpu::TextureFlags::None, (uint32_t)omm::Cpu::BakeFlags::None});
