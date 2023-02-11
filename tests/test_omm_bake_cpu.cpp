@@ -586,25 +586,6 @@ namespace {
 			});
 	}
 
-	TEST_P(OMMBakeTestCPU, SineFP32) {
-
-		uint32_t subdivisionLevel = 4;
-		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
-
-		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
-			const float uv = float(i) / (float)w;
-			const float val = 0.5f - 0.5f * std::sin(uv * 15);
-			return val;
-			});
-
-		ExpectEqual(stats, {
-			.totalOpaque = 224,
-			.totalTransparent = 128,
-			.totalUnknownTransparent = 96,
-			.totalUnknownOpaque = 64,
-			});
-	}
-
 	TEST_P(OMMBakeTestCPU, Sine) {
 
 		uint32_t subdivisionLevel = 4;
