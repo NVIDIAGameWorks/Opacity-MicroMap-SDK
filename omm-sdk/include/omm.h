@@ -214,6 +214,7 @@ typedef ommHandle ommCpuTexture;
 
 typedef enum ommCpuTextureFormat
 {
+   ommCpuTextureFormat_UNORM8,
    ommCpuTextureFormat_FP32,
    ommCpuTextureFormat_MAX_NUM,
 } ommCpuTextureFormat;

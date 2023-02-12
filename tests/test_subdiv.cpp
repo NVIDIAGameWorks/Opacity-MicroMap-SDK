@@ -83,7 +83,7 @@ namespace {
 			omm::Cpu::Texture tex_04 = 0;
 			{
 				// Create checkerboard pattern to make sure that no special-index case will happen.
-				vmtest::Texture texture(1024, 1024, 1, [](int i, int j, int w, int h, int mip){
+				vmtest::TextureFP32 texture(1024, 1024, 1, [](int i, int j, int w, int h, int mip){
 					if ((i) % 2 != (j) % 2)
 						return 0.f;
 					else

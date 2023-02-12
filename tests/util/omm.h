@@ -13,20 +13,23 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include <glm/glm.hpp>
 #include <omm.hpp>
 
-namespace vmtest {
+namespace vmtest 
+{
+	template<class T, omm::Cpu::TextureFormat Format>
+	struct TextureImpl
+	{
+		TextureImpl(int w, int h, int mipCount, std::function<T(int x, int y, int w, int h, int mip)> cb)
+			:TextureImpl(w, h, mipCount, true /*enableZorder*/, cb)
+		{ }
 
-	struct Texture {
-
-		Texture(int w, int h, int mipCount, std::function<float(int x, int y, int w, int h, int mip)> cb) :Texture(w, h, mipCount, true /*enableZorder*/, cb) {
-		}
-		Texture(int w, int h, int mipCount, bool enableZorder, std::function<float(int x, int y, int w, int h, int mip)> cb) {
-
+		TextureImpl(int w, int h, int mipCount, bool enableZorder, std::function<T(int x, int y, int w, int h, int mip)> cb)
+		{
 			_mipDescs.resize(mipCount);
 			_mipData.resize(mipCount);
 
 			_desc.mipCount = mipCount;
 			_desc.mips = _mipDescs.data();
-			_desc.format = omm::Cpu::TextureFormat::FP32;
+			_desc.format = Format;
 
 			if (!enableZorder)
 				_desc.flags = omm::Cpu::TextureFlags::DisableZOrder;
@@ -50,10 +53,14 @@ namespace vmtest {
 			}
 		}
 
-		omm::Cpu::TextureDesc& GetDesc() { return _desc; }
+		const omm::Cpu::TextureDesc& GetDesc() { return _desc; }
+
 	private:
 		std::vector<omm::Cpu::TextureMipDesc> _mipDescs;
-		std::vector<std::vector<float>> _mipData;
+		std::vector<std::vector<T>> _mipData;
 		omm::Cpu::TextureDesc _desc;
 	};
+
+	using TextureFP32 = TextureImpl<float, omm::Cpu::TextureFormat::FP32>;
+	using TextureUNORM8 = TextureImpl<uint8_t, omm::Cpu::TextureFormat::UNORM8>;
 }

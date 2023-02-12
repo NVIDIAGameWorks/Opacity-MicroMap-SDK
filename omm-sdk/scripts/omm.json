@@ -405,6 +405,9 @@
         "name": "TextureFormat",
         "values": [
             {
+                "name": "UNORM8"
+            },
+            {
                 "name": "FP32"
             },
             {

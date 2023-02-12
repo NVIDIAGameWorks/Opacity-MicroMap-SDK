@@ -28,6 +28,7 @@ namespace {
 		Default,
 		TextureDisableZOrder,
 		Force32BitIndices,
+		TextureAsUNORM8,
 	};
 
 	struct Options
@@ -58,6 +59,7 @@ namespace {
 
 		bool EnableZOrder() const { return !((GetParam() & TestSuiteConfig::TextureDisableZOrder) == TestSuiteConfig::TextureDisableZOrder); }
 		bool Force32BitIndices() const { return (GetParam() & TestSuiteConfig::Force32BitIndices) == TestSuiteConfig::Force32BitIndices; }
+		bool TextureAsUNORM8() const { return (GetParam() & TestSuiteConfig::TextureAsUNORM8) == TestSuiteConfig::TextureAsUNORM8; }
 
 		omm::Cpu::Texture CreateTexture(const omm::Cpu::TextureDesc& desc) {
 			omm::Cpu::Texture tex = 0;
@@ -77,25 +79,18 @@ namespace {
 			EXPECT_EQ(stats.totalFullyUnknownTransparent, expectedStats.totalFullyUnknownTransparent);
 		}
 
-		omm::Debug::Stats RunVmBake(
+		omm::Debug::Stats RunOmmBake(
 			float alphaCutoff,
 			uint32_t subdivisionLevel,
 			int2 texSize,
 			uint32_t indexCount,
 			uint32_t* triangleIndices,
 			float* texCoords,
-			std::function<float(int i, int j, int w, int h, int mip)> tex,
-			const Options opt = {}) {
-
-			omm::Cpu::Texture tex_04 = 0;
-			{
-				vmtest::Texture texture(texSize.x, texSize.y, opt.mipCount, EnableZOrder(), tex);
-
-				tex_04 = CreateTexture(texture.GetDesc());
-			}
-
+			omm::Cpu::Texture tex,
+			const Options opt = {}) 
+		{
 			omm::Cpu::BakeInputDesc desc;
-			desc.texture = tex_04;
+			desc.texture = tex;
 			desc.format = opt.format;
 			desc.alphaMode = omm::AlphaMode::Test;
 			desc.runtimeSamplerDesc.addressingMode = omm::TextureAddressMode::Clamp;
@@ -128,8 +123,13 @@ namespace {
 
 			
 #if OMM_TEST_ENABLE_IMAGE_DUMP
-			const bool dump = true;
-			if (dump) {
+			constexpr bool kDumpDebug = true;
+#else
+			constexpr bool kDumpDebug = false;
+#endif
+
+			if (kDumpDebug) 
+			{
 				std::string name = ::testing::UnitTest::GetInstance()->current_test_suite()->name();
 				std::string tname = ::testing::UnitTest::GetInstance()->current_test_info()->name();
 				std::string fileName = name + "_" + tname;
@@ -143,7 +143,7 @@ namespace {
 						.monochromeUnknowns = opt.monochromeUnknowns,
 						.oneFile = opt.oneFile });
 			}
-#endif
+
 			// Manually collected stats from parsing the 
 			omm::Debug::Stats stats = omm::Debug::Stats{};
 			if (resDesc)
@@ -158,16 +158,60 @@ namespace {
 			return stats;
 		}
 
-		omm::Debug::Stats RunVmBake(
+		omm::Debug::Stats RunOmmBakeFP32(
+			float alphaCutoff,
+			uint32_t subdivisionLevel,
+			int2 texSize,
+			uint32_t indexCount,
+			uint32_t* triangleIndices,
+			float* texCoords,
+			std::function<float(int i, int j, int w, int h, int mip)> tex,
+			const Options opt = {})
+		{
+			vmtest::TextureFP32 texture(texSize.x, texSize.y, opt.mipCount, EnableZOrder(), tex);
+			omm::Cpu::Texture texHandle = CreateTexture(texture.GetDesc());
+			return RunOmmBake(alphaCutoff, subdivisionLevel, texSize, indexCount, triangleIndices, texCoords, texHandle, opt);
+		}
+
+		omm::Debug::Stats RunOmmBakeFP32(
 			float alphaCutoff,
 			uint32_t subdivisionLevel,
 			int2 texSize,
 			std::function<float(int i, int j, int w, int h, int mip)> tex,
-			const Options opt = {}) {
+			const Options opt = {})
+		{
 			uint32_t triangleIndices[6] = { 0, 1, 2, 3, 1, 2 };
 			float texCoords[8] = { 0.f, 0.f,	0.f, 1.f,	1.f, 0.f,	 1.f, 1.f };
-			// float texCoords[8] = { 0.6f, 0.02f,	0.02f, 0.7f,	0.98f, 0.88f,	 1.f, 1.f };
-			return RunVmBake(alphaCutoff, subdivisionLevel, texSize, 6, triangleIndices, texCoords, tex, opt);
+			return RunOmmBakeFP32(alphaCutoff, subdivisionLevel, texSize, 6, triangleIndices, texCoords, tex, opt);
+		}
+
+		omm::Debug::Stats RunOmmBakeUNORM8(
+			float alphaCutoff,
+			uint32_t subdivisionLevel,
+			int2 texSize,
+			uint32_t indexCount,
+			uint32_t* triangleIndices,
+			float* texCoords,
+			std::function<uint8_t(int i, int j, int w, int h, int mip)> tex,
+			const Options opt = {})
+		{
+			vmtest::TextureUNORM8 texture(texSize.x, texSize.y, opt.mipCount, EnableZOrder(), tex);
+			omm::Cpu::Texture texHandle = CreateTexture(texture.GetDesc());
+			return RunOmmBake(alphaCutoff, subdivisionLevel, texSize, indexCount, triangleIndices, texCoords, texHandle, opt);
+		}
+
+		omm::Debug::Stats RunOmmBakeUNORM8(
+			float alphaCutoff,
+			uint32_t subdivisionLevel,
+			int2 texSize,
+			std::function<uint8_t(int i, int j, int w, int h, int mip)> tex,
+			const Options opt = {})
+		{
+			uint32_t triangleIndices[6] = { 0, 1, 2, 3, 1, 2 };
+			float texCoords[8] = { 0.f, 0.f,	0.f, 1.f,	1.f, 0.f,	 1.f, 1.f };
+			vmtest::TextureUNORM8 texture(texSize.x, texSize.y, opt.mipCount, EnableZOrder(), tex);
+			omm::Cpu::Texture texHandle = CreateTexture(texture.GetDesc());
+			return RunOmmBake(alphaCutoff, subdivisionLevel, texSize, 6, triangleIndices, texCoords, texHandle, opt);
 		}
 
 		omm::Debug::Stats LeafletMipN(uint32_t mipStart, uint32_t NumMip)
@@ -236,7 +280,7 @@ namespace {
 			}
 
 			int2 size = { std::get<0>(mipDims[mipStart]), std::get<1>(mipDims[mipStart]) };
-			omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, size, indexCount, triangleIndices, texCoords, [mipStart, mips](int i, int j, int w, int h, int mip)->float {
+			omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, size, indexCount, triangleIndices, texCoords, [mipStart, mips](int i, int j, int w, int h, int mip)->float {
 
 				return 1.f - mips[mipStart + mip][w * j + i];
 
@@ -269,7 +313,7 @@ namespace {
 			}
 
 			int2 size = { width, height };
-			omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, size, indexCount, triangleIndices, texCoords, [mips](int i, int j, int w, int h, int mip)->float {
+			omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, size, indexCount, triangleIndices, texCoords, [mips](int i, int j, int w, int h, int mip)->float {
 
 				return 1.f - mips[w * j + i];
 
@@ -296,7 +340,7 @@ namespace {
 		uint32_t subdivisionLevel = 4;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, {1024, 1024}, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, {1024, 1024}, [](int i, int j, int w, int h, int mip)->float {
 			return 0.6f;
 			});
 
@@ -309,7 +353,7 @@ namespace {
 		uint32_t subdivisionLevel = 3;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
 			return 0.6f;
 			});
 
@@ -321,7 +365,7 @@ namespace {
 		uint32_t subdivisionLevel = 2;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
 			return 0.6f;
 			});
 
@@ -333,7 +377,7 @@ namespace {
 		uint32_t subdivisionLevel = 1;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
 			return 0.6f;
 			});
 
@@ -345,7 +389,7 @@ namespace {
 		uint32_t subdivisionLevel = 0;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
 			return 0.6f;
 			});
 
@@ -357,7 +401,7 @@ namespace {
 		uint32_t subdivisionLevel = 4;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
 			return 0.4f;
 			});
 
@@ -369,7 +413,7 @@ namespace {
 		uint32_t subdivisionLevel = 3;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
 			return 0.4f;
 			});
 
@@ -381,7 +425,7 @@ namespace {
 		uint32_t subdivisionLevel = 2;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
 			return 0.4f;
 			});
 
@@ -393,7 +437,7 @@ namespace {
 		uint32_t subdivisionLevel = 1;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
 			return 0.4f;
 			});
 
@@ -404,7 +448,7 @@ namespace {
 
 		uint32_t subdivisionLevel = 1;
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
 			if ((i) % 8 != (j) % 8)
 				return 0.f;
 			else
@@ -418,7 +462,7 @@ namespace {
 
 		uint32_t subdivisionLevel = 1;
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
 			if ((i) % 8 != (j) % 8)
 				return 1.f;
 			else
@@ -433,7 +477,7 @@ namespace {
 		uint32_t subdivisionLevel = 4;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
 			if (i == 0 && j == 0)
 				return 0.6f;
 			return 0.4f;
@@ -451,7 +495,7 @@ namespace {
 		uint32_t subdivisionLevel = 4;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
 			if (i == 0 && j == 0)
 				return 0.6f;
 
@@ -477,7 +521,7 @@ namespace {
 		uint32_t subdivisionLevel = 4;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
 			if (i == 0 && j == 0)
 				return 0.6f;
 
@@ -503,7 +547,7 @@ namespace {
 		uint32_t subdivisionLevel = 4;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
 			if (i == 0 && j == 0)
 				return 0.6f;
 
@@ -522,12 +566,32 @@ namespace {
 			});
 	}
 
+	TEST_P(OMMBakeTestCPU, SineUNORM8) {
+
+		uint32_t subdivisionLevel = 4;
+		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
+
+		omm::Debug::Stats stats = RunOmmBakeUNORM8(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->uint8_t {
+			const float uv = float(i) / (float)w;
+			const float val = 0.5f - 0.5f * std::sin(uv * 15);
+			const uint8_t val8 = (uint8_t)(val * 255.f);
+			return val8;
+			});
+
+		ExpectEqual(stats, {
+			.totalOpaque = 128,
+			.totalTransparent = 256,
+			.totalUnknownTransparent = 48,
+			.totalUnknownOpaque = 80,
+			});
+	}
+
 	TEST_P(OMMBakeTestCPU, Sine) {
 
 		uint32_t subdivisionLevel = 4;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
 			if (i == 0 && j == 0)
 				return 0.6f;
 
@@ -549,7 +613,7 @@ namespace {
 		uint32_t subdivisionLevel = 4;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
 			if (i == 0 && j == 0)
 				return 0.6f;
 
@@ -564,13 +628,12 @@ namespace {
 			});
 	}
 
-
 	TEST_P(OMMBakeTestCPU, SineOC2Neg) {
 
 		uint32_t subdivisionLevel = 4;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
 			if (i == 0 && j == 0)
 				return 0.6f;
 
@@ -590,7 +653,7 @@ namespace {
 		uint32_t subdivisionLevel = 5;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
 			
 			auto complexMultiply = [](float2 a, float2 b)->float2 {
 				return float2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x);
@@ -635,7 +698,7 @@ namespace {
 		uint32_t triangleIndices[6] = { 0, 1, 2, };
 		float texCoords[8] = { 0.2f, 0.f,  0.1f, 0.8f,  0.9f, 0.1f };
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, indexCount, triangleIndices, texCoords, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, indexCount, triangleIndices, texCoords, [](int i, int j, int w, int h, int mip)->float {
 
 			auto complexMultiply = [](float2 a, float2 b)->float2 {
 				return float2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x);
@@ -680,7 +743,7 @@ namespace {
 		uint32_t triangleIndices[6] = { 0, 1, 2, };
 		float texCoords[8] = { 0.2f, 0.f,  0.1f, 0.8f,  0.9f, 0.1f };
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, indexCount, triangleIndices, texCoords, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, indexCount, triangleIndices, texCoords, [](int i, int j, int w, int h, int mip)->float {
 
 			auto complexMultiply = [](float2 a, float2 b)->float2 {
 				return float2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x);
@@ -716,6 +779,35 @@ namespace {
 			});
 	}
 
+	float GetJulia(int i, int j, int w, int h, int mip)
+	{
+		auto multiply = [](float2 x, float2 y)->float2 {
+			return float2(x.x * y.x - x.y * y.y, x.x * y.y + x.y * y.x);
+		};
+
+		float2 uv = 1.2f * float2(i, j) / float2(w, h) - 0.1f;
+
+		float2 z0 = 5.f * (uv - float2(.5f, .27f));
+		float2 col;
+		float time = 3.1f;
+		float2 c = std::cos(time) * float2(std::cos(time / 2.f), std::sin(time / 2.f));
+		for (int i = 0; i < 500; i++) {
+			float2 z = multiply(z0, z0) + c;
+			float mq = dot(z, z);
+			if (mq > 4.f) {
+				col = float2(float(i) / 20.f, 0.f);
+				break;
+			}
+			else {
+				z0 = z;
+			}
+			col = float2(mq / 2.f, mq / 2.f);
+		}
+
+		float alpha = std::clamp(col.x, 0.f, 1.f);
+		return 1.f - alpha;
+	}
+
 	TEST_P(OMMBakeTestCPU, Julia) {
 
 		uint32_t subdivisionLevel = 9;
@@ -725,33 +817,9 @@ namespace {
 		uint32_t triangleIndices[6] = { 0, 1, 2, };
 		float texCoords[8] = { 0.2f, 0.f,  0.1f, 0.8f,  0.9f, 0.1f };
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, indexCount, triangleIndices, texCoords, [](int i, int j, int w, int h, int mip)->float {
-
-			auto multiply = [](float2 x, float2 y)->float2 {
-				return float2(x.x * y.x - x.y * y.y, x.x * y.y + x.y * y.x);
-			};
-
-			float2 uv = 1.2f * float2(i, j) / float2(w, h) - 0.1f;
-
-			float2 z0 = 5.f * (uv - float2(.5f, .27f));
-			float2 col;
-			float time = 3.1f;
-			float2 c = std::cos(time) * float2(std::cos(time / 2.f), std::sin(time / 2.f));
-			for (int i = 0; i < 500; i++) {
-				float2 z = multiply(z0, z0) + c;
-				float mq = dot(z, z);
-				if (mq > 4.f) {
-					col = float2(float(i) / 20.f, 0.f);
-					break;
-				}
-				else {
-					z0 = z;
-				}
-				col = float2(mq / 2.f, mq / 2.f);
-			}
+		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, indexCount, triangleIndices, texCoords, [](int i, int j, int w, int h, int mip)->float {
 			
-			float alpha = std::clamp(col.x, 0.f, 1.f);
-			return 1.f - alpha;
+			return GetJulia(i, j, w, h, mip);
 
 			}, { .format = omm::Format::OC1_4_State });
 
@@ -760,6 +828,29 @@ namespace {
 			.totalTransparent = 4295,
 			.totalUnknownTransparent = 2054,
 			.totalUnknownOpaque = 1060,
+			});
+	}
+
+	TEST_P(OMMBakeTestCPU, JuliaUNORM8) {
+
+		uint32_t subdivisionLevel = 9;
+		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
+
+		uint32_t indexCount = 3;
+		uint32_t triangleIndices[6] = { 0, 1, 2, };
+		float texCoords[8] = { 0.2f, 0.f,  0.1f, 0.8f,  0.9f, 0.1f };
+
+		omm::Debug::Stats stats = RunOmmBakeUNORM8(0.5f, subdivisionLevel, { 1024, 1024 }, indexCount, triangleIndices, texCoords, [](int i, int j, int w, int h, int mip)->uint8_t {
+			const float val = GetJulia(i, j, w, h, mip);
+			return (uint8_t)std::clamp(val * 255.f, 0.f, 255.f) ;
+
+			}, { .format = omm::Format::OC1_4_State });
+
+		ExpectEqual(stats, {
+			.totalOpaque = 254711,
+			.totalTransparent = 4637,
+			.totalUnknownTransparent = 1720,
+			.totalUnknownOpaque = 1076,
 			});
 	}
 
@@ -773,7 +864,7 @@ namespace {
 		//float texCoords[8] = { 0.25f, 0.25f,  0.25f, 0.75f,  0.75f, 0.25f };
 		float texCoords[8] = { 0.f, 0.f,  0.f, 1.0f,  1.f, 1.f, 1.f, 0.f };
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 4, 4 }, indexCount, triangleIndices, texCoords, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 4, 4 }, indexCount, triangleIndices, texCoords, [](int i, int j, int w, int h, int mip)->float {
 
 			uint32_t x = (i) % 2;
 			uint32_t y = (j) % 2;
@@ -806,7 +897,7 @@ namespace {
 		//float texCoords[8] = { 0.25f, 0.25f,  0.25f, 0.75f,  0.75f, 0.25f };
 		float texCoords[8] = { 0.f, 0.f,  0.f, 1.0f,  1.f, 1.f, 1.f, 0.f };
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, indexCount, triangleIndices, texCoords, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, indexCount, triangleIndices, texCoords, [](int i, int j, int w, int h, int mip)->float {
 
 			const float scale = 30.f;
 			const float gridThickness = 0.2f;
@@ -838,7 +929,7 @@ namespace {
 		//float texCoords[8] = { 0.25f, 0.25f,  0.25f, 0.75f,  0.75f, 0.25f };
 		float texCoords[8] = { 0.f, 0.f,  0.f, 1.0f,  1.f, 1.f, 1.f, 0.f };
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, indexCount, triangleIndices, texCoords, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, indexCount, triangleIndices, texCoords, [](int i, int j, int w, int h, int mip)->float {
 
 			const float scale = 30.f;
 			const float gridThickness = 0.2f;
@@ -885,7 +976,7 @@ namespace {
 			}
 		}
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, (uint32_t)indices.size(), indices.data(), (float*)texCoords.data(), [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, (uint32_t)indices.size(), indices.data(), (float*)texCoords.data(), [](int i, int j, int w, int h, int mip)->float {
 
 			const float scale = 30.f;
 			const float gridThickness = 0.2f;
@@ -931,7 +1022,7 @@ namespace {
 			}
 		}
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, (uint32_t)indices.size(), indices.data(), (float*)texCoords.data(), [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, (uint32_t)indices.size(), indices.data(), (float*)texCoords.data(), [](int i, int j, int w, int h, int mip)->float {
 
 			const float scale = 30.f;
 			const float gridThickness = 0.2f;
@@ -978,7 +1069,7 @@ namespace {
 			}
 		}
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, (uint32_t)indices.size(), indices.data(), (float*)texCoords.data(), [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, (uint32_t)indices.size(), indices.data(), (float*)texCoords.data(), [](int i, int j, int w, int h, int mip)->float {
 
 			const float scale = 30.f;
 			const float gridThickness = 0.2f;
@@ -1025,7 +1116,7 @@ namespace {
 			}
 		}
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, (uint32_t)indices.size(), indices.data(), (float*)texCoords.data(), [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, (uint32_t)indices.size(), indices.data(), (float*)texCoords.data(), [](int i, int j, int w, int h, int mip)->float {
 
 			const float scale = 30.f;
 			const float gridThickness = 0.2f;
@@ -1072,7 +1163,7 @@ namespace {
 			}
 		}
 
-		omm::Debug::Stats stats = RunVmBake(0.5f, subdivisionLevel, { 1024, 1024 }, (uint32_t)indices.size(), indices.data(), (float*)texCoords.data(), [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, (uint32_t)indices.size(), indices.data(), (float*)texCoords.data(), [](int i, int j, int w, int h, int mip)->float {
 
 			const float scale = 30.f;
 			const float gridThickness = 0.2f;
@@ -1396,9 +1487,10 @@ namespace {
 	}
 
 	INSTANTIATE_TEST_SUITE_P(OMMTestCPU, OMMBakeTestCPU, ::testing::Values(
-		TestSuiteConfig::Default
-		, TestSuiteConfig::TextureDisableZOrder
-		, TestSuiteConfig::Force32BitIndices
+			TestSuiteConfig::Default
+		,	TestSuiteConfig::TextureDisableZOrder
+		,	TestSuiteConfig::Force32BitIndices
+		,	TestSuiteConfig::TextureAsUNORM8
 	));
 
 }  // namespace

@@ -235,7 +235,7 @@ private:
     }
 public:
 
-    template<ommTextureAddressMode eTextureAddressMode, TilingMode eTilingMode>
+    template<ommCpuTextureFormat eFormat, ommTextureAddressMode eTextureAddressMode, TilingMode eTilingMode>
     static void run(int2 pixel, float3* bc, Coverage coverage, void* ctx)
     {
         // We add +0.5 here in order to compensate for the raster offset.
@@ -250,10 +250,10 @@ public:
         };
 
         float4 gatherRed;
-        gatherRed.x = IsBorder(coord[TexelOffset::I0x0]) ? p->borderAlpha : p->texture->Load<eTilingMode>(coord[TexelOffset::I0x0], p->mipLevel);
-        gatherRed.y = IsBorder(coord[TexelOffset::I0x1]) ? p->borderAlpha : p->texture->Load<eTilingMode>(coord[TexelOffset::I0x1], p->mipLevel);
-        gatherRed.z = IsBorder(coord[TexelOffset::I1x1]) ? p->borderAlpha : p->texture->Load<eTilingMode>(coord[TexelOffset::I1x1], p->mipLevel);
-        gatherRed.w = IsBorder(coord[TexelOffset::I1x0]) ? p->borderAlpha : p->texture->Load<eTilingMode>(coord[TexelOffset::I1x0], p->mipLevel);
+        gatherRed.x = IsBorder(coord[TexelOffset::I0x0]) ? p->borderAlpha : p->texture->Load<eFormat, eTilingMode>(coord[TexelOffset::I0x0], p->mipLevel);
+        gatherRed.y = IsBorder(coord[TexelOffset::I0x1]) ? p->borderAlpha : p->texture->Load<eFormat, eTilingMode>(coord[TexelOffset::I0x1], p->mipLevel);
+        gatherRed.z = IsBorder(coord[TexelOffset::I1x1]) ? p->borderAlpha : p->texture->Load<eFormat, eTilingMode>(coord[TexelOffset::I1x1], p->mipLevel);
+        gatherRed.w = IsBorder(coord[TexelOffset::I1x0]) ? p->borderAlpha : p->texture->Load<eFormat, eTilingMode>(coord[TexelOffset::I1x0], p->mipLevel);
 
 
         // ~~~ Look for internal extremes ~~~ 
@@ -369,7 +369,7 @@ struct ConservativeBilinearKernel
         uint32_t                mipLevel;
     };
 
-    template<ommTextureAddressMode eTextureAddressMode, TilingMode eTilingMode>
+    template<ommCpuTextureFormat eFormat, ommTextureAddressMode eTextureAddressMode, TilingMode eTilingMode>
     static void run(int2 pixel, float3* bc, Coverage coverage, void* ctx)
     {
         // We add +0.5 here in order to compensate for the raster offset.
@@ -384,10 +384,10 @@ struct ConservativeBilinearKernel
         };
 
         float4 gatherRed;
-        gatherRed.x = IsBorder(coord[TexelOffset::I0x0]) ? p->borderAlpha : p->texture->Load<eTilingMode>(coord[TexelOffset::I0x0], p->mipLevel);
-        gatherRed.y = IsBorder(coord[TexelOffset::I0x1]) ? p->borderAlpha : p->texture->Load<eTilingMode>(coord[TexelOffset::I0x1], p->mipLevel);
-        gatherRed.z = IsBorder(coord[TexelOffset::I1x1]) ? p->borderAlpha : p->texture->Load<eTilingMode>(coord[TexelOffset::I1x1], p->mipLevel);
-        gatherRed.w = IsBorder(coord[TexelOffset::I1x0]) ? p->borderAlpha : p->texture->Load<eTilingMode>(coord[TexelOffset::I1x0], p->mipLevel);
+        gatherRed.x = IsBorder(coord[TexelOffset::I0x0]) ? p->borderAlpha : p->texture->Load<eFormat, eTilingMode>(coord[TexelOffset::I0x0], p->mipLevel);
+        gatherRed.y = IsBorder(coord[TexelOffset::I0x1]) ? p->borderAlpha : p->texture->Load<eFormat, eTilingMode>(coord[TexelOffset::I0x1], p->mipLevel);
+        gatherRed.z = IsBorder(coord[TexelOffset::I1x1]) ? p->borderAlpha : p->texture->Load<eFormat, eTilingMode>(coord[TexelOffset::I1x1], p->mipLevel);
+        gatherRed.w = IsBorder(coord[TexelOffset::I1x0]) ? p->borderAlpha : p->texture->Load<eFormat, eTilingMode>(coord[TexelOffset::I1x0], p->mipLevel);
 
         const float min = std::min(std::min(std::min(gatherRed.x, gatherRed.y), gatherRed.z), gatherRed.w);
         const float max = std::max(std::max(std::max(gatherRed.x, gatherRed.y), gatherRed.z), gatherRed.w);
