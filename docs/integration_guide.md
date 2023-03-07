@@ -629,68 +629,102 @@ Memory scratch buffer and output buffer size(s) are computed with the following 
 
 ```cpp
 // Returns the scratch and output memory requirements of the baking operation. 
-OMM_API Result OMM_CALL GetPreBakeInfo(Pipeline pipeline, const BakeDispatchConfigDesc& config, PreBakeInfo* outPreBuildInfo);
+ static inline Result GetPreDispatchInfo(Pipeline pipeline, const DispatchConfigDesc& config, PreDispatchInfo* outPreDispatchInfo);
 ```
 
-This will fill out the PreBakeInfo memory struct:
+This will fill out the PreDispatchInfo memory struct:
 
 ```cpp
-struct PreBakeInfo
+// Note: sizes may return size zero, this means the buffer will not be usedin the dispatch.
+struct PreDispatchInfo
 {
-    enum { MAX_TRANSIENT_POOL_BUFFERS = 8 };
-
-    // Format of outOmmIndexBuffer
-    IndexFormat   outOmmIndexBufferFormat;
-    // triangleCount
-    uint32_t      outOmmIndexCount = 0;
-
-    // Note: may return size zero, this means the buffer will not be used in the dispatch.
-
-    // Min required size of OUT_OMM_ARRAY_DATA
-    // GetPreBakeInfo returns the most conservative estimation
-    uint32_t      outOmmArraySizeInBytes;
-    // Min required size of OUT_OMM_DESC_ARRAY
-    // GetPreBakeInfo returns the most conservative estimation
-    uint32_t      outOmmDescSizeInBytes;
-    // Min required size of OUT_OMM_INDEX_BUFFER
-    uint32_t      outOmmIndexBufferSizeInBytes;
-    // Min required size of OUT_OMM_ARRAY_HISTOGRAM
-    uint32_t      outOmmArrayHistogramSizeInBytes;
-    // Min required size of OUT_OMM_INDEX_HISTOGRAM
-    uint32_t      outOmmIndexHistogramSizeInBytes;
-    // Min required size of OUT_POST_BUILD_INFO
-    uint32_t      outOmmPostBuildInfoSizeInBytes;
-    // Min required sizes of TRANSIENT_POOL_BUFFERs
-    uint32_t      transientPoolBufferSizeInBytes[MAX_TRANSIENT_POOL_BUFFERS];
-    uint32_t      numTransientPoolBuffers;
+   // Format of outOmmIndexBuffer
+   IndexFormat outOmmIndexBufferFormat            = IndexFormat::MAX_NUM;
+   uint32_t    outOmmIndexCount                   = 0xFFFFFFFF;
+   // Min required size of OUT_OMM_ARRAY_DATA. GetBakeInfo returns most conservative estimation while less conservative number
+   // can be obtained via BakePrepass
+   uint32_t    outOmmArraySizeInBytes             = 0xFFFFFFFF;
+   // Min required size of OUT_OMM_DESC_ARRAY. GetBakeInfo returns most conservative estimation while less conservative number
+   // can be obtained via BakePrepass
+   uint32_t    outOmmDescSizeInBytes              = 0xFFFFFFFF;
+   // Min required size of OUT_OMM_INDEX_BUFFER
+   uint32_t    outOmmIndexBufferSizeInBytes       = 0xFFFFFFFF;
+   // Min required size of OUT_OMM_ARRAY_HISTOGRAM
+   uint32_t    outOmmArrayHistogramSizeInBytes    = 0xFFFFFFFF;
+   // Min required size of OUT_OMM_INDEX_HISTOGRAM
+   uint32_t    outOmmIndexHistogramSizeInBytes    = 0xFFFFFFFF;
+   // Min required size of OUT_POST_BUILD_INFO
+   uint32_t    outOmmPostBuildInfoSizeInBytes     = 0xFFFFFFFF;
+   // Min required sizes of TRANSIENT_POOL_BUFFERs
+   uint32_t    transientPoolBufferSizeInBytes[8];
+   uint32_t    numTransientPoolBuffers            = 0;
 };
 ```
 
 This fills out the memory requirement of the named OUT_* resources and the opaque TRANSIENT buffers.
 
-<span style="color: red">Warning:</span> the conservative memory allocation can quickly grow out of hand. The following is the general formula for conservative memory allocation: 
+<span style="color: yellow">Note:</span> the conservative memory allocation can quickly grow out of hand. The following is the general formula for conservative memory allocation: 
 
 $$S_{bit} = F_k 4^{N_{max}} T$$ 
 
 Where ${F_k}$ is the bit count per micro-triangle (either 1 or 2 bits). $N_{max}$ is the max subdivision level allowed and $T$ is the number of primitives in the mesh. 
 
-If we for example have a mesh of $T = 50000$ primitives and max subdivision level $ N_{max} = 9$ with 4-state format. We end up with a memory footprint of $S_{mb} = 3276.8MB$ (!!!). 3+GB is _a lot_, way more than practical, even for scratch memory. If the mesh truly contains 50k unique OMM blocks, and all baked at subdivision level 9 it's probably not a good candidate for OMMs and should not be baked. However, what is more likely is that a few tex-coord pairs are re-used and instanced within the mesh. It's not uncommon for just a handful of unique tex-coord pairs being found after the resuse pre-pass have been run. Let's pretend our sample mesh had for isntance just 8 unique OMM blocks, then we would end up using only $0.5 MB$ in practice, which is far more practical. 
+_Example: If we for example have a mesh of $T = 50000$ primitives and max subdivision level $ N_{max} = 9$ with 4-state format. We end up with a memory footprint of $S_{mb} = 3276.8MB$ (!!!). 3+GB is _a lot_, way more than practical, even for scratch memory. If the mesh truly contains 50k unique OMM blocks, and all baked at subdivision level 9 it's probably not a good candidate for OMMs and should not be baked. However, what is more likely is that a few tex-coord pairs are re-used and instanced within the mesh. It's not uncommon for just a handful of unique tex-coord pairs being found after the resuse pre-pass have been run. Let's pretend our sample mesh had for isntance just 8 unique OMM blocks, then we would end up using only $0.5 MB$ in practice, which is far more practical._
 
-This means that baking may be preferable, but the scratch memory requirements impossible to satisfy. So how do we resolve this? There are a couple of mitication strategies to deal with the case above (listed in no particular order):
+This means that the conservative memory requirements will be impossible to satisfy. So how do we resolve this? There are a couple of mitication strategies to deal with the case above (listed in no particular order):
 
 ### Strategy 1. Limit the max subdivision level
 The obvious solution is to lower the max subvisivision level to reduce the memory explosion. The downside is that this may lower the OMM quality as the highest subdivision level, and potential coverage can not be realized. A simple strategy, but be mindful of the drawbacks. 
 
-### 2. Manually limit the amount of memory the baker is allowed to use.
+### Strategy 2. Limit the amount of memory the baker is allowed to use. (Recommended)
 
 Another strategy is to put a hard limit on the amout of memory that can be used. We can limit the baking budget to something more reasonable and let the SDK optimize the OMMs to fit within this budget.
 
 ```cpp
-// Limit the amout of omm array memory the baking may use. Set this to the max value for the OmmArraySize.
-// This may need to be configured to avoid overly conservative memory allocation. Refer to the integration guide for an in depth discussion.
-uint32_t            maxOutOmmArraySizeInBytes           = 0xFFFFFFFF;
+// The SDK will try to limit the omm array size of PreDispatchInfo::outOmmArraySizeInBytes and
+// PostBakeInfo::outOmmArraySizeInBytes.
+// Currently a greedy algorithm is implemented with a first come-first serve order.
+// The SDK may (or may not) apply more sophisticated heuristics in the future.
+// If no memory is available to allocate an OMM Array Block the state will default to Unknown Opaque (ignoring any bake
+// flags do disable special indices).
+uint32_t            maxOutOmmArraySize            = 0xFFFFFFFF;
 ```
-To limit the memory set the ``maxOutOmmArraySizeInBytes`` to something reasonable. What is a resonable value? If the alpha content is authored in such a way that the texture coordinates will cover the entire texture domain _without overlap_ the area heuristic is a reasonable heuristic:
+To limit the memory set the ``maxOutOmmArraySizeInBytes`` to something reasonable. What is a resonable value? 
+
+There are a esentially two options. The first option is to run the prepass on the mesh to compute the optimal value. This will make baking operation in two steps. First step analyze OMM Array Blocks and memory. Second step will perfom the baking.
+
+This is controlled via the follwing bake flags:
+
+```cpp
+// (Default) OUT_OMM_DESC_ARRAY_HISTOGRAM, OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_DESC_ARRAY and
+// (optionally) OUT_POST_BAKE_INFO will be updated.
+PerformSetup                 = 1u << 0,
+
+// (Default) OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_ARRAY_DATA will be written to. If special indices are
+// detected OUT_OMM_INDEX_BUFFER may also be modified.
+// If PerformBuild is not used with this flag, OUT_OMM_DESC_ARRAY_HISTOGRAM, OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER,
+// OUT_OMM_DESC_ARRAY must contain valid data from a prior PerformSetup pass.
+PerformBake                  = 1u << 1,
+```
+
+These can be used in the following combinations:
+
+1. ``PerformSetup`` | ``PerformBake``
+
+Perform setup and bake in one dispatch. This require the conservative memory estimation described above.
+
+2. ``PerformSetup`` followed by ``PerformBake``
+
+This will fill most of the OUT_* buffers. Before ``PerformBake`` set 
+maxOutOmmArraySize = PostBakeInfo::outOmmArraySizeInBytes
+
+3. Only ``PerformSetup`` followed by only ``PerformSetup`` | ``PerformBake``
+
+Same as 2. but the content of the OUT_* buffers from the setup can be discarded as they will be filled again in the second pass.
+
+
+### Strategy 3 Limit the amount of memory the baker is allowed to use via heuristics
+If the alpha content is authored in such a way that the texture coordinates will cover the entire texture domain _without overlap_ the area heuristic is a reasonable heuristic:
 
 $$A_{heuristic} =  k{\frac{W * H }{D_s^2}} $$
 
@@ -701,9 +735,6 @@ $$S = min(S_{bit}, A_{heuristic} )$$
 
 Assuming all OMM blocks still fit within the limited memory heuristic there's no downside to this method. If the memory runs out some OMM blocks be skipped. Currently the baker will allocate OMM blocks greedily. A smarter allocation strategy based on per omm-block reuse ranking may be implemented in the future. 
 
-### 4. Bake Pre-Pass
-The third alternative (although not yet implemented) is to expose a pre-pass function that will only run the re-use logic and then return a less conservative memory estimate that will still guarantee the optimal baking. This require the bake pass to be split up in to prepass -> readback -> bake -> readback -> ..BLAS build. This is the preferred solution as it can be used to selectively avoid baking objects with poor OMM quality altogether.
-
 ## Step 2: Dispatch
 The GPU baker has two modes: one is based on the rasterization hardware of the GPU to parallelize the micro-triangle evaluation on multiple threads, and another version runs on Compute workloads only.
 
@@ -713,7 +744,7 @@ Call bake with the configured pipeline, iterate over the dispatch chain and exec
 ```cpp
 // Returns the dispatch order to perform the baking operation. 
 // Once complete the OUT_OMM_* resources will be written to and can be consumed by the application.
-OMM_API Result OMM_CALL Bake(Pipeline pipeline, const BakeDispatchConfigDesc& config, const BakeDispatchChain*& outDispatchDesc);
+static inline Result Dispatch(Pipeline pipeline, const DispatchConfigDesc& config, const DispatchChain** outDispatchDesc);
 ```
 
 ## Step 3: Read back and build BLAS + OMM Array
