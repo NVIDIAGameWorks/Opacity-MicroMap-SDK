@@ -66,7 +66,7 @@ jobs:
         name: Upload Artifact
         uses: actions/upload-artifact@v3
         with:
-          name: Opacity Micro-Map SDK
+          name: Opacity Micro-Map SDK Windows
           path: build/install
           
   Build-Ubuntu:
@@ -130,5 +130,5 @@ jobs:
         name: Upload Artifact
         uses: actions/upload-artifact@v3
         with:
-          name: Opacity Micro-Map SDK
+          name: Opacity Micro-Map SDK Linux
           path: build/install
