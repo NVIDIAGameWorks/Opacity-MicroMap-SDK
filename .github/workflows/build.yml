@@ -120,3 +120,15 @@ jobs:
            cd "build"
            cd "bin"
            ./tests
+      -
+        name: Install Release
+        run: |
+          cd "build"
+          cmake --install . --config Release
+          cd ..
+      -
+        name: Upload Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: Opacity Micro-Map SDK
+          path: build/install
