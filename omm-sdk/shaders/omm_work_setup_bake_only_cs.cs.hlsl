@@ -22,13 +22,15 @@ OMM_DECLARE_SUBRESOURCES
 
 #include "omm_work_setup_common.hlsli"
 
-bool TryScheduledForBake(uint ommDescIndex)
+uint TryScheduledForBake(uint ommDescIndex, uint primitiveIndex)
 {
 	const uint kNotScheduled = 0;
-	const uint kScheduled	 = 1;
 	uint existing			 = 0;
-	OMM_SUBRESOURCE_CAS(TempOmmBakeScheduleTrackerBuffer, 4 * ommDescIndex, kNotScheduled, kScheduled, existing);
-	return existing == kNotScheduled;
+	OMM_SUBRESOURCE_CAS(TempOmmBakeScheduleTrackerBuffer, 4 * ommDescIndex, kNotScheduled, primitiveIndex + 1, existing);
+
+	uint alreadyScheduledPrimitiveIndex = existing - 1;
+
+	return existing == kNotScheduled ? primitiveIndex : alreadyScheduledPrimitiveIndex;
 }
 
 [numthreads(128, 1, 1)]
@@ -38,23 +40,22 @@ void main(uint3 tid : SV_DispatchThreadID)
 		return;
 
 	const uint primitiveIndex		= tid.x;
-	const int ommDescOffset			= GetOmmDescOffset(t_ommIndexBuffer, tid.x);
+	int ommDescOffset			= GetOmmDescOffset(t_ommIndexBuffer, tid.x);
 	const uint kOMMFormatNum		= 2;
 
-	// Must be done for later consumption.
-	OMM_SUBRESOURCE_STORE(TempOmmIndexBuffer, 4 * primitiveIndex, ommDescOffset);
 
 	const bool IsSpecialIndex				= ommDescOffset < 0;
 
 	if (IsSpecialIndex)
 	{
 		// No baking to do.
+		OMM_SUBRESOURCE_STORE(TempOmmIndexBuffer, 4 * primitiveIndex, ommDescOffset);
 		return;
 	}
 	
-	const bool scheduleSuccessful = TryScheduledForBake(ommDescOffset);
+	const uint scheduledPrimitiveIndex = TryScheduledForBake(ommDescOffset, primitiveIndex);
 
-	if ( scheduleSuccessful )
+	if (scheduledPrimitiveIndex == primitiveIndex)
 	{
 		// Fetch the desc info.
 		const uint ommArrayOffset	= t_ommDescArrayBuffer.Load(ommDescOffset * 8);
@@ -131,4 +132,10 @@ void main(uint3 tid : SV_DispatchThreadID)
 			}
 		}
 	}
+	else
+	{
+		ommDescOffset = (uint)(-scheduledPrimitiveIndex - 5);
+	}
+
+	OMM_SUBRESOURCE_STORE(TempOmmIndexBuffer, 4 * primitiveIndex, ommDescOffset);
 }
