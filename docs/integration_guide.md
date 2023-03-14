@@ -125,11 +125,11 @@ Once the OMM blocks have been allocated the baker will try to figure out the sta
 ## 4. Identify uniform states (CPU & GPU)
 If all micro-trangles in an OMM block all have the same state they can be promoted to "special indices", which removes the need for an explcit OMM block entierly. It's not uncommon for certain parts of meshes to be fully opaque, for instance the bark on trees.
 
-## 5. Reuse post-pass (CPU, GPU:TODO)
+## 5. Reuse post-pass (CPU)
 
 Once the baking is done a second pass is run to find if any two OMMs have the same exact same content, and if they do, they will be merged to produce an even more compact representation. This can be the case for texture coordiantes that are *almost* similar, but not bit exact and not caught in *1.Reuse pre-pass*. 
 
-## 6. Spatial-Sort (CPU, GPU:TODO)
+## 6. Spatial-Sort (CPU)
 
 It is recommended to sort the final OMM blocks spatially to maximize cache when doing state lookups. For this reason OMMs are sorted in morton order over the texture domain, (the texture domain is assumed to be a proxy of the relativle locations also in world space). Additionally blocks are sorted from highest subdivision level to lowest to achive natural block aligment.
 
