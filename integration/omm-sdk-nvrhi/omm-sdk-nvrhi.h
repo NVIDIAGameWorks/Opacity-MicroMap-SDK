@@ -27,8 +27,12 @@ namespace omm
 	{
 	public:
 
-		// In case the shaders are compiled externally the ShaderProviderCb can be used.
-		using ShaderProviderCb = std::function<nvrhi::ShaderHandle(nvrhi::ShaderType type, const char* shaderName, const char* shaderEntryName)>;
+		// (Optional) In case the shaders are compiled externally the ShaderProvider can be provided 
+		struct ShaderProvider
+		{
+			nvrhi::VulkanBindingOffsets bindingOffsets;
+			std::function<nvrhi::ShaderHandle(nvrhi::ShaderType type, const char* shaderName, const char* shaderEntryName)> shaders;
+		};
 
 		enum class Operation
 		{
@@ -114,7 +118,7 @@ namespace omm
 			uint32_t totalFullyUnknownTransparent = 0;
 		};
 
-		GpuBakeNvrhi(nvrhi::DeviceHandle device, nvrhi::CommandListHandle commandList, bool enableDebug, ShaderProviderCb* shaderProviderCb = nullptr);
+		GpuBakeNvrhi(nvrhi::DeviceHandle device, nvrhi::CommandListHandle commandList, bool enableDebug, ShaderProvider* shaderProvider = nullptr);
 		~GpuBakeNvrhi();
 
 		// CPU side pre-build info.
