@@ -139,7 +139,7 @@ macro(list_hlsl_shaders OMM_HLSL_FILES OMM_HEADER_FILES OMM_SHADER_FILES)
             if (NOT "${DXC_PROFILE}" STREQUAL "")
                 add_custom_command(
                         OUTPUT ${OUTPUT_PATH_SPIRV} ${OUTPUT_PATH_SPIRV}.h
-                        COMMAND ${OMM_VULKAN_DXC_SPIRV_PATH} -E main -DCOMPILER_DXC=1 -DVULKAN=1 -T ${DXC_PROFILE}
+                        COMMAND ${OMM_VULKAN_DXC_SPIRV_PATH} -E main -DCOMPILER_DXC=1 -T ${DXC_PROFILE}
                             -I "${OMM_HEADER_INCLUDE_PATH}" ${DXC_ADDITIONAL_OPTIONS} -I "${OMM_SHADER_INCLUDE_PATH}"
                             ${FILE_NAME} -spirv -Vn g_${BYTECODE_ARRAY_NAME}_spirv -Fh ${OUTPUT_PATH_SPIRV}.h
                             -Fo ${OUTPUT_PATH_SPIRV} ${OMM_DXC_VK_SHIFTS} -fspv-target-env=vulkan1.1
