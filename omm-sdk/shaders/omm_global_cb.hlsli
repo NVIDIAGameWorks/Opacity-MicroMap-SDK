@@ -39,7 +39,7 @@ OMM_CONSTANTS_START(GlobalConstants)							\
 	OMM_CONSTANT(uint, AlphaTextureChannel)						\
 	OMM_CONSTANT(uint, FilterType) /* TextureFilterMode */ 		\
 	OMM_CONSTANT(uint, EnableLevelLine)							\
-	OMM_CONSTANT(uint, Pad1)									\
+	OMM_CONSTANT(uint, EnablePostDispatchInfoStats)				\
 																\
 	OMM_CONSTANT(float2, TexSize)								\
 	OMM_CONSTANT(float2, InvTexSize)							\

@@ -36,7 +36,7 @@ void main(
 
 	const uint numOpaque		= OMM_SUBRESOURCE_LOAD(BakeResultBuffer, microTriOffset);
 	const uint numTrans			= OMM_SUBRESOURCE_LOAD(BakeResultBuffer, microTriOffset + 4);
-	const OpacityState state	= GetOpacityState(numOpaque, numTrans);
+	const OpacityState state	= GetOpacityState(numOpaque, numTrans, OMMFormat::OC1_4);
 	const float3 debugColor		= GetDebugColorForState(state);
 
 	const float2 texCoord		= raster::PS_SV_Position_to_TexCoord(i_svPosition);

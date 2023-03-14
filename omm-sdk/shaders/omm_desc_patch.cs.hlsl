@@ -20,6 +20,93 @@ OMM_DECLARE_INPUT_RESOURCES
 OMM_DECLARE_OUTPUT_RESOURCES
 OMM_DECLARE_SUBRESOURCES
 
+struct PrimitiveHistogram
+{
+	void Init(uint3 _counts)
+	{
+		counts = _counts;
+
+		specialIndex = 0;
+
+		if (counts.x >= 1 && counts.y == 0 && counts.z == 0)
+		{
+			specialIndex = (int)SpecialIndex::FullyOpaque;
+		}
+		else if (counts.x == 0 && counts.y >= 1 && counts.z == 0)
+		{
+			specialIndex = (int)SpecialIndex::FullyTransparent;
+		}
+		else if (counts.x == 0 && counts.y == 0 && counts.z >= 1)
+		{
+			specialIndex = (int)SpecialIndex::FullyUnknownOpaque;
+		}
+	}
+
+	bool IsValid()
+	{
+		return counts.x != 0 || counts.y != 0 || counts.z != 0;
+	}
+
+	bool IsSpecialIndex()
+	{
+		return specialIndex != 0;
+	}
+
+	SpecialIndex GetSpecialIndex()
+	{
+		return (SpecialIndex)specialIndex;
+	}
+
+	uint3 counts;
+	int specialIndex;
+};
+
+PrimitiveHistogram LoadHistogram(uint primitiveIndex)
+{
+	PrimitiveHistogram histogram;
+	histogram.Init(0);
+
+	if (!g_GlobalConstants.EnablePostDispatchInfoStats && !g_GlobalConstants.EnableSpecialIndices)
+		return histogram;
+
+	const uint3 counts = OMM_SUBRESOURCE_LOAD3(SpecialIndicesStateBuffer, 12 * primitiveIndex);
+	histogram.Init(counts);
+	return histogram;
+}
+
+void UpdatePostBuildInfo(PrimitiveHistogram h)
+{
+	// UGH. must match format of PostBuildInfo...
+	const uint kOffsetTotalOpaque = 2;
+	const uint kOffsetTotalTransparent = 3;
+	const uint kOffsetTotalUnknown = 4;
+	const uint kOffsetTotalFullyOpaque = 5;
+	const uint kOffsetTotalFullyTransparent = 6;
+	const uint kOffsetTotalFullyUnknown = 7;
+
+	if (h.IsSpecialIndex())
+	{
+		const SpecialIndex specialIndex = h.GetSpecialIndex();
+
+		if (specialIndex == SpecialIndex::FullyOpaque)
+			u_postBuildInfo.InterlockedAdd(4 * kOffsetTotalFullyOpaque, h.counts.x);
+		if (specialIndex == SpecialIndex::FullyTransparent)
+			u_postBuildInfo.InterlockedAdd(4 * kOffsetTotalFullyTransparent, h.counts.y);
+		if (specialIndex == SpecialIndex::FullyUnknownTransparent ||
+			specialIndex == SpecialIndex::FullyUnknownOpaque)
+			u_postBuildInfo.InterlockedAdd(4 * kOffsetTotalFullyUnknown, h.counts.z);
+	}
+	else
+	{
+		if (h.counts.x != 0)
+			u_postBuildInfo.InterlockedAdd(4 * kOffsetTotalOpaque, h.counts.x);
+		if (h.counts.y != 0)
+			u_postBuildInfo.InterlockedAdd(4 * kOffsetTotalTransparent, h.counts.y);
+		if (h.counts.z != 0)
+			u_postBuildInfo.InterlockedAdd(4 * kOffsetTotalUnknown, h.counts.z);
+	}
+}
+
 bool GetSpecialIndex(uint primitiveIndex, out SpecialIndex specialIndex)
 {
 	if (!g_GlobalConstants.EnableSpecialIndices)
@@ -27,17 +114,17 @@ bool GetSpecialIndex(uint primitiveIndex, out SpecialIndex specialIndex)
 
 	const uint3 counts = OMM_SUBRESOURCE_LOAD3(SpecialIndicesStateBuffer, 12 * primitiveIndex);
 
-	if (counts.x == 1 && counts.y == 0 && counts.z == 0)
+	if (counts.x >= 1 && counts.y == 0 && counts.z == 0)
 	{
 		specialIndex = SpecialIndex::FullyOpaque;
 		return true;
 	}
-	else if (counts.x == 0 && counts.y == 1 && counts.z == 0)
+	else if (counts.x == 0 && counts.y >= 1 && counts.z == 0)
 	{
 		specialIndex = SpecialIndex::FullyTransparent;
 		return true;
 	}
-	else if (counts.x == 0 && counts.y == 0 && counts.z == 1)
+	else if (counts.x == 0 && counts.y == 0 && counts.z >= 1)
 	{
 		specialIndex = SpecialIndex::FullyUnknownOpaque;
 		return true;
@@ -98,9 +185,16 @@ void main(uint3 tid : SV_DispatchThreadID)
 	const uint dstPrimitiveIndex = tid.x;
 	const uint srcPrimitiveIndex = GetSourcePrimitiveIndex(dstPrimitiveIndex);
 
-	SpecialIndex specialIndex;
-	if (GetSpecialIndex(srcPrimitiveIndex, specialIndex))
+	const PrimitiveHistogram histogram = LoadHistogram(srcPrimitiveIndex);
+
+	// We only update this once.
+	if (g_GlobalConstants.EnablePostDispatchInfoStats)
+		UpdatePostBuildInfo(histogram);
+
+	if (g_GlobalConstants.EnableSpecialIndices && histogram.IsSpecialIndex())
 	{
+		SpecialIndex specialIndex = histogram.GetSpecialIndex();
+
 		OMM_SUBRESOURCE_STORE(TempOmmIndexBuffer, 4 * dstPrimitiveIndex, specialIndex);
 	}
 	else

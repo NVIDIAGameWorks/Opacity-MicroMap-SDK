@@ -356,9 +356,8 @@ namespace omm
          OUT_OMM_INDEX_BUFFER,
          // Used directly as argument for OMM build in DX/VK. (Read back to CPU to query memory requirements during OMM Blas build)
          OUT_OMM_INDEX_HISTOGRAM,
-         // (Optional, enabled if EnablePostBuildInfo is set). Read back the PostBakeInfo struct containing the actual sizes of
-         // ARRAY_DATA and DESC_ARRAY.
-         OUT_POST_BAKE_INFO,
+         // Read back the PostDispatchInfo struct containing the actual sizes of ARRAY_DATA and DESC_ARRAY.
+         OUT_POST_DISPATCH_INFO,
          // Can be reused after baking
          TRANSIENT_POOL_BUFFER,
          // Initialize on startup. Read-only.
@@ -427,8 +426,11 @@ namespace omm
          // Either PerformSetup, PerformBake (or both simultaneously) must be set.
          Invalid                      = 0,
 
+         // Alias for (PerformSetup | PerformBake)
+         PerformSetupAndBake          = 3u,
+
          // (Default) OUT_OMM_DESC_ARRAY_HISTOGRAM, OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_DESC_ARRAY and
-         // (optionally) OUT_POST_BAKE_INFO will be updated.
+         // OUT_POST_DISPATCH_INFO will be updated.
          PerformSetup                 = 1u << 0,
 
          // (Default) OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_ARRAY_DATA will be written to. If special indices are
@@ -437,9 +439,6 @@ namespace omm
          // OUT_OMM_DESC_ARRAY must contain valid data from a prior PerformSetup pass.
          PerformBake                  = 1u << 1,
 
-         // Alias for (PerformSetup | PerformBake)
-         PerformSetupAndBake          = 3u,
-
          // Baking will only be done using compute shaders and no gfx involvement (drawIndirect or graphics PSOs). (Beta)
          // Will become default mode in the future.
          // + Useful for async workloads
@@ -447,26 +446,27 @@ namespace omm
          // + Faster baking on low texel ratio to micro-triangle ratio (=rasterizing small triangles)
          // - May looses efficency when resampling large triangles (tail-effect). Potential mitigation is to batch multiple bake
          // jobs. However this is generally not a big problem.
-         ComputeOnly                  = 1u << 2,
+         ComputeOnly                  = 1u << 3,
 
-         // Baking will also output post build info. (OUT_POST_BUILD_INFO).
-         EnablePostBuildInfo          = 1u << 3,
+         // Must be used together with EnablePostDispatchInfo. If set baking (PerformBake) will fill the stats data of
+         // OUT_POST_DISPATCH_INFO.
+         EnablePostDispatchInfoStats  = 1u << 4,
 
          // Will disable the use of special indices in case the OMM-state is uniform. Only set this flag for debug purposes.
-         DisableSpecialIndices        = 1u << 4,
+         DisableSpecialIndices        = 1u << 5,
 
          // If texture coordinates are known to be unique tex cooord deduplication can be disabled to save processing time and free
          // up scratch memory.
-         DisableTexCoordDeduplication = 1u << 5,
+         DisableTexCoordDeduplication = 1u << 6,
 
          // Force 32-bit indices in OUT_OMM_INDEX_BUFFER
-         Force32BitIndices            = 1u << 6,
+         Force32BitIndices            = 1u << 7,
 
          // Use only for debug purposes. Level Line Intersection method is vastly superior in 4-state mode.
-         DisableLevelLineIntersection = 1u << 7,
+         DisableLevelLineIntersection = 1u << 8,
 
          // Slightly modifies the dispatch to aid frame capture debugging.
-         EnableNsightDebugMode        = 1u << 8,
+         EnableNsightDebugMode        = 1u << 9,
       };
       OMM_DEFINE_ENUM_FLAG_OPERATORS(BakeFlags);
 
@@ -697,8 +697,8 @@ namespace omm
          uint32_t    outOmmArrayHistogramSizeInBytes    = 0xFFFFFFFF;
          // Min required size of OUT_OMM_INDEX_HISTOGRAM
          uint32_t    outOmmIndexHistogramSizeInBytes    = 0xFFFFFFFF;
-         // Min required size of OUT_POST_BUILD_INFO
-         uint32_t    outOmmPostBuildInfoSizeInBytes     = 0xFFFFFFFF;
+         // Min required size of OUT_POST_DISPATCH_INFO
+         uint32_t    outOmmPostDispatchInfoSizeInBytes  = 0xFFFFFFFF;
          // Min required sizes of TRANSIENT_POOL_BUFFERs
          uint32_t    transientPoolBufferSizeInBytes[8];
          uint32_t    numTransientPoolBuffers            = 0;
@@ -735,7 +735,7 @@ namespace omm
          uint8_t             maxSubdivisionLevel           = 8;
          bool                enableSubdivisionLevelBuffer  = false;
          // The SDK will try to limit the omm array size of PreDispatchInfo::outOmmArraySizeInBytes and
-         // PostBakeInfo::outOmmArraySizeInBytes.
+         // PostDispatchInfo::outOmmArraySizeInBytes.
          // Currently a greedy algorithm is implemented with a first come-first serve order.
          // The SDK may (or may not) apply more sophisticated heuristics in the future.
          // If no memory is available to allocate an OMM Array Block the state will default to Unknown Opaque (ignoring any bake
@@ -758,11 +758,23 @@ namespace omm
          uint32_t                 staticSamplersNum;
       };
 
-      // Format of OUT_POST_BAKE_INFO
-      struct PostBakeInfo
+      // Format of OUT_POST_DISPATCH_INFO
+      struct PostDispatchInfo
       {
          uint32_t outOmmArraySizeInBytes;
          uint32_t outOmmDescSizeInBytes;
+         // Will be set if EnablePostDispatchInfoStats is set.
+         uint32_t outStatsTotalOpaqueCount;
+         // Will be set if EnablePostDispatchInfoStats is set.
+         uint32_t outStatsTotalTransparentCount;
+         // Will be set if EnablePostDispatchInfoStats is set.
+         uint32_t outStatsTotalUnknownCount;
+         // Will be set if EnablePostDispatchInfoStats is set.
+         uint32_t outStatsTotalFullyOpaqueCount;
+         // Will be set if EnablePostDispatchInfoStats is set.
+         uint32_t outStatsTotalFullyTransparentCount;
+         // Will be set if EnablePostDispatchInfoStats is set.
+         uint32_t outStatsTotalFullyStatsUnknownCount;
       };
 
       struct DispatchChain

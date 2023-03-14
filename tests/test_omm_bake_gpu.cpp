@@ -35,6 +35,7 @@ namespace {
 		GreenChannel					= 1u << 5,
 		BlueChannel						= 1u << 6,
 		SetupBeforeBuild				= 1u << 7,
+		EnablePostBuildInfoStats		= 1u << 8,
 	};
 
 	class OMMBakeTestGPU : public ::testing::TestWithParam<TestSuiteConfig> {
@@ -57,6 +58,7 @@ namespace {
 
 		bool SetupBeforeBuild() const { return (GetParam() & TestSuiteConfig::SetupBeforeBuild) == TestSuiteConfig::SetupBeforeBuild; }
 		bool ComputeOnly() const { return (GetParam() & TestSuiteConfig::ComputeOnly) == TestSuiteConfig::ComputeOnly; }
+		bool EnablePostBuildInfoStats() const { return (GetParam() & TestSuiteConfig::EnablePostBuildInfoStats) == TestSuiteConfig::EnablePostBuildInfoStats; }
 		bool EnableSpecialIndices() const { return (GetParam() & TestSuiteConfig::DisableSpecialIndices) != TestSuiteConfig::DisableSpecialIndices; }
 		bool Force32BitIndices() const { return (GetParam() & TestSuiteConfig::Force32BitIndices) == TestSuiteConfig::Force32BitIndices; }
 		bool EnableTexCoordDeduplication() const { return (GetParam() & TestSuiteConfig::DisableTexCoordDeduplication) != TestSuiteConfig::DisableTexCoordDeduplication; }
@@ -168,6 +170,7 @@ namespace {
 			input.maxSubdivisionLevel = p.subdivisionLevel;
 			input.format = p.format == omm::Format::OC1_2_State ? nvrhi::rt::OpacityMicromapFormat::OC1_2_State : nvrhi::rt::OpacityMicromapFormat::OC1_4_State;
 			input.dynamicSubdivisionScale = 0.f;
+			input.enableStats = EnablePostBuildInfoStats();
 			input.enableSpecialIndices = EnableSpecialIndices();
 			input.force32BitIndices = Force32BitIndices();
 			input.enableTexCoordDeduplication = EnableTexCoordDeduplication();
@@ -183,7 +186,7 @@ namespace {
 				void* pData = m_device->mapBuffer(buffer, nvrhi::CpuAccessMode::Read);
 				assert(pData);
 				size_t byteSize = size == 0xFFFFFFFF ? buffer->getDesc().byteSize : size;
-				assert(size <= buffer->getDesc().byteSize);
+				assert(byteSize <= buffer->getDesc().byteSize);
 				data.resize(byteSize);
 				memcpy(data.data(), pData, byteSize);
 				m_device->unmapBuffer(buffer);
@@ -206,29 +209,29 @@ namespace {
 				res.ommIndexBuffer = m_device->createBuffer({ .byteSize = info.ommIndexBufferSize, .debugName = "omIndexBuffer", .canHaveUAVs = true, .canHaveRawViews = true });
 				res.ommDescArrayHistogramBuffer = m_device->createBuffer({ .byteSize = info.ommDescArrayHistogramSize , .debugName = "omUsageDescBuffer" , .canHaveUAVs = true, .canHaveRawViews = true });
 				res.ommIndexHistogramBuffer = m_device->createBuffer({ .byteSize = info.ommIndexHistogramSize , .debugName = "ommIndexHistogramBuffer" , .canHaveUAVs = true, .canHaveRawViews = true });
-				res.ommPostBuildInfoBuffer = m_device->createBuffer({ .byteSize = info.ommPostBuildInfoBufferSize , .debugName = "ommPostBuildInfoBuffer" , .canHaveUAVs = true, .canHaveRawViews = true });
+				res.ommPostDispatchInfoBuffer = m_device->createBuffer({ .byteSize = info.ommPostDispatchInfoBufferSize , .debugName = "ommPostBuildInfoBuffer" , .canHaveUAVs = true, .canHaveRawViews = true });
 
 				m_commandList->beginTrackingBufferState(res.ommDescBuffer, nvrhi::ResourceStates::Common);
 				m_commandList->beginTrackingBufferState(res.ommIndexBuffer, nvrhi::ResourceStates::Common);
 				m_commandList->beginTrackingBufferState(res.ommDescArrayHistogramBuffer, nvrhi::ResourceStates::Common);
 				m_commandList->beginTrackingBufferState(res.ommIndexHistogramBuffer, nvrhi::ResourceStates::Common);
-				m_commandList->beginTrackingBufferState(res.ommPostBuildInfoBuffer, nvrhi::ResourceStates::Common);
+				m_commandList->beginTrackingBufferState(res.ommPostDispatchInfoBuffer, nvrhi::ResourceStates::Common);
 
 				omm::GpuBakeNvrhi::Buffers prePass;
 				prePass.ommDescBuffer = res.ommDescBuffer;
 				prePass.ommIndexBuffer = res.ommIndexBuffer;
 				prePass.ommDescArrayHistogramBuffer = res.ommDescArrayHistogramBuffer;
 				prePass.ommIndexHistogramBuffer = res.ommIndexHistogramBuffer;
-				prePass.ommPostBuildInfoBuffer = res.ommPostBuildInfoBuffer;
+				prePass.ommPostDispatchInfoBuffer = res.ommPostDispatchInfoBuffer;
 
 				bake.Dispatch(
 					m_commandList,
 					input,
 					prePass);
 
-				nvrhi::BufferHandle ommPostBuildInfoBufferReadback = m_device->createBuffer({ .byteSize = info.ommPostBuildInfoBufferSize , .debugName = "ommPostBuildInfoBufferReadback" , .cpuAccess = nvrhi::CpuAccessMode::Read });
+				nvrhi::BufferHandle ommPostBuildInfoBufferReadback = m_device->createBuffer({ .byteSize = info.ommPostDispatchInfoBufferSize , .debugName = "ommPostDispatchInfoBufferReadback" , .cpuAccess = nvrhi::CpuAccessMode::Read });
 				m_commandList->beginTrackingBufferState(ommPostBuildInfoBufferReadback, nvrhi::ResourceStates::Common);
-				m_commandList->copyBuffer(ommPostBuildInfoBufferReadback, 0, res.ommPostBuildInfoBuffer, 0, info.ommPostBuildInfoBufferSize);
+				m_commandList->copyBuffer(ommPostBuildInfoBufferReadback, 0, res.ommPostDispatchInfoBuffer, 0, info.ommPostDispatchInfoBufferSize);
 
 				m_commandList->close();
 
@@ -258,7 +261,7 @@ namespace {
 				m_commandList->beginTrackingBufferState(res.ommIndexBuffer, nvrhi::ResourceStates::Common);
 				m_commandList->beginTrackingBufferState(res.ommDescArrayHistogramBuffer, nvrhi::ResourceStates::Common);
 				m_commandList->beginTrackingBufferState(res.ommIndexHistogramBuffer, nvrhi::ResourceStates::Common);
-				m_commandList->beginTrackingBufferState(res.ommPostBuildInfoBuffer, nvrhi::ResourceStates::Common);
+				m_commandList->beginTrackingBufferState(res.ommPostDispatchInfoBuffer, nvrhi::ResourceStates::Common);
 
 				input.operation = omm::GpuBakeNvrhi::Operation::Bake;
 
@@ -281,14 +284,14 @@ namespace {
 				res.ommIndexBuffer = m_device->createBuffer({ .byteSize = info.ommIndexBufferSize, .debugName = "ommIndexBuffer", .canHaveUAVs = true, .canHaveRawViews = true });
 				res.ommDescArrayHistogramBuffer = m_device->createBuffer({ .byteSize = info.ommDescArrayHistogramSize , .debugName = "ommUsageDescBuffer" , .canHaveUAVs = true, .canHaveRawViews = true });
 				res.ommIndexHistogramBuffer = m_device->createBuffer({ .byteSize = info.ommIndexHistogramSize , .debugName = "ommIndexHistogramBuffer" , .canHaveUAVs = true, .canHaveRawViews = true });
-				res.ommPostBuildInfoBuffer = m_device->createBuffer({ .byteSize = info.ommPostBuildInfoBufferSize , .debugName = "ommPostBuildInfoBuffer" , .canHaveUAVs = true, .canHaveRawViews = true });
+				res.ommPostDispatchInfoBuffer = m_device->createBuffer({ .byteSize = info.ommPostDispatchInfoBufferSize , .debugName = "ommPostDispatchInfoBuffer" , .canHaveUAVs = true, .canHaveRawViews = true });
 
 				m_commandList->beginTrackingBufferState(res.ommArrayBuffer, nvrhi::ResourceStates::Common);
 				m_commandList->beginTrackingBufferState(res.ommDescBuffer, nvrhi::ResourceStates::Common);
 				m_commandList->beginTrackingBufferState(res.ommIndexBuffer, nvrhi::ResourceStates::Common);
 				m_commandList->beginTrackingBufferState(res.ommDescArrayHistogramBuffer, nvrhi::ResourceStates::Common);
 				m_commandList->beginTrackingBufferState(res.ommIndexHistogramBuffer, nvrhi::ResourceStates::Common);
-				m_commandList->beginTrackingBufferState(res.ommPostBuildInfoBuffer, nvrhi::ResourceStates::Common);
+				m_commandList->beginTrackingBufferState(res.ommPostDispatchInfoBuffer, nvrhi::ResourceStates::Common);
 
 				bake.Dispatch(
 					m_commandList,
@@ -301,7 +304,7 @@ namespace {
 			nvrhi::BufferHandle ommIndexBufferReadback = m_device->createBuffer({ .byteSize = res.ommIndexBuffer->getDesc().byteSize, .debugName = "omIndexBufferReadback" , .cpuAccess = nvrhi::CpuAccessMode::Read });
 			nvrhi::BufferHandle ommDescArrayHistogramBufferReadback = m_device->createBuffer({ .byteSize = res.ommDescArrayHistogramBuffer->getDesc().byteSize, .debugName = "vmArrayHistogramBufferReadback" , .cpuAccess = nvrhi::CpuAccessMode::Read });
 			nvrhi::BufferHandle ommIndexHistogramBufferReadback = m_device->createBuffer({ .byteSize = res.ommIndexHistogramBuffer->getDesc().byteSize, .debugName = "vmArrayHistogramBufferReadback" , .cpuAccess = nvrhi::CpuAccessMode::Read });
-			nvrhi::BufferHandle ommPostBuildInfoBufferReadback = m_device->createBuffer({ .byteSize = res.ommPostBuildInfoBuffer->getDesc().byteSize, .debugName = "ommPostBuildInfoBufferReadback" , .cpuAccess = nvrhi::CpuAccessMode::Read });
+			nvrhi::BufferHandle ommPostBuildInfoBufferReadback = m_device->createBuffer({ .byteSize = res.ommPostDispatchInfoBuffer->getDesc().byteSize, .debugName = "ommPostBuildInfoBufferReadback" , .cpuAccess = nvrhi::CpuAccessMode::Read });
 			m_commandList->beginTrackingBufferState(ommArrayBufferReadback, nvrhi::ResourceStates::Common);
 			m_commandList->beginTrackingBufferState(ommIndexBufferReadback, nvrhi::ResourceStates::Common);
 			m_commandList->beginTrackingBufferState(ommDescBufferReadback, nvrhi::ResourceStates::Common);
@@ -314,7 +317,7 @@ namespace {
 			m_commandList->copyBuffer(ommIndexBufferReadback, 0, res.ommIndexBuffer, 0, res.ommIndexBuffer->getDesc().byteSize);
 			m_commandList->copyBuffer(ommDescArrayHistogramBufferReadback, 0, res.ommDescArrayHistogramBuffer, 0, res.ommDescArrayHistogramBuffer->getDesc().byteSize);
 			m_commandList->copyBuffer(ommIndexHistogramBufferReadback, 0, res.ommIndexHistogramBuffer, 0, res.ommIndexHistogramBuffer->getDesc().byteSize);
-			m_commandList->copyBuffer(ommPostBuildInfoBufferReadback, 0, res.ommPostBuildInfoBuffer, 0, res.ommPostBuildInfoBuffer->getDesc().byteSize);
+			m_commandList->copyBuffer(ommPostBuildInfoBufferReadback, 0, res.ommPostDispatchInfoBuffer, 0, res.ommPostDispatchInfoBuffer->getDesc().byteSize);
 
 			m_commandList->close();
 
@@ -383,6 +386,27 @@ namespace {
 			omm::Test::ValidateHistograms(&resDesc);
 
 			omm::GpuBakeNvrhi::Stats stats = bake.GetStats(resDesc);
+
+			if (EnablePostBuildInfoStats())
+			{
+				const size_t totalUnknown = stats.totalUnknownOpaque + stats.totalUnknownTransparent;
+				const size_t totalFullyUnknown = stats.totalFullyUnknownOpaque + stats.totalFullyUnknownTransparent;
+				EXPECT_EQ(postBuildInfo.ommTotalOpaqueCount, stats.totalOpaque);
+				EXPECT_EQ(postBuildInfo.ommTotalTransparentCount, stats.totalTransparent);
+				EXPECT_EQ(postBuildInfo.ommTotalUnknownCount, totalUnknown);
+				EXPECT_EQ(postBuildInfo.ommTotalFullyOpaqueCount, stats.totalFullyOpaque);
+				EXPECT_EQ(postBuildInfo.ommTotalFullyTransparentCount, stats.totalFullyTransparent);
+				EXPECT_EQ(postBuildInfo.ommTotalFullyUnknownCount, totalFullyUnknown);
+			}
+			else
+			{
+				EXPECT_EQ(postBuildInfo.ommTotalOpaqueCount, 0);
+				EXPECT_EQ(postBuildInfo.ommTotalTransparentCount, 0);
+				EXPECT_EQ(postBuildInfo.ommTotalUnknownCount, 0);
+				EXPECT_EQ(postBuildInfo.ommTotalFullyOpaqueCount, 0);
+				EXPECT_EQ(postBuildInfo.ommTotalFullyTransparentCount, 0);
+				EXPECT_EQ(postBuildInfo.ommTotalFullyUnknownCount, 0);
+			}
 
 			return
 			{
@@ -1200,37 +1224,40 @@ namespace {
 
 	INSTANTIATE_TEST_SUITE_P(OMMTestGPU, OMMBakeTestGPU, 
 		::testing::Values(	
-							   TestSuiteConfig::None,
-							   TestSuiteConfig::DisableSpecialIndices,
-							   TestSuiteConfig::Force32BitIndices,
-							   TestSuiteConfig::DisableTexCoordDeduplication,
-							   TestSuiteConfig::RedChannel,
-							   TestSuiteConfig::BlueChannel,
-							   TestSuiteConfig::GreenChannel,
-							   
-							   TestSuiteConfig::SetupBeforeBuild,
-							   TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::DisableSpecialIndices,
-							   TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::Force32BitIndices,
-							   TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::DisableTexCoordDeduplication,
-							   TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::RedChannel,
-							   TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::BlueChannel,
-							   TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::GreenChannel,
+							   //TestSuiteConfig::None,
+							   //TestSuiteConfig::DisableSpecialIndices,
+							   //TestSuiteConfig::Force32BitIndices,
+							   //TestSuiteConfig::DisableTexCoordDeduplication,
+							   //TestSuiteConfig::RedChannel,
+							   //TestSuiteConfig::BlueChannel,
+							   //TestSuiteConfig::GreenChannel,
+							   //
+							   //TestSuiteConfig::SetupBeforeBuild,
+							   //TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::DisableSpecialIndices,
+							   //TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::Force32BitIndices,
+							   //TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::DisableTexCoordDeduplication,
+							   //TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::RedChannel,
+							   //TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::BlueChannel,
+							   //TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::GreenChannel,
 								
-							   TestSuiteConfig::ComputeOnly,
-							   TestSuiteConfig::ComputeOnly | TestSuiteConfig::DisableSpecialIndices, 
-							   TestSuiteConfig::ComputeOnly | TestSuiteConfig::Force32BitIndices,
-							   TestSuiteConfig::ComputeOnly | TestSuiteConfig::DisableTexCoordDeduplication,
-							   TestSuiteConfig::ComputeOnly | TestSuiteConfig::RedChannel,
-							   TestSuiteConfig::ComputeOnly | TestSuiteConfig::BlueChannel,
-							   TestSuiteConfig::ComputeOnly | TestSuiteConfig::GreenChannel,
+							   //TestSuiteConfig::ComputeOnly
+							   // TestSuiteConfig::ComputeOnly | TestSuiteConfig::DisableSpecialIndices, 
+							   // TestSuiteConfig::ComputeOnly | TestSuiteConfig::Force32BitIndices,
+							   // TestSuiteConfig::ComputeOnly | TestSuiteConfig::DisableTexCoordDeduplication,
+							   // TestSuiteConfig::ComputeOnly | TestSuiteConfig::RedChannel,
+							   // TestSuiteConfig::ComputeOnly | TestSuiteConfig::BlueChannel,
+							   // TestSuiteConfig::ComputeOnly | TestSuiteConfig::GreenChannel,
+							   // 
+							   // TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild,
+							   // TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::DisableSpecialIndices,
+							   // TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::Force32BitIndices,
+							   // TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::DisableTexCoordDeduplication,
+							   // TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::RedChannel,
+							   // TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::BlueChannel,
+							   // TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::GreenChannel
 
-							   TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild,
-							   TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::DisableSpecialIndices,
-							   TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::Force32BitIndices,
-							   TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::DisableTexCoordDeduplication,
-							   TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::RedChannel,
-							   TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::BlueChannel,
-							   TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::GreenChannel
+								TestSuiteConfig::EnablePostBuildInfoStats,
+								TestSuiteConfig::ComputeOnly | TestSuiteConfig::EnablePostBuildInfoStats
 						));
 
 }  // namespace

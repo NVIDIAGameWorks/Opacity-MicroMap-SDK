@@ -451,9 +451,8 @@ typedef enum ommGpuResourceType
    ommGpuResourceType_OUT_OMM_INDEX_BUFFER,
    // Used directly as argument for OMM build in DX/VK. (Read back to CPU to query memory requirements during OMM Blas build)
    ommGpuResourceType_OUT_OMM_INDEX_HISTOGRAM,
-   // (Optional, enabled if EnablePostBuildInfo is set). Read back the PostBakeInfo struct containing the actual sizes of
-   // ARRAY_DATA and DESC_ARRAY.
-   ommGpuResourceType_OUT_POST_BAKE_INFO,
+   // Read back the PostDispatchInfo struct containing the actual sizes of ARRAY_DATA and DESC_ARRAY.
+   ommGpuResourceType_OUT_POST_DISPATCH_INFO,
    // Can be reused after baking
    ommGpuResourceType_TRANSIENT_POOL_BUFFER,
    // Initialize on startup. Read-only.
@@ -522,8 +521,11 @@ typedef enum ommGpuBakeFlags
    // Either PerformSetup, PerformBake (or both simultaneously) must be set.
    ommGpuBakeFlags_Invalid                      = 0,
 
+   // Alias for (PerformSetup | PerformBake)
+   ommGpuBakeFlags_PerformSetupAndBake          = 3u,
+
    // (Default) OUT_OMM_DESC_ARRAY_HISTOGRAM, OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_DESC_ARRAY and
-   // (optionally) OUT_POST_BAKE_INFO will be updated.
+   // OUT_POST_DISPATCH_INFO will be updated.
    ommGpuBakeFlags_PerformSetup                 = 1u << 0,
 
    // (Default) OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_ARRAY_DATA will be written to. If special indices are
@@ -532,9 +534,6 @@ typedef enum ommGpuBakeFlags
    // OUT_OMM_DESC_ARRAY must contain valid data from a prior PerformSetup pass.
    ommGpuBakeFlags_PerformBake                  = 1u << 1,
 
-   // Alias for (PerformSetup | PerformBake)
-   ommGpuBakeFlags_PerformSetupAndBake          = 3u,
-
    // Baking will only be done using compute shaders and no gfx involvement (drawIndirect or graphics PSOs). (Beta)
    // Will become default mode in the future.
    // + Useful for async workloads
@@ -542,26 +541,27 @@ typedef enum ommGpuBakeFlags
    // + Faster baking on low texel ratio to micro-triangle ratio (=rasterizing small triangles)
    // - May looses efficency when resampling large triangles (tail-effect). Potential mitigation is to batch multiple bake
    // jobs. However this is generally not a big problem.
-   ommGpuBakeFlags_ComputeOnly                  = 1u << 2,
+   ommGpuBakeFlags_ComputeOnly                  = 1u << 3,
 
-   // Baking will also output post build info. (OUT_POST_BUILD_INFO).
-   ommGpuBakeFlags_EnablePostBuildInfo          = 1u << 3,
+   // Must be used together with EnablePostDispatchInfo. If set baking (PerformBake) will fill the stats data of
+   // OUT_POST_DISPATCH_INFO.
+   ommGpuBakeFlags_EnablePostDispatchInfoStats  = 1u << 4,
 
    // Will disable the use of special indices in case the OMM-state is uniform. Only set this flag for debug purposes.
-   ommGpuBakeFlags_DisableSpecialIndices        = 1u << 4,
+   ommGpuBakeFlags_DisableSpecialIndices        = 1u << 5,
 
    // If texture coordinates are known to be unique tex cooord deduplication can be disabled to save processing time and free
    // up scratch memory.
-   ommGpuBakeFlags_DisableTexCoordDeduplication = 1u << 5,
+   ommGpuBakeFlags_DisableTexCoordDeduplication = 1u << 6,
 
    // Force 32-bit indices in OUT_OMM_INDEX_BUFFER
-   ommGpuBakeFlags_Force32BitIndices            = 1u << 6,
+   ommGpuBakeFlags_Force32BitIndices            = 1u << 7,
 
    // Use only for debug purposes. Level Line Intersection method is vastly superior in 4-state mode.
-   ommGpuBakeFlags_DisableLevelLineIntersection = 1u << 7,
+   ommGpuBakeFlags_DisableLevelLineIntersection = 1u << 8,
 
    // Slightly modifies the dispatch to aid frame capture debugging.
-   ommGpuBakeFlags_EnableNsightDebugMode        = 1u << 8,
+   ommGpuBakeFlags_EnableNsightDebugMode        = 1u << 9,
 } ommGpuBakeFlags;
 OMM_DEFINE_ENUM_FLAG_OPERATORS(ommGpuBakeFlags);
 
@@ -802,8 +802,8 @@ typedef struct ommGpuPreDispatchInfo
    uint32_t       outOmmArrayHistogramSizeInBytes;
    // Min required size of OUT_OMM_INDEX_HISTOGRAM
    uint32_t       outOmmIndexHistogramSizeInBytes;
-   // Min required size of OUT_POST_BUILD_INFO
-   uint32_t       outOmmPostBuildInfoSizeInBytes;
+   // Min required size of OUT_POST_DISPATCH_INFO
+   uint32_t       outOmmPostDispatchInfoSizeInBytes;
    // Min required sizes of TRANSIENT_POOL_BUFFERs
    uint32_t       transientPoolBufferSizeInBytes[8];
    uint32_t       numTransientPoolBuffers;
@@ -819,7 +819,7 @@ inline ommGpuPreDispatchInfo ommGpuPreDispatchInfoDefault()
    v.outOmmIndexBufferSizeInBytes       = 0xFFFFFFFF;
    v.outOmmArrayHistogramSizeInBytes    = 0xFFFFFFFF;
    v.outOmmIndexHistogramSizeInBytes    = 0xFFFFFFFF;
-   v.outOmmPostBuildInfoSizeInBytes     = 0xFFFFFFFF;
+   v.outOmmPostDispatchInfoSizeInBytes  = 0xFFFFFFFF;
    v.numTransientPoolBuffers            = 0;
    return v;
 }
@@ -855,7 +855,7 @@ typedef struct ommGpuDispatchConfigDesc
    uint8_t                   maxSubdivisionLevel;
    ommBool                   enableSubdivisionLevelBuffer;
    // The SDK will try to limit the omm array size of PreDispatchInfo::outOmmArraySizeInBytes and
-   // PostBakeInfo::outOmmArraySizeInBytes.
+   // PostDispatchInfo::outOmmArraySizeInBytes.
    // Currently a greedy algorithm is implemented with a first come-first serve order.
    // The SDK may (or may not) apply more sophisticated heuristics in the future.
    // If no memory is available to allocate an OMM Array Block the state will default to Unknown Opaque (ignoring any bake
@@ -903,12 +903,24 @@ typedef struct ommGpuPipelineInfoDesc
    uint32_t                       staticSamplersNum;
 } ommGpuPipelineInfoDesc;
 
-// Format of OUT_POST_BAKE_INFO
-typedef struct ommGpuPostBakeInfo
+// Format of OUT_POST_DISPATCH_INFO
+typedef struct ommGpuPostDispatchInfo
 {
    uint32_t outOmmArraySizeInBytes;
    uint32_t outOmmDescSizeInBytes;
-} ommGpuPostBakeInfo;
+   // Will be set if EnablePostDispatchInfoStats is set.
+   uint32_t outStatsTotalOpaqueCount;
+   // Will be set if EnablePostDispatchInfoStats is set.
+   uint32_t outStatsTotalTransparentCount;
+   // Will be set if EnablePostDispatchInfoStats is set.
+   uint32_t outStatsTotalUnknownCount;
+   // Will be set if EnablePostDispatchInfoStats is set.
+   uint32_t outStatsTotalFullyOpaqueCount;
+   // Will be set if EnablePostDispatchInfoStats is set.
+   uint32_t outStatsTotalFullyTransparentCount;
+   // Will be set if EnablePostDispatchInfoStats is set.
+   uint32_t outStatsTotalFullyStatsUnknownCount;
+} ommGpuPostDispatchInfo;
 
 typedef struct ommGpuDispatchChain
 {

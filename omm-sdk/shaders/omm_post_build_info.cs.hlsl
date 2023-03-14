@@ -33,4 +33,10 @@ void main(uint3 tid : SV_DispatchThreadID)
 
 	u_postBuildInfo.Store(0, min(ommArrayByteSize, g_GlobalConstants.MaxOutOmmArraySize));
 	u_postBuildInfo.Store(4, ommDescByteSize);
+	u_postBuildInfo.Store(8, 0);
+	u_postBuildInfo.Store(12, 0);
+	u_postBuildInfo.Store(16, 0);
+	u_postBuildInfo.Store(20, 0);
+	u_postBuildInfo.Store(24, 0);
+	u_postBuildInfo.Store(28, 0);
 }

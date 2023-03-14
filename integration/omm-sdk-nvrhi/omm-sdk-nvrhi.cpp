@@ -615,9 +615,11 @@ omm::Gpu::DispatchConfigDesc GpuBakeNvrhiImpl::GetConfig(const GpuBakeNvrhi::Inp
 	if (((uint32_t)params.operation & (uint32_t)GpuBakeNvrhi::Operation::Bake) == (uint32_t)GpuBakeNvrhi::Operation::Bake)
 		config.bakeFlags = (omm::Gpu::BakeFlags)((uint32_t)config.bakeFlags | (uint32_t)omm::Gpu::BakeFlags::PerformBake);
 
+	if (params.enableStats)
+		config.bakeFlags = (omm::Gpu::BakeFlags)((uint32_t)config.bakeFlags | (uint32_t)omm::Gpu::BakeFlags::EnablePostDispatchInfoStats);
+
 	if (m_enableDebug)
 		config.bakeFlags = (omm::Gpu::BakeFlags)((uint32_t)config.bakeFlags | (uint32_t)omm::Gpu::BakeFlags::EnableNsightDebugMode);
-	config.bakeFlags = (omm::Gpu::BakeFlags)((uint32_t)config.bakeFlags | (uint32_t)omm::Gpu::BakeFlags::EnablePostBuildInfo);
 	
 	if (!params.enableSpecialIndices)
 		config.bakeFlags = (omm::Gpu::BakeFlags)((uint32_t)config.bakeFlags | (uint32_t)omm::Gpu::BakeFlags::DisableSpecialIndices);
@@ -633,6 +635,7 @@ omm::Gpu::DispatchConfigDesc GpuBakeNvrhiImpl::GetConfig(const GpuBakeNvrhi::Inp
 	
 	if (!params.enableLevelLineIntersection)
 		config.bakeFlags = (omm::Gpu::BakeFlags)((uint32_t)config.bakeFlags | (uint32_t)omm::Gpu::BakeFlags::DisableLevelLineIntersection);
+
 
 	if (params.enableNsightDebugMode)
 		config.bakeFlags = (omm::Gpu::BakeFlags)((uint32_t)config.bakeFlags | (uint32_t)omm::Gpu::BakeFlags::EnableNsightDebugMode);
@@ -697,7 +700,7 @@ void GpuBakeNvrhiImpl::GetPreDispatchInfo(const GpuBakeNvrhi::Input& params, Gpu
 	info.ommArrayBufferSize = preBuildInfo.outOmmArraySizeInBytes;
 	info.ommDescBufferSize = preBuildInfo.outOmmDescSizeInBytes;
 	info.ommDescArrayHistogramSize = preBuildInfo.outOmmArrayHistogramSizeInBytes;
-	info.ommPostBuildInfoBufferSize = preBuildInfo.outOmmPostBuildInfoSizeInBytes;
+	info.ommPostDispatchInfoBufferSize = preBuildInfo.outOmmPostDispatchInfoSizeInBytes;
 }
 
 void GpuBakeNvrhiImpl::Dispatch(
@@ -729,7 +732,7 @@ void GpuBakeNvrhiImpl::Clear()
 
 void GpuBakeNvrhiImpl::ReadPostBuildInfo(void* pData, size_t byteSize, GpuBakeNvrhi::PostBuildInfo& outPostBuildInfo)
 {
-	static_assert(sizeof(omm::Gpu::PostBakeInfo) == sizeof(GpuBakeNvrhi::PostBuildInfo));
+	static_assert(sizeof(omm::Gpu::PostDispatchInfo) == sizeof(GpuBakeNvrhi::PostBuildInfo));
 	assert(byteSize >= sizeof(GpuBakeNvrhi::PostBuildInfo));
 	memcpy(&outPostBuildInfo, pData, sizeof(GpuBakeNvrhi::PostBuildInfo));
 }
@@ -798,9 +801,9 @@ nvrhi::BufferHandle GpuBakeNvrhiImpl::GetBufferResource(
 		resourceHandle = output.ommIndexHistogramBuffer;
 		offsetInBytes = output.ommIndexHistogramBufferOffset;
 		break;
-	case omm::Gpu::ResourceType::OUT_POST_BAKE_INFO:
-		resourceHandle = output.ommPostBuildInfoBuffer;
-		offsetInBytes = output.ommPostBuildInfoBufferOffset;
+	case omm::Gpu::ResourceType::OUT_POST_DISPATCH_INFO:
+		resourceHandle = output.ommPostDispatchInfoBuffer;
+		offsetInBytes = output.ommPostDispatchInfoBufferOffset;
 		break;
 	case omm::Gpu::ResourceType::IN_INDEX_BUFFER:
 		resourceHandle = params.indexBuffer;

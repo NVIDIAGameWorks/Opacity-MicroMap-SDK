@@ -42,7 +42,7 @@ void main(
 	const float alpha			= color[g_GlobalConstants.AlphaTextureChannel];
 
 	const uint isOpaque			= g_GlobalConstants.AlphaCutoff < alpha;
-	const OpacityState vmState	= GetOpacityState(isOpaque, !isOpaque);
+	const OpacityState vmState	= GetOpacityState(isOpaque, !isOpaque, OMMFormat::OC1_4);
 
 	o_primitiveIndex		= i_primitiveIndex;
 	o_texCoord				= texCoord;
