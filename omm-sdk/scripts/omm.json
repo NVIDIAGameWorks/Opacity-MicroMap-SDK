@@ -1133,6 +1133,11 @@
                 "comment": "(Default) OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_ARRAY_DATA will be written to. If special indices are detected OUT_OMM_INDEX_BUFFER may also be modified.\nIf PerformBuild is not used with this flag, OUT_OMM_DESC_ARRAY_HISTOGRAM, OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_DESC_ARRAY must contain valid data from a prior PerformSetup pass."
             },
             {
+                "name": "PerformSetupAndBake",
+                "value": "3u",
+                "comment": "Alias for (PerformSetup | PerformBake)"
+            },
+            {
                 "name": "ComputeOnly",
                 "value": "1u << 2",
                 "comment": "Baking will only be done using compute shaders and no gfx involvement (drawIndirect or graphics PSOs). (Beta)\nWill become default mode in the future.\n+ Useful for async workloads\n+ Less memory hungry\n+ Faster baking on low texel ratio to micro-triangle ratio (=rasterizing small triangles)\n- May looses efficency when resampling large triangles (tail-effect). Potential mitigation is to batch multiple bake jobs. However this is generally not a big problem."
@@ -1733,7 +1738,7 @@
                 "name": "bakeFlags",
                 "value": {
                     "type": "BakeFlags",
-                    "value": "Invalid"
+                    "value": "PerformSetupAndBake"
                 }
             },
             {

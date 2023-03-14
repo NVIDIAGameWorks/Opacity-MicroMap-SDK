@@ -437,6 +437,9 @@ namespace omm
          // OUT_OMM_DESC_ARRAY must contain valid data from a prior PerformSetup pass.
          PerformBake                  = 1u << 1,
 
+         // Alias for (PerformSetup | PerformBake)
+         PerformSetupAndBake          = 3u,
+
          // Baking will only be done using compute shaders and no gfx involvement (drawIndirect or graphics PSOs). (Beta)
          // Will become default mode in the future.
          // + Useful for async workloads
@@ -703,7 +706,7 @@ namespace omm
 
       struct DispatchConfigDesc
       {
-         BakeFlags           bakeFlags                     = BakeFlags::Invalid;
+         BakeFlags           bakeFlags                     = BakeFlags::PerformSetupAndBake;
          // RuntimeSamplerDesc describes the texture sampler that will be used in the runtime alpha test shader code.
          SamplerDesc         runtimeSamplerDesc            = {};
          AlphaMode           alphaMode                     = AlphaMode::MAX_NUM;
