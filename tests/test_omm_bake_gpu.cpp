@@ -394,9 +394,13 @@ namespace {
 				EXPECT_EQ(postBuildInfo.ommTotalOpaqueCount, stats.totalOpaque);
 				EXPECT_EQ(postBuildInfo.ommTotalTransparentCount, stats.totalTransparent);
 				EXPECT_EQ(postBuildInfo.ommTotalUnknownCount, totalUnknown);
-				EXPECT_EQ(postBuildInfo.ommTotalFullyOpaqueCount, stats.totalFullyOpaque);
-				EXPECT_EQ(postBuildInfo.ommTotalFullyTransparentCount, stats.totalFullyTransparent);
-				EXPECT_EQ(postBuildInfo.ommTotalFullyUnknownCount, totalFullyUnknown);
+
+				if (p.maxOutOmmArraySize == 0xFFFFFFFF)
+				{
+					EXPECT_EQ(postBuildInfo.ommTotalFullyOpaqueCount, stats.totalFullyOpaque);
+					EXPECT_EQ(postBuildInfo.ommTotalFullyTransparentCount, stats.totalFullyTransparent);
+					EXPECT_EQ(postBuildInfo.ommTotalFullyUnknownCount, totalFullyUnknown);
+				}
 			}
 			else
 			{
@@ -1224,40 +1228,45 @@ namespace {
 
 	INSTANTIATE_TEST_SUITE_P(OMMTestGPU, OMMBakeTestGPU, 
 		::testing::Values(	
-							   //TestSuiteConfig::None,
-							   //TestSuiteConfig::DisableSpecialIndices,
-							   //TestSuiteConfig::Force32BitIndices,
-							   //TestSuiteConfig::DisableTexCoordDeduplication,
-							   //TestSuiteConfig::RedChannel,
-							   //TestSuiteConfig::BlueChannel,
-							   //TestSuiteConfig::GreenChannel,
-							   //
-							   //TestSuiteConfig::SetupBeforeBuild,
-							   //TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::DisableSpecialIndices,
-							   //TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::Force32BitIndices,
-							   //TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::DisableTexCoordDeduplication,
-							   //TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::RedChannel,
-							   //TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::BlueChannel,
-							   //TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::GreenChannel,
+							    TestSuiteConfig::None,
+							    TestSuiteConfig::EnablePostBuildInfoStats,
+							    TestSuiteConfig::DisableSpecialIndices,
+							    TestSuiteConfig::DisableSpecialIndices | TestSuiteConfig::EnablePostBuildInfoStats,
+							    TestSuiteConfig::Force32BitIndices,
+							    TestSuiteConfig::DisableTexCoordDeduplication,
+							    TestSuiteConfig::RedChannel,
+							    TestSuiteConfig::BlueChannel,
+							    TestSuiteConfig::GreenChannel,
+							    
+							    TestSuiteConfig::SetupBeforeBuild,
+								TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::EnablePostBuildInfoStats,
+							    TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::DisableSpecialIndices,
+							    TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::DisableSpecialIndices | TestSuiteConfig::EnablePostBuildInfoStats,
+							    TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::Force32BitIndices,
+							    TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::DisableTexCoordDeduplication,
+							    TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::RedChannel,
+							    TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::BlueChannel,
+							    TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::GreenChannel,
 								
-							   //TestSuiteConfig::ComputeOnly
-							   // TestSuiteConfig::ComputeOnly | TestSuiteConfig::DisableSpecialIndices, 
-							   // TestSuiteConfig::ComputeOnly | TestSuiteConfig::Force32BitIndices,
-							   // TestSuiteConfig::ComputeOnly | TestSuiteConfig::DisableTexCoordDeduplication,
-							   // TestSuiteConfig::ComputeOnly | TestSuiteConfig::RedChannel,
-							   // TestSuiteConfig::ComputeOnly | TestSuiteConfig::BlueChannel,
-							   // TestSuiteConfig::ComputeOnly | TestSuiteConfig::GreenChannel,
-							   // 
-							   // TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild,
-							   // TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::DisableSpecialIndices,
-							   // TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::Force32BitIndices,
-							   // TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::DisableTexCoordDeduplication,
-							   // TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::RedChannel,
-							   // TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::BlueChannel,
-							   // TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::GreenChannel
-
-								TestSuiteConfig::EnablePostBuildInfoStats,
-								TestSuiteConfig::ComputeOnly | TestSuiteConfig::EnablePostBuildInfoStats
+							    TestSuiteConfig::ComputeOnly,
+							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::EnablePostBuildInfoStats,
+							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::DisableSpecialIndices, 
+							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::DisableSpecialIndices | TestSuiteConfig::EnablePostBuildInfoStats,
+							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::Force32BitIndices,
+							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::DisableTexCoordDeduplication,
+							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::RedChannel,
+							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::BlueChannel,
+							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::GreenChannel,
+							    
+							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild,
+							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::EnablePostBuildInfoStats,
+							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::DisableSpecialIndices,
+							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::DisableSpecialIndices | TestSuiteConfig::EnablePostBuildInfoStats,
+							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::Force32BitIndices,
+							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::DisableTexCoordDeduplication,
+							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::RedChannel,
+							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::BlueChannel,
+							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::GreenChannel
 						));
 
 }  // namespace

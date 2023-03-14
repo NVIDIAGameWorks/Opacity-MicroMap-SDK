@@ -89,12 +89,12 @@ void UpdatePostBuildInfo(PrimitiveHistogram h)
 		const SpecialIndex specialIndex = h.GetSpecialIndex();
 
 		if (specialIndex == SpecialIndex::FullyOpaque)
-			u_postBuildInfo.InterlockedAdd(4 * kOffsetTotalFullyOpaque, h.counts.x);
+			u_postBuildInfo.InterlockedAdd(4 * kOffsetTotalFullyOpaque, 1);
 		if (specialIndex == SpecialIndex::FullyTransparent)
-			u_postBuildInfo.InterlockedAdd(4 * kOffsetTotalFullyTransparent, h.counts.y);
+			u_postBuildInfo.InterlockedAdd(4 * kOffsetTotalFullyTransparent, 1);
 		if (specialIndex == SpecialIndex::FullyUnknownTransparent ||
 			specialIndex == SpecialIndex::FullyUnknownOpaque)
-			u_postBuildInfo.InterlockedAdd(4 * kOffsetTotalFullyUnknown, h.counts.z);
+			u_postBuildInfo.InterlockedAdd(4 * kOffsetTotalFullyUnknown, 1);
 	}
 	else
 	{
