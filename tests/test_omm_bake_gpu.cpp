@@ -1162,22 +1162,24 @@ namespace {
 
 			}, omm::Format::OC1_4_State);
 
+		const uint32_t multiplier = EnableTexCoordDeduplication() ? 1 : 2;
+
 		if (ComputeOnly())
 		{
 			ExpectEqual(stats, {
-				.totalOpaque = 2 * 254728,
-				.totalTransparent = 2 * 4300,
+				.totalOpaque = multiplier * 254728,
+				.totalTransparent = multiplier * 4300,
 				.totalUnknownTransparent = 0,
-				.totalUnknownOpaque = 2 * 3116,
+				.totalUnknownOpaque = multiplier * 3116,
 				});
 		}
 		else
 		{
 			ExpectEqual(stats, {
-				.totalOpaque = 2 * 254723,
-				.totalTransparent = 2 * 4300,
+				.totalOpaque = multiplier * 254723,
+				.totalTransparent = multiplier * 4300,
 				.totalUnknownTransparent = 0,
-				.totalUnknownOpaque = 2 * 3121,
+				.totalUnknownOpaque = multiplier * 3121,
 				});
 		}
 	}

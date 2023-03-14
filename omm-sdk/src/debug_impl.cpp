@@ -475,6 +475,8 @@ namespace omm
 
         const uint32_t triangleCount = resDesc.indexCount;
 
+        set<uint> indices(memoryAllocator);
+
         for (uint32_t i = 0; i < triangleCount; ++i) {
 
             const int32_t vmIdx = omm::parse::GetOmmIndexForTriangleIndex(resDesc, i);
@@ -494,6 +496,7 @@ namespace omm
             else {
                 OMM_ASSERT(vmIdx < (int32_t)resDesc.descArrayCount);
                 // Calculate later
+                indices.insert(vmIdx);
             }
         }
 
@@ -540,12 +543,10 @@ namespace omm
             }
         }
 
-
-        for (uint32_t i = 0; i < resDesc.indexCount; ++i)
+        for (uint32_t index : indices)
         {
-            int32_t index = resDesc.indexFormat == ommIndexFormat_I16_UINT ? ((int16_t*)resDesc.indexBuffer)[i] : ((int32_t*)resDesc.indexBuffer)[i];
-            if (index < 0)
-                continue;
+            OMM_ASSERT(index < descStats.size());
+
             stats.totalOpaque += descStats[index].totalOpaque;
             stats.totalTransparent += descStats[index].totalTransparent;
             stats.totalUnknownOpaque += descStats[index].totalUnknownOpaque;
