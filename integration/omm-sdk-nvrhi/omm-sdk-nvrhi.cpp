@@ -609,6 +609,8 @@ omm::Gpu::DispatchConfigDesc GpuBakeNvrhiImpl::GetConfig(const GpuBakeNvrhi::Inp
 	config.runtimeSamplerDesc.addressingMode	= GetTextureAddressMode(params.sampleMode);
 	config.runtimeSamplerDesc.filter			= params.bilinearFilter ? TextureFilterMode::Linear : TextureFilterMode::Nearest;
 	
+	config.bakeFlags = Gpu::BakeFlags::Invalid;
+
 	if (((uint32_t)params.operation & (uint32_t)GpuBakeNvrhi::Operation::Setup) == (uint32_t)GpuBakeNvrhi::Operation::Setup)
 		config.bakeFlags = (omm::Gpu::BakeFlags)((uint32_t)config.bakeFlags | (uint32_t)omm::Gpu::BakeFlags::PerformSetup);
 
