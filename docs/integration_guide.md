@@ -676,7 +676,7 @@ This means that the conservative memory requirements will be impossible to satis
 ### Strategy 1. Limit the max subdivision level
 The obvious solution is to lower the max subvisivision level to reduce the memory explosion. The downside is that this may lower the OMM quality as the highest subdivision level, and potential coverage can not be realized. A simple strategy, but be mindful of the drawbacks. 
 
-### Strategy 2. Limit the amount of memory the baker is allowed to use. (Recommended)
+### Strategy 2. Run the bake prepass. (Recommended)
 
 Another strategy is to put a hard limit on the amout of memory that can be used. We can limit the baking budget to something more reasonable and let the SDK optimize the OMMs to fit within this budget.
 
