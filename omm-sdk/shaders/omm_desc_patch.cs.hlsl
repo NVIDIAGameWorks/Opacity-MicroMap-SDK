@@ -47,15 +47,31 @@ bool GetSpecialIndex(uint primitiveIndex, out SpecialIndex specialIndex)
 
 uint GetSourcePrimitiveIndex(uint primitiveIndex)
 {
-	const int primitiveIndexOrHashTableEntryIndex = OMM_SUBRESOURCE_LOAD(TempOmmIndexBuffer, 4 * primitiveIndex);
-
-	if (primitiveIndexOrHashTableEntryIndex < -4)
+	if (g_GlobalConstants.DoSetup)
 	{
-		const uint hashTableEntryIndex = -(primitiveIndexOrHashTableEntryIndex + 5);
-		const uint primitiveIndexRef =  OMM_SUBRESOURCE_LOAD(HashTableBuffer, 8 * hashTableEntryIndex + 4); // [hash|primitiveIndex]
-		return primitiveIndexRef;
+		const int primitiveIndexOrHashTableEntryIndex = OMM_SUBRESOURCE_LOAD(TempOmmIndexBuffer, 4 * primitiveIndex);
+
+		if (primitiveIndexOrHashTableEntryIndex < -4)
+		{
+			const uint hashTableEntryIndex = -(primitiveIndexOrHashTableEntryIndex + 5);
+			const uint primitiveIndexRef = OMM_SUBRESOURCE_LOAD(HashTableBuffer, 8 * hashTableEntryIndex + 4); // [hash|primitiveIndex]
+			return primitiveIndexRef;
+		}
+
+		return primitiveIndex; // Source and dest is the same => no reuse
 	}
-	return primitiveIndex; // Source and dest is the same => no reuse
+	else
+	{
+		const int ommDescOffsetOrPrimitiveIndex = OMM_SUBRESOURCE_LOAD(TempOmmIndexBuffer, 4 * primitiveIndex);
+
+		if (ommDescOffsetOrPrimitiveIndex < -4)
+		{
+			const uint primitiveIndexRef = -(ommDescOffsetOrPrimitiveIndex + 5);
+			return primitiveIndexRef;
+		}
+
+		return primitiveIndex; // Source and dest is the same => no reuse
+	}
 }
 
 void IncrementIndexHistogram(uint ommDescOffset)

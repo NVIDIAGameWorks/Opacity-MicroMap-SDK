@@ -11,10 +11,10 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #ifndef PLATFORM_HLSLI
 #define PLATFORM_HLSLI
 
-#ifdef VULKAN
+#ifdef __spirv__
 #define ALLOW_UAV_CONDITION
 #define VK_PUSH_CONSTANT [[vk::push_constant]]
-#else // DXC
+#else // dxil
 #define ALLOW_UAV_CONDITION [allow_uav_condition]
 #define VK_PUSH_CONSTANT
 #endif
