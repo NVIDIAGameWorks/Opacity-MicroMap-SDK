@@ -1123,11 +1123,6 @@
                 "comment": "Either PerformSetup, PerformBake (or both simultaneously) must be set."
             },
             {
-                "name": "PerformSetupAndBake",
-                "value": "3u",
-                "comment": "Alias for (PerformSetup | PerformBake)"
-            },
-            {
                 "name": "PerformSetup",
                 "value": "1u << 0",
                 "comment": "(Default) OUT_OMM_DESC_ARRAY_HISTOGRAM, OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_DESC_ARRAY and OUT_POST_DISPATCH_INFO will be updated."
@@ -1138,38 +1133,43 @@
                 "comment": "(Default) OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_ARRAY_DATA and OUT_POST_DISPATCH_INFO (if stats enabled) will be updated. will be written to. If special indices are detected OUT_OMM_INDEX_BUFFER may also be modified.\nIf PerformBuild is not used with this flag, OUT_OMM_DESC_ARRAY_HISTOGRAM, OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_DESC_ARRAY must contain valid data from a prior PerformSetup pass."
             },
             {
+                "name": "PerformSetupAndBake",
+                "value": "3u",
+                "comment": "Alias for (PerformSetup | PerformBake)"
+            },
+            {
                 "name": "ComputeOnly",
-                "value": "1u << 3",
+                "value": "1u << 2",
                 "comment": "Baking will only be done using compute shaders and no gfx involvement (drawIndirect or graphics PSOs). (Beta)\nWill become default mode in the future.\n+ Useful for async workloads\n+ Less memory hungry\n+ Faster baking on low texel ratio to micro-triangle ratio (=rasterizing small triangles)\n- May looses efficency when resampling large triangles (tail-effect). Potential mitigation is to batch multiple bake jobs. However this is generally not a big problem."
             },
             {
                 "name": "EnablePostDispatchInfoStats",
-                "value": "1u << 4",
+                "value": "1u << 3",
                 "comment": "Must be used together with EnablePostDispatchInfo. If set baking (PerformBake) will fill the stats data of OUT_POST_DISPATCH_INFO."
             },
             {
                 "name": "DisableSpecialIndices",
-                "value": "1u << 5",
+                "value": "1u << 4",
                 "comment": "Will disable the use of special indices in case the OMM-state is uniform. Only set this flag for debug purposes."
             },
             {
                 "name": "DisableTexCoordDeduplication",
-                "value": "1u << 6",
+                "value": "1u << 5",
                 "comment": "If texture coordinates are known to be unique tex cooord deduplication can be disabled to save processing time and free up scratch memory."
             },
             {
                 "name": "Force32BitIndices",
-                "value": "1u << 7",
+                "value": "1u << 6",
                 "comment": "Force 32-bit indices in OUT_OMM_INDEX_BUFFER"
             },
             {
                 "name": "DisableLevelLineIntersection",
-                "value": "1u << 8",
+                "value": "1u << 7",
                 "comment": "Use only for debug purposes. Level Line Intersection method is vastly superior in 4-state mode."
             },
             {
                 "name": "EnableNsightDebugMode",
-                "value": "1u << 9",
+                "value": "1u << 8",
                 "comment": "Slightly modifies the dispatch to aid frame capture debugging."
             }
         ]

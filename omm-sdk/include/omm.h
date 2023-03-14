@@ -521,9 +521,6 @@ typedef enum ommGpuBakeFlags
    // Either PerformSetup, PerformBake (or both simultaneously) must be set.
    ommGpuBakeFlags_Invalid                      = 0,
 
-   // Alias for (PerformSetup | PerformBake)
-   ommGpuBakeFlags_PerformSetupAndBake          = 3u,
-
    // (Default) OUT_OMM_DESC_ARRAY_HISTOGRAM, OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_DESC_ARRAY and
    // OUT_POST_DISPATCH_INFO will be updated.
    ommGpuBakeFlags_PerformSetup                 = 1u << 0,
@@ -534,6 +531,9 @@ typedef enum ommGpuBakeFlags
    // OUT_OMM_DESC_ARRAY must contain valid data from a prior PerformSetup pass.
    ommGpuBakeFlags_PerformBake                  = 1u << 1,
 
+   // Alias for (PerformSetup | PerformBake)
+   ommGpuBakeFlags_PerformSetupAndBake          = 3u,
+
    // Baking will only be done using compute shaders and no gfx involvement (drawIndirect or graphics PSOs). (Beta)
    // Will become default mode in the future.
    // + Useful for async workloads
@@ -541,27 +541,27 @@ typedef enum ommGpuBakeFlags
    // + Faster baking on low texel ratio to micro-triangle ratio (=rasterizing small triangles)
    // - May looses efficency when resampling large triangles (tail-effect). Potential mitigation is to batch multiple bake
    // jobs. However this is generally not a big problem.
-   ommGpuBakeFlags_ComputeOnly                  = 1u << 3,
+   ommGpuBakeFlags_ComputeOnly                  = 1u << 2,
 
    // Must be used together with EnablePostDispatchInfo. If set baking (PerformBake) will fill the stats data of
    // OUT_POST_DISPATCH_INFO.
-   ommGpuBakeFlags_EnablePostDispatchInfoStats  = 1u << 4,
+   ommGpuBakeFlags_EnablePostDispatchInfoStats  = 1u << 3,
 
    // Will disable the use of special indices in case the OMM-state is uniform. Only set this flag for debug purposes.
-   ommGpuBakeFlags_DisableSpecialIndices        = 1u << 5,
+   ommGpuBakeFlags_DisableSpecialIndices        = 1u << 4,
 
    // If texture coordinates are known to be unique tex cooord deduplication can be disabled to save processing time and free
    // up scratch memory.
-   ommGpuBakeFlags_DisableTexCoordDeduplication = 1u << 6,
+   ommGpuBakeFlags_DisableTexCoordDeduplication = 1u << 5,
 
    // Force 32-bit indices in OUT_OMM_INDEX_BUFFER
-   ommGpuBakeFlags_Force32BitIndices            = 1u << 7,
+   ommGpuBakeFlags_Force32BitIndices            = 1u << 6,
 
    // Use only for debug purposes. Level Line Intersection method is vastly superior in 4-state mode.
-   ommGpuBakeFlags_DisableLevelLineIntersection = 1u << 8,
+   ommGpuBakeFlags_DisableLevelLineIntersection = 1u << 7,
 
    // Slightly modifies the dispatch to aid frame capture debugging.
-   ommGpuBakeFlags_EnableNsightDebugMode        = 1u << 9,
+   ommGpuBakeFlags_EnableNsightDebugMode        = 1u << 8,
 } ommGpuBakeFlags;
 OMM_DEFINE_ENUM_FLAG_OPERATORS(ommGpuBakeFlags);
 

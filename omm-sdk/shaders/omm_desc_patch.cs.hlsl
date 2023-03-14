@@ -84,7 +84,7 @@ void UpdatePostBuildInfo(PrimitiveHistogram h)
 	const uint kOffsetTotalFullyTransparent = 6;
 	const uint kOffsetTotalFullyUnknown = 7;
 
-	if (h.IsSpecialIndex())
+	if (g_GlobalConstants.EnableSpecialIndices && h.IsSpecialIndex())
 	{
 		const SpecialIndex specialIndex = h.GetSpecialIndex();
 

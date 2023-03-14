@@ -432,7 +432,6 @@ ommResult PipelineImpl::GetPreDispatchInfo(const ommGpuDispatchConfigDesc& confi
     const bool computeOnly = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_ComputeOnly) == (uint32_t)ommGpuBakeFlags_ComputeOnly);
     const bool enableTexCoordDedup = ((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_DisableTexCoordDeduplication) == 0;
     const bool enableSpecialIndices = ((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_DisableSpecialIndices) != (uint32_t)ommGpuBakeFlags_DisableSpecialIndices;
-    const bool is2State = config.globalFormat == ommFormat_OC1_2_State;
 
     const uint32_t primitiveCount = config.indexCount / 3;
     const uint32_t defaultAlignment = 128;
@@ -917,6 +916,7 @@ ommResult PipelineImpl::GetDispatchDesc(const ommGpuDispatchConfigDesc& config, 
                 });
         }
 
+        if (doSetup)
         {
             SCOPED_LABEL("PostBuildInfo");
 
@@ -1091,6 +1091,7 @@ ommResult PipelineImpl::GetDispatchDesc(const ommGpuDispatchConfigDesc& config, 
             }
         }
 
+        if (doSetup)
         {
             SCOPED_LABEL("PostBuildInfo");
 
