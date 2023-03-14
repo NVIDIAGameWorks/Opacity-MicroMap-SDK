@@ -763,17 +763,17 @@ namespace omm
       {
          uint32_t outOmmArraySizeInBytes;
          uint32_t outOmmDescSizeInBytes;
-         // Will be set if EnablePostDispatchInfoStats is set.
+         // Will be populated if EnablePostDispatchInfoStats is set.
          uint32_t outStatsTotalOpaqueCount;
-         // Will be set if EnablePostDispatchInfoStats is set.
+         // Will be populated if EnablePostDispatchInfoStats is set.
          uint32_t outStatsTotalTransparentCount;
-         // Will be set if EnablePostDispatchInfoStats is set.
+         // Will be populated if EnablePostDispatchInfoStats is set.
          uint32_t outStatsTotalUnknownCount;
-         // Will be set if EnablePostDispatchInfoStats is set.
+         // Will be populated if EnablePostDispatchInfoStats is set.
          uint32_t outStatsTotalFullyOpaqueCount;
-         // Will be set if EnablePostDispatchInfoStats is set.
+         // Will be populated if EnablePostDispatchInfoStats is set.
          uint32_t outStatsTotalFullyTransparentCount;
-         // Will be set if EnablePostDispatchInfoStats is set.
+         // Will be populated if EnablePostDispatchInfoStats is set.
          uint32_t outStatsTotalFullyStatsUnknownCount;
       };
 

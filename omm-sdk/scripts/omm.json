@@ -2012,32 +2012,32 @@
             {
                 "type": "uint32_t",
                 "name": "outStatsTotalOpaqueCount",
-                "comment": "Will be set if EnablePostDispatchInfoStats is set."
+                "comment": "Will be populated if EnablePostDispatchInfoStats is set."
             },
             {
                 "type": "uint32_t",
                 "name": "outStatsTotalTransparentCount",
-                "comment": "Will be set if EnablePostDispatchInfoStats is set."
+                "comment": "Will be populated if EnablePostDispatchInfoStats is set."
             },
             {
                 "type": "uint32_t",
                 "name": "outStatsTotalUnknownCount",
-                "comment": "Will be set if EnablePostDispatchInfoStats is set."
+                "comment": "Will be populated if EnablePostDispatchInfoStats is set."
             },
             {
                 "type": "uint32_t",
                 "name": "outStatsTotalFullyOpaqueCount",
-                "comment": "Will be set if EnablePostDispatchInfoStats is set."
+                "comment": "Will be populated if EnablePostDispatchInfoStats is set."
             },
             {
                 "type": "uint32_t",
                 "name": "outStatsTotalFullyTransparentCount",
-                "comment": "Will be set if EnablePostDispatchInfoStats is set."
+                "comment": "Will be populated if EnablePostDispatchInfoStats is set."
             },
             {
                 "type": "uint32_t",
                 "name": "outStatsTotalFullyStatsUnknownCount",
-                "comment": "Will be set if EnablePostDispatchInfoStats is set."
+                "comment": "Will be populated if EnablePostDispatchInfoStats is set."
             }
         ]
     },

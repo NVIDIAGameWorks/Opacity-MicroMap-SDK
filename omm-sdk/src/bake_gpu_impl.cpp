@@ -976,45 +976,6 @@ ommResult PipelineImpl::GetDispatchDesc(const ommGpuDispatchConfigDesc& config, 
             }
         }
         
-        {
-            SCOPED_LABEL("DescPatchCS");
-
-            m_passBuilder.PushPass(
-                "DescPatchCS",  ommGpuDispatchType_Compute, m_pipelines.ommDescPatchBindings,
-                [this, &config, &info, primitiveCount](PassBuilder::PassConfig& p)
-                {
-                    p.UseGlobalCbuffer();
-                    p.BindSubRange("TempOmmIndexBuffer", info.tempOmmIndexBuffer);
-                    p.BindSubRange("HashTableBuffer", info.hashTableBuffer);
-                    p.BindResource("u_ommIndexHistogramBuffer", ommGpuResourceType_OUT_OMM_INDEX_HISTOGRAM);
-                    p.BindResource("u_postBuildInfo", ommGpuResourceType_OUT_POST_DISPATCH_INFO);
-                    p.BindResource("t_ommDescArrayBuffer", ommGpuResourceType_OUT_OMM_DESC_ARRAY);
-
-                    p.BindSubRange("SpecialIndicesStateBuffer", info.specialIndicesStateBuffer);
-
-                    p.AddComputeDispatch(m_pipelines.ommDescPatchIdx, math::DivUp<uint32_t>(primitiveCount, 128u), 1);
-                });
-        }
-
-        {
-            SCOPED_LABEL("IndexWriteCS");
-
-            m_passBuilder.PushPass(
-                "IndexWriteCS",  ommGpuDispatchType_Compute, m_pipelines.ommIndexWriteBindings,
-                [this, &config, &info, primitiveCount, IsOmmIndexFormat16bit](PassBuilder::PassConfig& p)
-                {
-                    p.UseGlobalCbuffer();
-                    p.BindSubRange("TempOmmIndexBuffer", info.tempOmmIndexBuffer);
-                    p.BindResource("u_ommIndexBuffer", ommGpuResourceType_OUT_OMM_INDEX_BUFFER);
-
-                    const uint32_t threadCount = IsOmmIndexFormat16bit ? math::DivUp<uint32_t>(primitiveCount, 2u) : primitiveCount;
-
-                    CBufferWriter& lCb = p.AddComputeDispatch(m_pipelines.ommIndexWriteIdx, math::DivUp<uint32_t>(threadCount, 128u), 1);
-                    lCb.WriteDW(threadCount /*threadCount*/);
-                    for (uint32_t i = 0; i < 7u; ++i)
-                        lCb.WriteDW(4u /*dummy*/);
-                });
-        }
     }
     else
     {
@@ -1236,47 +1197,46 @@ ommResult PipelineImpl::GetDispatchDesc(const ommGpuDispatchConfigDesc& config, 
                 }
             }
         }
-       
-        {
-            SCOPED_LABEL("DescPatchCS");
+    }
 
-            m_passBuilder.PushPass(
-                "DescPatchCS",  ommGpuDispatchType_Compute, m_pipelines.ommDescPatchBindings,
-                [this, &config, &info, primitiveCount](PassBuilder::PassConfig& p)
-                {
-                    p.UseGlobalCbuffer();
-                    p.BindSubRange("TempOmmIndexBuffer", info.tempOmmIndexBuffer);
-                    p.BindSubRange("HashTableBuffer", info.hashTableBuffer);
-                    p.BindResource("u_ommIndexHistogramBuffer", ommGpuResourceType_OUT_OMM_INDEX_HISTOGRAM);
-                    p.BindResource("u_postBuildInfo", ommGpuResourceType_OUT_POST_DISPATCH_INFO);
-                    p.BindResource("t_ommDescArrayBuffer", ommGpuResourceType_OUT_OMM_DESC_ARRAY);
+    {
+        SCOPED_LABEL("DescPatchCS");
 
-                    p.BindSubRange("SpecialIndicesStateBuffer", info.specialIndicesStateBuffer);
+        m_passBuilder.PushPass(
+            "DescPatchCS", ommGpuDispatchType_Compute, m_pipelines.ommDescPatchBindings,
+            [this, &config, &info, primitiveCount](PassBuilder::PassConfig& p)
+            {
+                p.UseGlobalCbuffer();
+                p.BindSubRange("TempOmmIndexBuffer", info.tempOmmIndexBuffer);
+                p.BindSubRange("HashTableBuffer", info.hashTableBuffer);
+                p.BindResource("u_ommIndexHistogramBuffer", ommGpuResourceType_OUT_OMM_INDEX_HISTOGRAM);
+                p.BindResource("u_postBuildInfo", ommGpuResourceType_OUT_POST_DISPATCH_INFO);
+                p.BindResource("t_ommDescArrayBuffer", ommGpuResourceType_OUT_OMM_DESC_ARRAY);
 
-                    p.AddComputeDispatch(m_pipelines.ommDescPatchIdx, math::DivUp<uint32_t>(primitiveCount, 128u), 1);
-                });
-        }
+                p.BindSubRange("SpecialIndicesStateBuffer", info.specialIndicesStateBuffer);
 
-        
-        {
-            SCOPED_LABEL("IndexWriteCS");
+                p.AddComputeDispatch(m_pipelines.ommDescPatchIdx, math::DivUp<uint32_t>(primitiveCount, 128u), 1);
+            });
+    }
 
-            m_passBuilder.PushPass(
-                "IndexWriteCS",  ommGpuDispatchType_Compute, m_pipelines.ommIndexWriteBindings,
-                [this, &config, &info, primitiveCount, IsOmmIndexFormat16bit](PassBuilder::PassConfig& p)
-                {
-                    p.UseGlobalCbuffer();
-                    p.BindSubRange("TempOmmIndexBuffer", info.tempOmmIndexBuffer);
-                    p.BindResource("u_ommIndexBuffer", ommGpuResourceType_OUT_OMM_INDEX_BUFFER);
+    {
+        SCOPED_LABEL("IndexWriteCS");
 
-                    const uint32_t threadCount = IsOmmIndexFormat16bit ? math::DivUp<uint32_t>(primitiveCount, 2u) : primitiveCount;
+        m_passBuilder.PushPass(
+            "IndexWriteCS", ommGpuDispatchType_Compute, m_pipelines.ommIndexWriteBindings,
+            [this, &config, &info, primitiveCount, IsOmmIndexFormat16bit](PassBuilder::PassConfig& p)
+            {
+                p.UseGlobalCbuffer();
+                p.BindSubRange("TempOmmIndexBuffer", info.tempOmmIndexBuffer);
+                p.BindResource("u_ommIndexBuffer", ommGpuResourceType_OUT_OMM_INDEX_BUFFER);
 
-                    CBufferWriter& lCb = p.AddComputeDispatch(m_pipelines.ommIndexWriteIdx, math::DivUp<uint32_t>(threadCount, 128u), 1);
-                    lCb.WriteDW(threadCount /*threadCount*/);
-                    for (uint32_t i = 0; i < 7u; ++i)
-                        lCb.WriteDW(4u /*dummy*/);
-                });
-        }
+                const uint32_t threadCount = IsOmmIndexFormat16bit ? math::DivUp<uint32_t>(primitiveCount, 2u) : primitiveCount;
+
+                CBufferWriter& lCb = p.AddComputeDispatch(m_pipelines.ommIndexWriteIdx, math::DivUp<uint32_t>(threadCount, 128u), 1);
+                lCb.WriteDW(threadCount /*threadCount*/);
+                for (uint32_t i = 0; i < 7u; ++i)
+                    lCb.WriteDW(4u /*dummy*/);
+            });
     }
 
     m_passBuilder.Finalize();
