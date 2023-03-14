@@ -532,6 +532,9 @@ typedef enum ommGpuBakeFlags
    // OUT_OMM_DESC_ARRAY must contain valid data from a prior PerformSetup pass.
    ommGpuBakeFlags_PerformBake                  = 1u << 1,
 
+   // Alias for (PerformSetup | PerformBake)
+   ommGpuBakeFlags_PerformSetupAndBake          = 3u,
+
    // Baking will only be done using compute shaders and no gfx involvement (drawIndirect or graphics PSOs). (Beta)
    // Will become default mode in the future.
    // + Useful for async workloads
@@ -866,7 +869,7 @@ typedef struct ommGpuDispatchConfigDesc
 inline ommGpuDispatchConfigDesc ommGpuDispatchConfigDescDefault()
 {
    ommGpuDispatchConfigDesc v;
-   v.bakeFlags                     = ommGpuBakeFlags_Invalid;
+   v.bakeFlags                     = ommGpuBakeFlags_PerformSetupAndBake;
    v.runtimeSamplerDesc            = ommSamplerDescDefault();
    v.alphaMode                     = ommAlphaMode_MAX_NUM;
    v.alphaTextureWidth             = 0;
