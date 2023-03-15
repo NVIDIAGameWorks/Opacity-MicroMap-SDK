@@ -447,7 +447,7 @@
             },
             {
                 "auto_format_comment": false,
-                "comment": "This enables merging of \"similar\" OMMs where similarity is measured using hamming distance.\nUT and UO are considered identical.\nPros: normally reduces resulting OMM size drastically, especially when there's overlapping UVs.\nCons: The merging comes at the cost of coverage.\nThe resulting OMM Arrays will have lower fraction of known states. For large working sets it can be quite CPU heavy to compute.",
+                "comment": "This enables merging of \"similar\" OMMs where similarity is measured using hamming distance.\nUT and UO are considered identical.\nPros: normally reduces resulting OMM size drastically, especially when there's overlapping UVs.\nCons: The merging comes at the cost of coverage.\nThe resulting OMM Arrays will have lower fraction of known states. For large working sets it can be quite CPU heavy to compute. Note: can not be used if DisableDuplicateDetection is set.",
                 "name": "EnableNearDuplicateDetection",
                 "value": "1u << 4"
             },

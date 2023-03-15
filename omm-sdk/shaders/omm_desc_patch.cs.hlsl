@@ -188,7 +188,7 @@ void main(uint3 tid : SV_DispatchThreadID)
 	const PrimitiveHistogram histogram = LoadHistogram(srcPrimitiveIndex);
 
 	// We only update this once.
-	if (srcPrimitiveIndex == dstPrimitiveIndex && g_GlobalConstants.EnablePostDispatchInfoStats)
+	if (srcPrimitiveIndex >= 0 && g_GlobalConstants.EnablePostDispatchInfoStats)
 		UpdatePostBuildInfo(histogram);
 
 	if (g_GlobalConstants.EnableSpecialIndices && histogram.IsSpecialIndex())

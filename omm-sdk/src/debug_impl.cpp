@@ -475,7 +475,7 @@ namespace omm
 
         const uint32_t triangleCount = resDesc.indexCount;
 
-        set<uint> indices(memoryAllocator);
+        map<uint, uint> indices(memoryAllocator);
 
         for (uint32_t i = 0; i < triangleCount; ++i) {
 
@@ -496,7 +496,11 @@ namespace omm
             else {
                 OMM_ASSERT(vmIdx < (int32_t)resDesc.descArrayCount);
                 // Calculate later
-                indices.insert(vmIdx);
+                
+                if (indices.find(vmIdx) == indices.end())
+                    indices.insert(std::make_pair(vmIdx, 1));
+                else
+                    indices[vmIdx]++;
             }
         }
 
@@ -543,14 +547,14 @@ namespace omm
             }
         }
 
-        for (uint32_t index : indices)
+        for (auto [index, count] : indices)
         {
             OMM_ASSERT(index < descStats.size());
 
-            stats.totalOpaque += descStats[index].totalOpaque;
-            stats.totalTransparent += descStats[index].totalTransparent;
-            stats.totalUnknownOpaque += descStats[index].totalUnknownOpaque;
-            stats.totalUnknownTransparent += descStats[index].totalUnknownTransparent;
+            stats.totalOpaque += count * descStats[index].totalOpaque;
+            stats.totalTransparent += count * descStats[index].totalTransparent;
+            stats.totalUnknownOpaque += count * descStats[index].totalUnknownOpaque;
+            stats.totalUnknownTransparent += count * descStats[index].totalUnknownTransparent;
         }
 
         return stats;

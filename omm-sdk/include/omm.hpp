@@ -196,7 +196,7 @@ namespace omm
          // Pros: normally reduces resulting OMM size drastically, especially when there's overlapping UVs.
          // Cons: The merging comes at the cost of coverage.
          // The resulting OMM Arrays will have lower fraction of known states. For large working sets it can be quite CPU heavy to
-         // compute.
+         // compute. Note: can not be used if DisableDuplicateDetection is set.
          EnableNearDuplicateDetection = 1u << 4,
 
          // Workload validation is a safety mechanism that will let the SDK reject workloads that become unreasonably large, which
