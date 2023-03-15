@@ -447,7 +447,7 @@
             },
             {
                 "auto_format_comment": false,
-                "comment": "This enables merging of \"similar\" OMMs where similarity is measured using hamming distance.\nUT and UO are considered identical.\nPros: normally reduces resulting OMM size drastically, especially when there's overlapping UVs.\nCons: The merging comes at the cost of coverage.\nThe resulting OMM Arrays will have lower fraction of known states. For large working sets it can be quite CPU heavy to compute.",
+                "comment": "This enables merging of \"similar\" OMMs where similarity is measured using hamming distance.\nUT and UO are considered identical.\nPros: normally reduces resulting OMM size drastically, especially when there's overlapping UVs.\nCons: The merging comes at the cost of coverage.\nThe resulting OMM Arrays will have lower fraction of known states. For large working sets it can be quite CPU heavy to compute. Note: can not be used if DisableDuplicateDetection is set.",
                 "name": "EnableNearDuplicateDetection",
                 "value": "1u << 4"
             },
@@ -947,8 +947,8 @@
                 "comment": "Used directly as argument for OMM build in DX/VK. (Read back to CPU to query memory requirements during OMM Blas build)"
             },
             {
-                "name": "OUT_POST_BAKE_INFO",
-                "comment": "(Optional, enabled if EnablePostBuildInfo is set). Read back the PostBakeInfo struct containing the actual sizes of ARRAY_DATA and DESC_ARRAY."
+                "name": "OUT_POST_DISPATCH_INFO",
+                "comment": "Read back the PostDispatchInfo struct containing the actual sizes of ARRAY_DATA and DESC_ARRAY."
             },
             {
                 "name": "TRANSIENT_POOL_BUFFER",
@@ -1125,12 +1125,12 @@
             {
                 "name": "PerformSetup",
                 "value": "1u << 0",
-                "comment": "(Default) OUT_OMM_DESC_ARRAY_HISTOGRAM, OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_DESC_ARRAY and (optionally) OUT_POST_BAKE_INFO will be updated."
+                "comment": "(Default) OUT_OMM_DESC_ARRAY_HISTOGRAM, OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_DESC_ARRAY and OUT_POST_DISPATCH_INFO will be updated."
             },
             {
                 "name": "PerformBake",
                 "value": "1u << 1",
-                "comment": "(Default) OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_ARRAY_DATA will be written to. If special indices are detected OUT_OMM_INDEX_BUFFER may also be modified.\nIf PerformBuild is not used with this flag, OUT_OMM_DESC_ARRAY_HISTOGRAM, OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_DESC_ARRAY must contain valid data from a prior PerformSetup pass."
+                "comment": "(Default) OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_ARRAY_DATA and OUT_POST_DISPATCH_INFO (if stats enabled) will be updated. If special indices are detected OUT_OMM_INDEX_BUFFER may also be modified.\nIf PerformBuild is not used with this flag, OUT_OMM_DESC_ARRAY_HISTOGRAM, OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_DESC_ARRAY must contain valid data from a prior PerformSetup pass."
             },
             {
                 "name": "PerformSetupAndBake",
@@ -1143,9 +1143,9 @@
                 "comment": "Baking will only be done using compute shaders and no gfx involvement (drawIndirect or graphics PSOs). (Beta)\nWill become default mode in the future.\n+ Useful for async workloads\n+ Less memory hungry\n+ Faster baking on low texel ratio to micro-triangle ratio (=rasterizing small triangles)\n- May looses efficency when resampling large triangles (tail-effect). Potential mitigation is to batch multiple bake jobs. However this is generally not a big problem."
             },
             {
-                "name": "EnablePostBuildInfo",
+                "name": "EnablePostDispatchInfoStats",
                 "value": "1u << 3",
-                "comment": "Baking will also output post build info. (OUT_POST_BUILD_INFO)."
+                "comment": "Must be used together with EnablePostDispatchInfo. If set baking (PerformBake) will fill the stats data of OUT_POST_DISPATCH_INFO."
             },
             {
                 "name": "DisableSpecialIndices",
@@ -1846,7 +1846,7 @@
                 "type": "uint32_t",
                 "name": "maxOutOmmArraySize",
                 "value": "0xFFFFFFFF",
-                "comment": "The SDK will try to limit the omm array size of PreDispatchInfo::outOmmArraySizeInBytes and PostBakeInfo::outOmmArraySizeInBytes.\nCurrently a greedy algorithm is implemented with a first come-first serve order.\nThe SDK may (or may not) apply more sophisticated heuristics in the future.\nIf no memory is available to allocate an OMM Array Block the state will default to Unknown Opaque (ignoring any bake flags do disable special indices)."
+                "comment": "The SDK will try to limit the omm array size of PreDispatchInfo::outOmmArraySizeInBytes and PostDispatchInfo::outOmmArraySizeInBytes.\nCurrently a greedy algorithm is implemented with a first come-first serve order.\nThe SDK may (or may not) apply more sophisticated heuristics in the future.\nIf no memory is available to allocate an OMM Array Block the state will default to Unknown Opaque (ignoring any bake flags do disable special indices)."
             },
             {
                 "type": "ScratchMemoryBudget",
@@ -1926,13 +1926,13 @@
                 "type": "uint32_t",
                 "name": "outOmmArraySizeInBytes",
                 "value": "0xFFFFFFFF",
-                "comment": "Min required size of OUT_OMM_ARRAY_DATA. GetBakeInfo returns most conservative estimation while less conservative number can be obtained via BakePrepass"
+                "comment": "Min required size of OUT_OMM_ARRAY_DATA. GetPreDispatchInfo returns most conservative estimation while less conservative number can be obtained via BakePrepass"
             },
             {
                 "type": "uint32_t",
                 "name": "outOmmDescSizeInBytes",
                 "value": "0xFFFFFFFF",
-                "comment": "Min required size of OUT_OMM_DESC_ARRAY. GetBakeInfo returns most conservative estimation while less conservative number can be obtained via BakePrepass"
+                "comment": "Min required size of OUT_OMM_DESC_ARRAY. GetPreDispatchInfo returns most conservative estimation while less conservative number can be obtained via BakePrepass"
             },
             {
                 "type": "uint32_t",
@@ -1954,9 +1954,9 @@
             },
             {
                 "type": "uint32_t",
-                "name": "outOmmPostBuildInfoSizeInBytes",
+                "name": "outOmmPostDispatchInfoSizeInBytes",
                 "value": "0xFFFFFFFF",
-                "comment": "Min required size of OUT_POST_BUILD_INFO"
+                "comment": "Min required size of OUT_POST_DISPATCH_INFO"
             },
             {
                 "type": "uint32_t",
@@ -1996,10 +1996,10 @@
         ]
     },
 
-    "PostBakeInfo": {
+    "PostDispatchInfo": {
         "type": "struct",
-        "name": "PostBakeInfo",
-        "comment": "Format of OUT_POST_BAKE_INFO",
+        "name": "PostDispatchInfo",
+        "comment": "Format of OUT_POST_DISPATCH_INFO",
         "members": [
             {
                 "type": "uint32_t",
@@ -2008,6 +2008,36 @@
             {
                 "type": "uint32_t",
                 "name": "outOmmDescSizeInBytes"
+            },
+            {
+                "type": "uint32_t",
+                "name": "outStatsTotalOpaqueCount",
+                "comment": "Will be populated if EnablePostDispatchInfoStats is set."
+            },
+            {
+                "type": "uint32_t",
+                "name": "outStatsTotalTransparentCount",
+                "comment": "Will be populated if EnablePostDispatchInfoStats is set."
+            },
+            {
+                "type": "uint32_t",
+                "name": "outStatsTotalUnknownCount",
+                "comment": "Will be populated if EnablePostDispatchInfoStats is set."
+            },
+            {
+                "type": "uint32_t",
+                "name": "outStatsTotalFullyOpaqueCount",
+                "comment": "Will be populated if EnablePostDispatchInfoStats is set."
+            },
+            {
+                "type": "uint32_t",
+                "name": "outStatsTotalFullyTransparentCount",
+                "comment": "Will be populated if EnablePostDispatchInfoStats is set."
+            },
+            {
+                "type": "uint32_t",
+                "name": "outStatsTotalFullyStatsUnknownCount",
+                "comment": "Will be populated if EnablePostDispatchInfoStats is set."
             }
         ]
     },
@@ -2384,7 +2414,7 @@
             "PreDispatchInfo",
             "DispatchConfigDesc",
             "PipelineInfoDesc",
-            "PostBakeInfo",
+            "PostDispatchInfo",
             "DispatchChain",
             "fnGetStaticResourceData",
             "fnCreatePipeline",

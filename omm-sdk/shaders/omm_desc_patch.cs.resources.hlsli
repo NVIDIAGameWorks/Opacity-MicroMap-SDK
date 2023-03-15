@@ -14,7 +14,8 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 #define OMM_DECLARE_OUTPUT_RESOURCES \
     OMM_OUTPUT_RESOURCE( RWByteAddressBuffer, u_ommIndexHistogramBuffer, u, 0 ) \
-    OMM_OUTPUT_RESOURCE( RWByteAddressBuffer, u_heap0, u, 1 ) \
+    OMM_OUTPUT_RESOURCE( RWByteAddressBuffer, u_postBuildInfo, u, 1 ) \
+    OMM_OUTPUT_RESOURCE( RWByteAddressBuffer, u_heap0, u, 2 ) \
 
 #define OMM_DECLARE_SUBRESOURCES \
     OMM_SUBRESOURCE(RWByteAddressBuffer, TempOmmIndexBuffer, u_heap0) \

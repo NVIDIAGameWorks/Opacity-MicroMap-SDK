@@ -38,7 +38,7 @@ enum class SpecialIndex : int {
 	FullyUnknownOpaque       = -4,
 };
 
-OpacityState GetOpacityState(uint numOpaque, uint numTransparent)
+OpacityState _getOpacityStateInternal(uint numOpaque, uint numTransparent)
 {
 	if (numOpaque == 0)
 	{
@@ -56,6 +56,14 @@ OpacityState GetOpacityState(uint numOpaque, uint numTransparent)
 	{
 		return OpacityState::UnknownOpaque;
 	}
+}
+
+OpacityState GetOpacityState(uint numOpaque, uint numTransparent, OMMFormat ommFormat)
+{
+	OpacityState opacityState = _getOpacityStateInternal(numOpaque, numTransparent);
+	if (ommFormat == OMMFormat::OC1_2)
+		return (OpacityState)((uint)opacityState & 1u);
+	return opacityState;
 }
 
 float3 GetDebugColorForState(OpacityState state)

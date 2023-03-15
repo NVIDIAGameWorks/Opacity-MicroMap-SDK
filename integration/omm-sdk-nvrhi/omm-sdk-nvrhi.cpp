@@ -176,8 +176,7 @@ public:
 
 	void Clear();
 
-	// This assumes pData is the CPU-side pointer of the contents in vmUsageDescReadbackBufferSize.
-	static void ReadPostBuildInfo(void* pData, size_t byteSize, GpuBakeNvrhi::PostBuildInfo& outPostBuildInfo);
+	static void ReadPostDispatchInfo(void* pData, size_t byteSize, GpuBakeNvrhi::PostDispatchInfo& outPostDispatchInfo);
 	static void ReadUsageDescBuffer(void* pData, size_t byteSize, std::vector<nvrhi::rt::OpacityMicromapUsageCount>& outVmUsages);
 
 	// Debug dumping
@@ -617,9 +616,11 @@ omm::Gpu::DispatchConfigDesc GpuBakeNvrhiImpl::GetConfig(const GpuBakeNvrhi::Inp
 	if (((uint32_t)params.operation & (uint32_t)GpuBakeNvrhi::Operation::Bake) == (uint32_t)GpuBakeNvrhi::Operation::Bake)
 		config.bakeFlags = (omm::Gpu::BakeFlags)((uint32_t)config.bakeFlags | (uint32_t)omm::Gpu::BakeFlags::PerformBake);
 
+	if (params.enableStats)
+		config.bakeFlags = (omm::Gpu::BakeFlags)((uint32_t)config.bakeFlags | (uint32_t)omm::Gpu::BakeFlags::EnablePostDispatchInfoStats);
+
 	if (m_enableDebug)
 		config.bakeFlags = (omm::Gpu::BakeFlags)((uint32_t)config.bakeFlags | (uint32_t)omm::Gpu::BakeFlags::EnableNsightDebugMode);
-	config.bakeFlags = (omm::Gpu::BakeFlags)((uint32_t)config.bakeFlags | (uint32_t)omm::Gpu::BakeFlags::EnablePostBuildInfo);
 	
 	if (!params.enableSpecialIndices)
 		config.bakeFlags = (omm::Gpu::BakeFlags)((uint32_t)config.bakeFlags | (uint32_t)omm::Gpu::BakeFlags::DisableSpecialIndices);
@@ -699,7 +700,7 @@ void GpuBakeNvrhiImpl::GetPreDispatchInfo(const GpuBakeNvrhi::Input& params, Gpu
 	info.ommArrayBufferSize = preBuildInfo.outOmmArraySizeInBytes;
 	info.ommDescBufferSize = preBuildInfo.outOmmDescSizeInBytes;
 	info.ommDescArrayHistogramSize = preBuildInfo.outOmmArrayHistogramSizeInBytes;
-	info.ommPostBuildInfoBufferSize = preBuildInfo.outOmmPostBuildInfoSizeInBytes;
+	info.ommPostDispatchInfoBufferSize = preBuildInfo.outOmmPostDispatchInfoSizeInBytes;
 }
 
 void GpuBakeNvrhiImpl::Dispatch(
@@ -729,11 +730,11 @@ void GpuBakeNvrhiImpl::Clear()
 	m_bindingCache->Clear();
 }
 
-void GpuBakeNvrhiImpl::ReadPostBuildInfo(void* pData, size_t byteSize, GpuBakeNvrhi::PostBuildInfo& outPostBuildInfo)
+void GpuBakeNvrhiImpl::ReadPostDispatchInfo(void* pData, size_t byteSize, GpuBakeNvrhi::PostDispatchInfo& outPostDispatchInfo)
 {
-	static_assert(sizeof(omm::Gpu::PostBakeInfo) == sizeof(GpuBakeNvrhi::PostBuildInfo));
-	assert(byteSize >= sizeof(GpuBakeNvrhi::PostBuildInfo));
-	memcpy(&outPostBuildInfo, pData, sizeof(GpuBakeNvrhi::PostBuildInfo));
+	static_assert(sizeof(omm::Gpu::PostDispatchInfo) == sizeof(GpuBakeNvrhi::PostDispatchInfo));
+	assert(byteSize >= sizeof(GpuBakeNvrhi::PostDispatchInfo));
+	memcpy(&outPostDispatchInfo, pData, sizeof(GpuBakeNvrhi::PostDispatchInfo));
 }
 
 void GpuBakeNvrhiImpl::ReadUsageDescBuffer(void* pData, size_t byteSize, std::vector<nvrhi::rt::OpacityMicromapUsageCount>& outVmUsages)
@@ -800,9 +801,9 @@ nvrhi::BufferHandle GpuBakeNvrhiImpl::GetBufferResource(
 		resourceHandle = output.ommIndexHistogramBuffer;
 		offsetInBytes = output.ommIndexHistogramBufferOffset;
 		break;
-	case omm::Gpu::ResourceType::OUT_POST_BAKE_INFO:
-		resourceHandle = output.ommPostBuildInfoBuffer;
-		offsetInBytes = output.ommPostBuildInfoBufferOffset;
+	case omm::Gpu::ResourceType::OUT_POST_DISPATCH_INFO:
+		resourceHandle = output.ommPostDispatchInfoBuffer;
+		offsetInBytes = output.ommPostDispatchInfoBufferOffset;
 		break;
 	case omm::Gpu::ResourceType::IN_INDEX_BUFFER:
 		resourceHandle = params.indexBuffer;
@@ -1214,9 +1215,9 @@ void GpuBakeNvrhi::Clear()
 }
 
 // This assumes pData is the CPU-side pointer of the contents in vmUsageDescReadbackBufferSize.
-void GpuBakeNvrhi::ReadPostBuildInfo(void* pData, size_t byteSize, PostBuildInfo& outPostBuildInfo)
+void GpuBakeNvrhi::ReadPostDispatchInfo(void* pData, size_t byteSize, PostDispatchInfo& outPostDispatchInfo)
 {
-	GpuBakeNvrhiImpl::ReadPostBuildInfo(pData, byteSize, outPostBuildInfo);
+	GpuBakeNvrhiImpl::ReadPostDispatchInfo(pData, byteSize, outPostDispatchInfo);
 }
 
 void GpuBakeNvrhi::ReadUsageDescBuffer(void* pData, size_t byteSize, std::vector<nvrhi::rt::OpacityMicromapUsageCount>& outVmUsages)
