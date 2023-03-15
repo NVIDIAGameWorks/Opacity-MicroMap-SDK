@@ -394,13 +394,9 @@ namespace {
 				EXPECT_EQ(postBuildInfo.ommTotalOpaqueCount, stats.totalOpaque);
 				EXPECT_EQ(postBuildInfo.ommTotalTransparentCount, stats.totalTransparent);
 				EXPECT_EQ(postBuildInfo.ommTotalUnknownCount, totalUnknown);
-
-				if (p.maxOutOmmArraySize == 0xFFFFFFFF)
-				{
-					EXPECT_EQ(postBuildInfo.ommTotalFullyOpaqueCount, stats.totalFullyOpaque);
-					EXPECT_EQ(postBuildInfo.ommTotalFullyTransparentCount, stats.totalFullyTransparent);
-					EXPECT_EQ(postBuildInfo.ommTotalFullyUnknownCount, totalFullyUnknown);
-				}
+				EXPECT_EQ(postBuildInfo.ommTotalFullyOpaqueCount, stats.totalFullyOpaque);
+				EXPECT_EQ(postBuildInfo.ommTotalFullyTransparentCount, stats.totalFullyTransparent);
+				EXPECT_EQ(postBuildInfo.ommTotalFullyUnknownCount, totalFullyUnknown);
 			}
 			else
 			{

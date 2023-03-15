@@ -64,7 +64,7 @@ struct PrimitiveHistogram
 	int specialIndex;
 };
 
-PrimitiveHistogram LoadHistogram(int primitiveIndex)
+PrimitiveHistogram LoadHistogram(int primitiveIndex, int srcPrimitiveIndex)
 {
 	PrimitiveHistogram histogram;
 	histogram.Init(0, true /*allowSpecialIndexPromotion*/);
@@ -81,7 +81,7 @@ PrimitiveHistogram LoadHistogram(int primitiveIndex)
 	}
 	else
 	{
-		const uint3 counts = OMM_SUBRESOURCE_LOAD3(SpecialIndicesStateBuffer, 12 * primitiveIndex);
+		const uint3 counts = OMM_SUBRESOURCE_LOAD3(SpecialIndicesStateBuffer, 12 * srcPrimitiveIndex);
 		histogram.Init(counts, g_GlobalConstants.EnableSpecialIndices /*allowSpecialIndexPromotion*/);
 		return histogram;
 	}
@@ -175,7 +175,7 @@ void main(uint3 tid : SV_DispatchThreadID)
 	const uint srcPrimitiveIndex = GetSourcePrimitiveIndex(dstPrimitiveIndex);
 	const int ommDescIndex = OMM_SUBRESOURCE_LOAD(TempOmmIndexBuffer, 4 * srcPrimitiveIndex);
 
-	const PrimitiveHistogram histogram = LoadHistogram(ommDescIndex);
+	const PrimitiveHistogram histogram = LoadHistogram(ommDescIndex, srcPrimitiveIndex);
 	if (histogram.IsValid() && g_GlobalConstants.EnablePostDispatchInfoStats)
 		UpdatePostBuildInfo(histogram);
 
