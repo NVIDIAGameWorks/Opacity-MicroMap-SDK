@@ -43,7 +43,6 @@ void main(uint3 tid : SV_DispatchThreadID)
 	int ommDescOffset			= GetOmmDescOffset(t_ommIndexBuffer, tid.x);
 	const uint kOMMFormatNum		= 2;
 
-
 	const bool IsSpecialIndex				= ommDescOffset < 0;
 
 	if (IsSpecialIndex)
