@@ -695,6 +695,7 @@ ommResult PipelineImpl::InitGlobalConstants(const ommGpuDispatchConfigDesc& conf
     const bool enableTexCoordDeduplication = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_DisableTexCoordDeduplication) != (uint32_t)ommGpuBakeFlags_DisableTexCoordDeduplication);
     const bool computeOnly = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_ComputeOnly) == (uint32_t)ommGpuBakeFlags_ComputeOnly);
     const bool doSetup = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_PerformSetup) == (uint32_t)ommGpuBakeFlags_PerformSetup);
+    const bool doBake = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_PerformBake) == (uint32_t)ommGpuBakeFlags_PerformBake);
     const bool enablePostDispatchInfoStats = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_EnablePostDispatchInfoStats) == (uint32_t)ommGpuBakeFlags_EnablePostDispatchInfoStats);
     const bool enableLevelLine = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_DisableLevelLineIntersection) != (uint32_t)ommGpuBakeFlags_DisableLevelLineIntersection);
     
@@ -714,7 +715,7 @@ ommResult PipelineImpl::InitGlobalConstants(const ommGpuDispatchConfigDesc& conf
     cbuffer.MaxOutOmmArraySize                         = preBuildInfo.outOmmArraySizeInBytes;
     cbuffer.IsOmmIndexFormat16bit                      = IsOmmIndexFormat16bit;
     cbuffer.DoSetup                                    = doSetup;
-    cbuffer.EnablePostDispatchInfoStats                = enablePostDispatchInfoStats;
+    cbuffer.EnablePostDispatchInfoStats                = enablePostDispatchInfoStats && doBake;
     cbuffer.SamplerIndex                               = m_pipelineBuilder.GetStaticSamplerIndex(config.runtimeSamplerDesc);
     cbuffer.BakeResultBufferSize                       = info.bakeResultBuffer.GetSize();
     cbuffer.ViewportSize                               = viewportSize;

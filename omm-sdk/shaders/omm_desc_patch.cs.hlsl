@@ -22,29 +22,32 @@ OMM_DECLARE_SUBRESOURCES
 
 struct PrimitiveHistogram
 {
-	void Init(uint3 _counts)
+	void Init(uint3 _counts, bool  allowSpecialIndexPromotion)
 	{
 		counts = _counts;
 
 		specialIndex = 0;
 
-		if (counts.x >= 1 && counts.y == 0 && counts.z == 0)
+		if (allowSpecialIndexPromotion)
 		{
-			specialIndex = (int)SpecialIndex::FullyOpaque;
-		}
-		else if (counts.x == 0 && counts.y >= 1 && counts.z == 0)
-		{
-			specialIndex = (int)SpecialIndex::FullyTransparent;
-		}
-		else if (counts.x == 0 && counts.y == 0 && counts.z >= 1)
-		{
-			specialIndex = (int)SpecialIndex::FullyUnknownOpaque;
+			if (counts.x >= 1 && counts.y == 0 && counts.z == 0)
+			{
+				specialIndex = (int)SpecialIndex::FullyOpaque;
+			}
+			else if (counts.x == 0 && counts.y >= 1 && counts.z == 0)
+			{
+				specialIndex = (int)SpecialIndex::FullyTransparent;
+			}
+			else if (counts.x == 0 && counts.y == 0 && counts.z >= 1)
+			{
+				specialIndex = (int)SpecialIndex::FullyUnknownOpaque;
+			}
 		}
 	}
 
 	bool IsValid()
 	{
-		return counts.x != 0 || counts.y != 0 || counts.z != 0;
+		return (counts.x != 0) || (counts.y != 0) || (counts.z != 0);
 	}
 
 	bool IsSpecialIndex()
@@ -61,16 +64,27 @@ struct PrimitiveHistogram
 	int specialIndex;
 };
 
-PrimitiveHistogram LoadHistogram(uint primitiveIndex)
+PrimitiveHistogram LoadHistogram(int primitiveIndex)
 {
 	PrimitiveHistogram histogram;
-	histogram.Init(0);
+	histogram.Init(0, true /*allowSpecialIndexPromotion*/);
 
-	if (!g_GlobalConstants.EnablePostDispatchInfoStats && !g_GlobalConstants.EnableSpecialIndices)
+	if (primitiveIndex < 0)
+	{
+		if (primitiveIndex == (int)SpecialIndex::FullyOpaque)
+			histogram.Init(uint3(1, 0, 0), true /*allowSpecialIndexPromotion*/);
+		if (primitiveIndex == (int)SpecialIndex::FullyTransparent)
+			histogram.Init(uint3(0, 1, 0), true /*allowSpecialIndexPromotion*/);
+		if (primitiveIndex == (int)SpecialIndex::FullyUnknownOpaque || primitiveIndex == (int)SpecialIndex::FullyUnknownTransparent)
+			histogram.Init(uint3(0, 0, 1), true /*allowSpecialIndexPromotion*/);
 		return histogram;
-
-	const uint3 counts = OMM_SUBRESOURCE_LOAD3(SpecialIndicesStateBuffer, 12 * primitiveIndex);
-	histogram.Init(counts);
+	}
+	else
+	{
+		const uint3 counts = OMM_SUBRESOURCE_LOAD3(SpecialIndicesStateBuffer, 12 * primitiveIndex);
+		histogram.Init(counts, g_GlobalConstants.EnableSpecialIndices /*allowSpecialIndexPromotion*/);
+		return histogram;
+	}
 	return histogram;
 }
 
@@ -84,7 +98,7 @@ void UpdatePostBuildInfo(PrimitiveHistogram h)
 	const uint kOffsetTotalFullyTransparent = 6;
 	const uint kOffsetTotalFullyUnknown = 7;
 
-	if (g_GlobalConstants.EnableSpecialIndices && h.IsSpecialIndex())
+	if (h.IsSpecialIndex())
 	{
 		const SpecialIndex specialIndex = h.GetSpecialIndex();
 
@@ -107,32 +121,7 @@ void UpdatePostBuildInfo(PrimitiveHistogram h)
 	}
 }
 
-bool GetSpecialIndex(uint primitiveIndex, out SpecialIndex specialIndex)
-{
-	if (!g_GlobalConstants.EnableSpecialIndices)
-		return false;
-
-	const uint3 counts = OMM_SUBRESOURCE_LOAD3(SpecialIndicesStateBuffer, 12 * primitiveIndex);
-
-	if (counts.x >= 1 && counts.y == 0 && counts.z == 0)
-	{
-		specialIndex = SpecialIndex::FullyOpaque;
-		return true;
-	}
-	else if (counts.x == 0 && counts.y >= 1 && counts.z == 0)
-	{
-		specialIndex = SpecialIndex::FullyTransparent;
-		return true;
-	}
-	else if (counts.x == 0 && counts.y == 0 && counts.z >= 1)
-	{
-		specialIndex = SpecialIndex::FullyUnknownOpaque;
-		return true;
-	}
-	return false;
-}
-
-uint GetSourcePrimitiveIndex(uint primitiveIndex)
+int GetSourcePrimitiveIndex(int primitiveIndex)
 {
 	if (g_GlobalConstants.DoSetup)
 	{
@@ -184,14 +173,13 @@ void main(uint3 tid : SV_DispatchThreadID)
 
 	const uint dstPrimitiveIndex = tid.x;
 	const uint srcPrimitiveIndex = GetSourcePrimitiveIndex(dstPrimitiveIndex);
+	const int ommDescIndex = OMM_SUBRESOURCE_LOAD(TempOmmIndexBuffer, 4 * srcPrimitiveIndex);
 
-	const PrimitiveHistogram histogram = LoadHistogram(srcPrimitiveIndex);
-
-	// We only update this once.
-	if (srcPrimitiveIndex >= 0 && g_GlobalConstants.EnablePostDispatchInfoStats)
+	const PrimitiveHistogram histogram = LoadHistogram(ommDescIndex);
+	if (histogram.IsValid() && g_GlobalConstants.EnablePostDispatchInfoStats)
 		UpdatePostBuildInfo(histogram);
 
-	if (g_GlobalConstants.EnableSpecialIndices && histogram.IsSpecialIndex())
+	if (histogram.IsSpecialIndex())
 	{
 		SpecialIndex specialIndex = histogram.GetSpecialIndex();
 
@@ -199,8 +187,6 @@ void main(uint3 tid : SV_DispatchThreadID)
 	}
 	else
 	{
-		const int ommDescIndex = OMM_SUBRESOURCE_LOAD(TempOmmIndexBuffer, 4 * srcPrimitiveIndex);
-
 		if (ommDescIndex >= 0)
 		{
 			IncrementIndexHistogram(ommDescIndex);
