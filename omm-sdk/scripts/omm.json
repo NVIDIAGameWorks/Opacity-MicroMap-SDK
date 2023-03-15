@@ -1130,7 +1130,7 @@
             {
                 "name": "PerformBake",
                 "value": "1u << 1",
-                "comment": "(Default) OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_ARRAY_DATA and OUT_POST_DISPATCH_INFO (if stats enabled) will be updated. will be written to. If special indices are detected OUT_OMM_INDEX_BUFFER may also be modified.\nIf PerformBuild is not used with this flag, OUT_OMM_DESC_ARRAY_HISTOGRAM, OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_DESC_ARRAY must contain valid data from a prior PerformSetup pass."
+                "comment": "(Default) OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_ARRAY_DATA and OUT_POST_DISPATCH_INFO (if stats enabled) will be updated. If special indices are detected OUT_OMM_INDEX_BUFFER may also be modified.\nIf PerformBuild is not used with this flag, OUT_OMM_DESC_ARRAY_HISTOGRAM, OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_DESC_ARRAY must contain valid data from a prior PerformSetup pass."
             },
             {
                 "name": "PerformSetupAndBake",
@@ -1926,13 +1926,13 @@
                 "type": "uint32_t",
                 "name": "outOmmArraySizeInBytes",
                 "value": "0xFFFFFFFF",
-                "comment": "Min required size of OUT_OMM_ARRAY_DATA. GetBakeInfo returns most conservative estimation while less conservative number can be obtained via BakePrepass"
+                "comment": "Min required size of OUT_OMM_ARRAY_DATA. GetPreDispatchInfo returns most conservative estimation while less conservative number can be obtained via BakePrepass"
             },
             {
                 "type": "uint32_t",
                 "name": "outOmmDescSizeInBytes",
                 "value": "0xFFFFFFFF",
-                "comment": "Min required size of OUT_OMM_DESC_ARRAY. GetBakeInfo returns most conservative estimation while less conservative number can be obtained via BakePrepass"
+                "comment": "Min required size of OUT_OMM_DESC_ARRAY. GetPreDispatchInfo returns most conservative estimation while less conservative number can be obtained via BakePrepass"
             },
             {
                 "type": "uint32_t",

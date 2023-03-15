@@ -431,7 +431,7 @@ namespace omm
          PerformSetup                 = 1u << 0,
 
          // (Default) OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_ARRAY_DATA and OUT_POST_DISPATCH_INFO (if stats
-         // enabled) will be updated. will be written to. If special indices are detected OUT_OMM_INDEX_BUFFER may also be modified.
+         // enabled) will be updated. If special indices are detected OUT_OMM_INDEX_BUFFER may also be modified.
          // If PerformBuild is not used with this flag, OUT_OMM_DESC_ARRAY_HISTOGRAM, OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER,
          // OUT_OMM_DESC_ARRAY must contain valid data from a prior PerformSetup pass.
          PerformBake                  = 1u << 1,
@@ -685,11 +685,11 @@ namespace omm
          // Format of outOmmIndexBuffer
          IndexFormat outOmmIndexBufferFormat            = IndexFormat::MAX_NUM;
          uint32_t    outOmmIndexCount                   = 0xFFFFFFFF;
-         // Min required size of OUT_OMM_ARRAY_DATA. GetBakeInfo returns most conservative estimation while less conservative number
-         // can be obtained via BakePrepass
+         // Min required size of OUT_OMM_ARRAY_DATA. GetPreDispatchInfo returns most conservative estimation while less conservative
+         // number can be obtained via BakePrepass
          uint32_t    outOmmArraySizeInBytes             = 0xFFFFFFFF;
-         // Min required size of OUT_OMM_DESC_ARRAY. GetBakeInfo returns most conservative estimation while less conservative number
-         // can be obtained via BakePrepass
+         // Min required size of OUT_OMM_DESC_ARRAY. GetPreDispatchInfo returns most conservative estimation while less conservative
+         // number can be obtained via BakePrepass
          uint32_t    outOmmDescSizeInBytes              = 0xFFFFFFFF;
          // Min required size of OUT_OMM_INDEX_BUFFER
          uint32_t    outOmmIndexBufferSizeInBytes       = 0xFFFFFFFF;

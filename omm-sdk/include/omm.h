@@ -526,7 +526,7 @@ typedef enum ommGpuBakeFlags
    ommGpuBakeFlags_PerformSetup                 = 1u << 0,
 
    // (Default) OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_ARRAY_DATA and OUT_POST_DISPATCH_INFO (if stats
-   // enabled) will be updated. will be written to. If special indices are detected OUT_OMM_INDEX_BUFFER may also be modified.
+   // enabled) will be updated. If special indices are detected OUT_OMM_INDEX_BUFFER may also be modified.
    // If PerformBuild is not used with this flag, OUT_OMM_DESC_ARRAY_HISTOGRAM, OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER,
    // OUT_OMM_DESC_ARRAY must contain valid data from a prior PerformSetup pass.
    ommGpuBakeFlags_PerformBake                  = 1u << 1,
@@ -790,11 +790,11 @@ typedef struct ommGpuPreDispatchInfo
    // Format of outOmmIndexBuffer
    ommIndexFormat outOmmIndexBufferFormat;
    uint32_t       outOmmIndexCount;
-   // Min required size of OUT_OMM_ARRAY_DATA. GetBakeInfo returns most conservative estimation while less conservative number
-   // can be obtained via BakePrepass
+   // Min required size of OUT_OMM_ARRAY_DATA. GetPreDispatchInfo returns most conservative estimation while less conservative
+   // number can be obtained via BakePrepass
    uint32_t       outOmmArraySizeInBytes;
-   // Min required size of OUT_OMM_DESC_ARRAY. GetBakeInfo returns most conservative estimation while less conservative number
-   // can be obtained via BakePrepass
+   // Min required size of OUT_OMM_DESC_ARRAY. GetPreDispatchInfo returns most conservative estimation while less conservative
+   // number can be obtained via BakePrepass
    uint32_t       outOmmDescSizeInBytes;
    // Min required size of OUT_OMM_INDEX_BUFFER
    uint32_t       outOmmIndexBufferSizeInBytes;

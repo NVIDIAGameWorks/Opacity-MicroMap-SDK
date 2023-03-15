@@ -176,8 +176,7 @@ public:
 
 	void Clear();
 
-	// This assumes pData is the CPU-side pointer of the contents in vmUsageDescReadbackBufferSize.
-	static void ReadPostBuildInfo(void* pData, size_t byteSize, GpuBakeNvrhi::PostBuildInfo& outPostBuildInfo);
+	static void ReadPostDispatchInfo(void* pData, size_t byteSize, GpuBakeNvrhi::PostDispatchInfo& outPostDispatchInfo);
 	static void ReadUsageDescBuffer(void* pData, size_t byteSize, std::vector<nvrhi::rt::OpacityMicromapUsageCount>& outVmUsages);
 
 	// Debug dumping
@@ -731,11 +730,11 @@ void GpuBakeNvrhiImpl::Clear()
 	m_bindingCache->Clear();
 }
 
-void GpuBakeNvrhiImpl::ReadPostBuildInfo(void* pData, size_t byteSize, GpuBakeNvrhi::PostBuildInfo& outPostBuildInfo)
+void GpuBakeNvrhiImpl::ReadPostDispatchInfo(void* pData, size_t byteSize, GpuBakeNvrhi::PostDispatchInfo& outPostDispatchInfo)
 {
-	static_assert(sizeof(omm::Gpu::PostDispatchInfo) == sizeof(GpuBakeNvrhi::PostBuildInfo));
-	assert(byteSize >= sizeof(GpuBakeNvrhi::PostBuildInfo));
-	memcpy(&outPostBuildInfo, pData, sizeof(GpuBakeNvrhi::PostBuildInfo));
+	static_assert(sizeof(omm::Gpu::PostDispatchInfo) == sizeof(GpuBakeNvrhi::PostDispatchInfo));
+	assert(byteSize >= sizeof(GpuBakeNvrhi::PostDispatchInfo));
+	memcpy(&outPostDispatchInfo, pData, sizeof(GpuBakeNvrhi::PostDispatchInfo));
 }
 
 void GpuBakeNvrhiImpl::ReadUsageDescBuffer(void* pData, size_t byteSize, std::vector<nvrhi::rt::OpacityMicromapUsageCount>& outVmUsages)
@@ -1216,9 +1215,9 @@ void GpuBakeNvrhi::Clear()
 }
 
 // This assumes pData is the CPU-side pointer of the contents in vmUsageDescReadbackBufferSize.
-void GpuBakeNvrhi::ReadPostBuildInfo(void* pData, size_t byteSize, PostBuildInfo& outPostBuildInfo)
+void GpuBakeNvrhi::ReadPostDispatchInfo(void* pData, size_t byteSize, PostDispatchInfo& outPostDispatchInfo)
 {
-	GpuBakeNvrhiImpl::ReadPostBuildInfo(pData, byteSize, outPostBuildInfo);
+	GpuBakeNvrhiImpl::ReadPostDispatchInfo(pData, byteSize, outPostDispatchInfo);
 }
 
 void GpuBakeNvrhi::ReadUsageDescBuffer(void* pData, size_t byteSize, std::vector<nvrhi::rt::OpacityMicromapUsageCount>& outVmUsages)

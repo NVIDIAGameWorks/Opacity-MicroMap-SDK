@@ -101,7 +101,7 @@ namespace omm
 			uint32_t ommPostDispatchInfoBufferOffset = 0;
 		};
 
-		struct PostBuildInfo
+		struct PostDispatchInfo
 		{
 			uint32_t ommArrayBufferSize;
 			uint32_t ommDescBufferSize;
@@ -138,8 +138,7 @@ namespace omm
 
 		void Clear();
 
-		// This assumes pData is the CPU-side pointer of the contents in vmUsageDescReadbackBufferSize.
-		static void ReadPostBuildInfo(void* pData, size_t byteSize, PostBuildInfo& outPostBuildInfo);
+		static void ReadPostDispatchInfo(void* pData, size_t byteSize, PostDispatchInfo& outPostDispatchInfo);
 		static void ReadUsageDescBuffer(void* pData, size_t byteSize, std::vector<nvrhi::rt::OpacityMicromapUsageCount>& outVmUsages);
 
 		// Debug dumping
