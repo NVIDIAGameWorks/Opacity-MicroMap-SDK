@@ -203,4 +203,5 @@ if (OMM_INSTALL)
              RUNTIME DESTINATION bin)
 
     install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/include/omm.h" DESTINATION include)
+    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/include/omm.hpp" DESTINATION include)
 endif()
