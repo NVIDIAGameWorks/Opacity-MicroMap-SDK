@@ -20,7 +20,7 @@ Up to 12 subdivision levels per triangle is supported. Each subdivision level wi
     <img src="images/bird/bird.png" width=30% height=auto  alt="bird curve format">
 </p>
 
-An OMM block* of tightly bit-packed opacity states will be laid out in the "bird curve" pattern illustrated above. Similar to Morton space-filling curve used for textures, OMMs map micro-triangles in a "bird-curve" order (Named so due to it's resemblence to the Escher-like birds). 
+An *OMM block of tightly bit-packed opacity states will be laid out in the "bird curve" pattern illustrated above. Similar to Morton space-filling curve used for textures, OMMs map micro-triangles in a "bird-curve" order (Named so due to it's resemblence to the Escher-like birds). 
 
 Micro-triangle can either be ``Transparent(T)``, ``Opaque(O)``, ``Unknown Transparent(UT)`` or ``Unknown Opaque(UO)``. When a ray hits a triangle it will look up the corresponing micro-triangle state. If the micro-triangle state is Transparent ray query will proceed as if no tringle was hit, meaning that the AHS will not be invoked (and the RayQuery will not return a potential hit). If the state is Opaque, the surface will be considered opaque and the AHS will not be invoked and maxT updated accordingly. If it's the closet surface for the ray the CHS may still be invoked normally depending on how the ray and TLAS have been configured.
 
@@ -201,12 +201,15 @@ When using 4-state Opacity Micro-Maps each micro-triangle can be tagged as eithe
 Below is a list of supported shader formats. The application shaders should ideally be (functionally) identical to prevent shader and OMM mismatch which may alter the original content.
 
 ## <span style="color: green">Type 1</span> Simple Standard Form (recommended, produces highest OMM quality)
-Details:
-- &#x2611; Single alpha texture (Any texture format)
-- &#x2611; Linear or point sampling
-- &#x2611; Constant alpha threshold (or hardcoded value)
-- &#x2611; Constant mip-bias (or hardcoded value)
-- &#9744; Per Ray dynamic mip-bias
+Supports:
+- Single alpha texture (Any texture format)
+- Linear or point sampling
+- Constant alpha threshold (or hardcoded value)
+- Constant mip-bias (or hardcoded value)
+
+No supported:
+
+- Per Ray dynamic mip-bias
 
 The standard form of alpha testing is described below. If your applicaton uses a variation of this, OMM Bake will work optimally and produce pixel-idential results (for 4-state OMMs).
 ```cpp
@@ -240,12 +243,11 @@ Notes: if the g_globalMipBias changes frequently, for instance due to texture st
 
 ##  <span style="color: green">Type 2</span> Standard Form with per ray mip-bias (may be lower quality than Type 1)
 
-Details:
-- &#x2611; Single alpha texture (Any texture format)
-- &#x2611; Linear or point sampling
-- &#x2611; Global alpha threshold (or hardcoded value)
-- &#9744; Global mip-bias (or hardcoded value)
-- &#x2611; Per Ray dynamic mip-bias
+Supports:
+- Single alpha texture (Any texture format)
+- Linear or point sampling
+- Global alpha threshold (or hardcoded value)
+- Per Ray dynamic mip-bias
 
 This is identical to the standard form except the mip bias is changing per ray, or changes in such a way that the solutions in Type 1 is not applicable.
 ```cpp
