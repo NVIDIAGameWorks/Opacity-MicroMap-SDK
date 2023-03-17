@@ -1281,19 +1281,6 @@
         ]
     },
 
-    "GraphicsPipelineDescVersion": {
-        "type": "enum",
-        "comment": "The graphics pipeline desc structs defines dynamically only a subset of the available raster states, what is not defined dynamically is defined in this header via documentation (or constexpr variables). Keep in mind that the constexpr fields may change to become non-constexpr in future releases, for this reason it's recommended to add static asserts in integration code to catch it if it changes.\nStatically asserting on the GraphicsPipelineVersion::VERSION. The purpose of doing this is to keep the integration code as minimal as possible, while still keeping the door open for future extensions. For instance, static_assert(GraphicsPipelineVersion::VERSION == 1, \"Graphics pipeline state version changed, update integration code\");",
-        "name": "GraphicsPipelineDescVersion",
-        "underlying_type": "int32_t",
-        "values": [
-            {
-                "name": "VERSION",
-                "value": 2
-            }
-        ]
-    },
-
     "GraphicsPipelineInputElementDesc": {
         "type": "struct",
         "name": "GraphicsPipelineInputElementDesc",
@@ -1343,7 +1330,7 @@
     "GraphicsPipelineDesc": {
         "type": "struct",
         "name": "GraphicsPipelineDesc",
-        "comment": "Config specification not declared in the GraphicsPipelineDesc is meant to be hard-coded and may only change in future SDK versions.\nWhen SDK updates the spec of GraphicsPipelineDesc GraphicsPipelineVersion::VERSION will be updated.\nIt's recommended to keep a static_assert(GraphicsPipelineVersion::VERSION == X) in the client integration layer to be notified of changes.\nStenci state = disabled\nBlendState = disabled\nPrimitive topology = triangle list\nInput element = count 1, see GraphicsPipelineInputElementDesc\nFill mode = solid\n",
+        "comment": "Config specification not declared in the GraphicsPipelineDesc is implied, but may become explicit in future versions.\nStenci state = disabled\nBlendState = disabled\nPrimitive topology = triangle list\nInput element = count 1, see GraphicsPipelineInputElementDesc\nFill mode = solid\nTrack any changes via OMM_GRAPHICS_PIPELINE_DESC_VERSION\n",
         "members": [
             {
                 "type": "ShaderBytecode",
@@ -1960,7 +1947,7 @@
             },
             {
                 "type": "uint32_t",
-                "name": "transientPoolBufferSizeInBytes[8]",
+                "name": "transientPoolBufferSizeInBytes[OMM_MAX_TRANSIENT_POOL_BUFFERS]",
                 "comment": "Min required sizes of TRANSIENT_POOL_BUFFERs"
             },
             {
@@ -2397,7 +2384,6 @@
             "ShaderBytecode",
             "ComputePipelineDesc",
             "GraphicsPipelineInputElementDesc",
-            "GraphicsPipelineDescVersion",
             "GraphicsPipelineDesc",
             "PipelineDesc",
             "DescriptorSetDesc",

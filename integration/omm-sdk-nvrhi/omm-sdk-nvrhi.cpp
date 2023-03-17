@@ -505,7 +505,7 @@ void GpuBakeNvrhiImpl::SetupPipelines(
 		case omm::Gpu::PipelineType::Graphics:
 		{
 			const omm::Gpu::GraphicsPipelineDesc& gfx = pipeline.graphics;
-			static_assert((uint32_t)omm::Gpu::GraphicsPipelineDescVersion::VERSION == 2, "New GFX pipeline version detected, update integration code.");
+			static_assert(OMM_GRAPHICS_PIPELINE_DESC_VERSION == 3, "New GFX pipeline version detected, update integration code.");
 
 			nvrhi::ShaderHandle vertex;
 			if (shaderProvider)

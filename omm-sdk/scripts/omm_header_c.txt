@@ -18,6 +18,10 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #define OMM_VERSION_MINOR 0
 #define OMM_VERSION_BUILD 0
 
+#define OMM_MAX_TRANSIENT_POOL_BUFFERS 8
+
+#define OMM_GRAPHICS_PIPELINE_DESC_VERSION 3
+
 #if defined(_MSC_VER)
     #define OMM_CALL __fastcall
 #elif !defined(__aarch64__) && !defined(__x86_64) && (defined(__GNUC__)  || defined (__clang__))
