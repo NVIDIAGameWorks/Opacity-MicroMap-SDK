@@ -518,29 +518,13 @@ namespace omm
          static constexpr bool         isPerInstanced  = false;
       };
 
-      // The graphics pipeline desc structs defines dynamically only a subset of the available raster states, what is not defined
-      // dynamically is defined in this header via documentation (or constexpr variables). Keep in mind that the constexpr fields
-      // may change to become non-constexpr in future releases, for this reason it's recommended to add static asserts in
-      // integration code to catch it if it changes.
-      // Statically asserting on the GraphicsPipelineVersion::VERSION. The purpose of doing this is to keep the integration code
-      // as minimal as possible, while still keeping the door open for future extensions. For instance,
-      // static_assert(GraphicsPipelineVersion::VERSION == 1, "Graphics pipeline state version changed, update integration
-      // code");
-      enum class GraphicsPipelineDescVersion
-      {
-         VERSION = 2,
-      };
-
-      // Config specification not declared in the GraphicsPipelineDesc is meant to be hard-coded and may only change in future
-      // SDK versions.
-      // When SDK updates the spec of GraphicsPipelineDesc GraphicsPipelineVersion::VERSION will be updated.
-      // It's recommended to keep a static_assert(GraphicsPipelineVersion::VERSION == X) in the client integration layer to be
-      // notified of changes.
+      // Config specification not declared in the GraphicsPipelineDesc is implied, but may become explicit in future versions.
       // Stenci state = disabled
       // BlendState = disabled
       // Primitive topology = triangle list
       // Input element = count 1, see GraphicsPipelineInputElementDesc
       // Fill mode = solid
+      // Track any changes via OMM_GRAPHICS_PIPELINE_DESC_VERSION
       struct GraphicsPipelineDesc
       {
          ShaderBytecode             vertexShader;
@@ -683,25 +667,25 @@ namespace omm
       struct PreDispatchInfo
       {
          // Format of outOmmIndexBuffer
-         IndexFormat outOmmIndexBufferFormat            = IndexFormat::MAX_NUM;
-         uint32_t    outOmmIndexCount                   = 0xFFFFFFFF;
+         IndexFormat outOmmIndexBufferFormat                                         = IndexFormat::MAX_NUM;
+         uint32_t    outOmmIndexCount                                                = 0xFFFFFFFF;
          // Min required size of OUT_OMM_ARRAY_DATA. GetPreDispatchInfo returns most conservative estimation while less conservative
          // number can be obtained via BakePrepass
-         uint32_t    outOmmArraySizeInBytes             = 0xFFFFFFFF;
+         uint32_t    outOmmArraySizeInBytes                                          = 0xFFFFFFFF;
          // Min required size of OUT_OMM_DESC_ARRAY. GetPreDispatchInfo returns most conservative estimation while less conservative
          // number can be obtained via BakePrepass
-         uint32_t    outOmmDescSizeInBytes              = 0xFFFFFFFF;
+         uint32_t    outOmmDescSizeInBytes                                           = 0xFFFFFFFF;
          // Min required size of OUT_OMM_INDEX_BUFFER
-         uint32_t    outOmmIndexBufferSizeInBytes       = 0xFFFFFFFF;
+         uint32_t    outOmmIndexBufferSizeInBytes                                    = 0xFFFFFFFF;
          // Min required size of OUT_OMM_ARRAY_HISTOGRAM
-         uint32_t    outOmmArrayHistogramSizeInBytes    = 0xFFFFFFFF;
+         uint32_t    outOmmArrayHistogramSizeInBytes                                 = 0xFFFFFFFF;
          // Min required size of OUT_OMM_INDEX_HISTOGRAM
-         uint32_t    outOmmIndexHistogramSizeInBytes    = 0xFFFFFFFF;
+         uint32_t    outOmmIndexHistogramSizeInBytes                                 = 0xFFFFFFFF;
          // Min required size of OUT_POST_DISPATCH_INFO
-         uint32_t    outOmmPostDispatchInfoSizeInBytes  = 0xFFFFFFFF;
+         uint32_t    outOmmPostDispatchInfoSizeInBytes                               = 0xFFFFFFFF;
          // Min required sizes of TRANSIENT_POOL_BUFFERs
-         uint32_t    transientPoolBufferSizeInBytes[8];
-         uint32_t    numTransientPoolBuffers            = 0;
+         uint32_t    transientPoolBufferSizeInBytes[OMM_MAX_TRANSIENT_POOL_BUFFERS];
+         uint32_t    numTransientPoolBuffers                                         = 0;
       };
 
       struct DispatchConfigDesc

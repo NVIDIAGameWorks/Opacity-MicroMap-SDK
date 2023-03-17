@@ -18,6 +18,10 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #define OMM_VERSION_MINOR 0
 #define OMM_VERSION_BUILD 0
 
+#define OMM_MAX_TRANSIENT_POOL_BUFFERS 8
+
+#define OMM_GRAPHICS_PIPELINE_DESC_VERSION 3
+
 #if defined(_MSC_VER)
     #define OMM_CALL __fastcall
 #elif !defined(__aarch64__) && !defined(__x86_64) && (defined(__GNUC__)  || defined (__clang__))
@@ -624,21 +628,13 @@ inline ommGpuGraphicsPipelineInputElementDesc ommGpuGraphicsPipelineInputElement
    return v;
 }
 
-typedef enum ommGpuGraphicsPipelineDescVersion
-{
-   ommGpuGraphicsPipelineDescVersion_VERSION = 2,
-} ommGpuGraphicsPipelineDescVersion;
-
-// Config specification not declared in the GraphicsPipelineDesc is meant to be hard-coded and may only change in future
-// SDK versions.
-// When SDK updates the spec of GraphicsPipelineDesc GraphicsPipelineVersion::VERSION will be updated.
-// It's recommended to keep a static_assert(GraphicsPipelineVersion::VERSION == X) in the client integration layer to be
-// notified of changes.
+// Config specification not declared in the GraphicsPipelineDesc is implied, but may become explicit in future versions.
 // Stenci state = disabled
 // BlendState = disabled
 // Primitive topology = triangle list
 // Input element = count 1, see GraphicsPipelineInputElementDesc
 // Fill mode = solid
+// Track any changes via OMM_GRAPHICS_PIPELINE_DESC_VERSION
 typedef struct ommGpuGraphicsPipelineDesc
 {
    ommGpuShaderBytecode             vertexShader;
@@ -805,22 +801,22 @@ typedef struct ommGpuPreDispatchInfo
    // Min required size of OUT_POST_DISPATCH_INFO
    uint32_t       outOmmPostDispatchInfoSizeInBytes;
    // Min required sizes of TRANSIENT_POOL_BUFFERs
-   uint32_t       transientPoolBufferSizeInBytes[8];
+   uint32_t       transientPoolBufferSizeInBytes[OMM_MAX_TRANSIENT_POOL_BUFFERS];
    uint32_t       numTransientPoolBuffers;
 } ommGpuPreDispatchInfo;
 
 inline ommGpuPreDispatchInfo ommGpuPreDispatchInfoDefault()
 {
    ommGpuPreDispatchInfo v;
-   v.outOmmIndexBufferFormat            = ommIndexFormat_MAX_NUM;
-   v.outOmmIndexCount                   = 0xFFFFFFFF;
-   v.outOmmArraySizeInBytes             = 0xFFFFFFFF;
-   v.outOmmDescSizeInBytes              = 0xFFFFFFFF;
-   v.outOmmIndexBufferSizeInBytes       = 0xFFFFFFFF;
-   v.outOmmArrayHistogramSizeInBytes    = 0xFFFFFFFF;
-   v.outOmmIndexHistogramSizeInBytes    = 0xFFFFFFFF;
-   v.outOmmPostDispatchInfoSizeInBytes  = 0xFFFFFFFF;
-   v.numTransientPoolBuffers            = 0;
+   v.outOmmIndexBufferFormat                                         = ommIndexFormat_MAX_NUM;
+   v.outOmmIndexCount                                                = 0xFFFFFFFF;
+   v.outOmmArraySizeInBytes                                          = 0xFFFFFFFF;
+   v.outOmmDescSizeInBytes                                           = 0xFFFFFFFF;
+   v.outOmmIndexBufferSizeInBytes                                    = 0xFFFFFFFF;
+   v.outOmmArrayHistogramSizeInBytes                                 = 0xFFFFFFFF;
+   v.outOmmIndexHistogramSizeInBytes                                 = 0xFFFFFFFF;
+   v.outOmmPostDispatchInfoSizeInBytes                               = 0xFFFFFFFF;
+   v.numTransientPoolBuffers                                         = 0;
    return v;
 }
 
