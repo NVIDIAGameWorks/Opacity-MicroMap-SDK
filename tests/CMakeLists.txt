@@ -46,3 +46,10 @@ include_directories(tests ${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR})
 target_link_libraries(tests gtest gtest_main stb_lib omm-shared omm-sdk   ${OMM_GPU_LIBS}  )
 
 set_target_properties(tests PROPERTIES FOLDER "${OMM_PROJECT_FOLDER}")
+
+if (OMM_ENABLE_PRECOMPILED_SHADERS_DXIL)
+    target_compile_definitions(tests PRIVATE OMM_ENABLE_PRECOMPILED_SHADERS_DXIL)
+endif()
+if (OMM_ENABLE_PRECOMPILED_SHADERS_SPIRV)
+    target_compile_definitions(tests PRIVATE OMM_ENABLE_PRECOMPILED_SHADERS_SPIRV)
+endif()

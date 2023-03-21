@@ -19,3 +19,6 @@
 [submodule "thirdparty/nvrhi"]
 	path = thirdparty/nvrhi
 	url = https://github.com/NVIDIAGameWorks/nvrhi.git
+[submodule "thirdparty/ShaderMake"]
+	path = thirdparty/ShaderMake
+	url = https://github.com/NVIDIAGameWorks/ShaderMake.git
