@@ -39,40 +39,18 @@ if (OMM_DISABLE_INTERPROCEDURAL_OPTIMIZATION)
 endif()
 
 if ("${OMM_SHADER_OUTPUT_PATH}" STREQUAL "")
-    set(OMM_SHADER_OUTPUT_PATH "${PROJECT_BINARY_DIR}/shaders")
+    set(OMM_SHADER_OUTPUT_PATH "${PROJECT_BINARY_DIR}/bin/shaders")
 endif()
 
 # Vulkan resource offsets
-set (OMM_VK_S_SHIFT 100)
-set (OMM_VK_T_SHIFT 200)
-set (OMM_VK_B_SHIFT 300)
-set (OMM_VK_U_SHIFT 400)
+set(OMM_VK_S_SHIFT 100)
+set(OMM_VK_T_SHIFT 200)
+set(OMM_VK_B_SHIFT 300)
+set(OMM_VK_U_SHIFT 400)
 add_definitions(-DOMM_VK_S_SHIFT=${OMM_VK_S_SHIFT} -DOMM_VK_T_SHIFT=${OMM_VK_T_SHIFT} -DOMM_VK_B_SHIFT=${OMM_VK_B_SHIFT} -DOMM_VK_U_SHIFT=${OMM_VK_U_SHIFT})
 
 if (OMM_ENABLE_PRECOMPILED_SHADERS)
-    # include path for DXC and FXC (used in ShaderCompilation.cmake)
-    set(OMM_SHADER_INCLUDE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/shaders")
-    set(OMM_HEADER_INCLUDE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/shaders")
-
-    # list HLSL shaders and headers
-    file(GLOB_RECURSE OMM_HLSL_FILES "shaders/*.hlsl")
-    file(GLOB_RECURSE OMM_HLSL_INCLUDE "shaders/*.hlsli")
-
-    # Vulkan resource offsets
     include(ShaderCompilation.cmake)
-
-    # create "build/Shaders"
-    add_custom_target(CreateFolderForShaders ALL
-        COMMAND ${CMAKE_COMMAND} -E make_directory "${OMM_SHADER_OUTPUT_PATH}")
-    set_property(TARGET CreateFolderForShaders PROPERTY FOLDER "${OMM_PROJECT_FOLDER}/CustomScripts") 
-
-    # define build rules for the shaders
-    list_hlsl_headers("${OMM_HLSL_FILES}" OMM_HEADER_FILES)
-    list_hlsl_headers("${OMM_HLSL_INCLUDE}" OMM_HEADER_FILES)
-    list_hlsl_shaders("${OMM_HLSL_FILES}" "${OMM_HEADER_FILES}" OMM_SHADER_FILES)
-    add_custom_target(Shaders ALL DEPENDS ${OMM_SHADER_FILES} SOURCES "${OMM_HEADER_FILES}")
-    add_dependencies(Shaders CreateFolderForShaders)
-    set_property(TARGET Shaders PROPERTY FOLDER "${OMM_PROJECT_FOLDER}/Shaders") 
 endif()
 
 if (${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_CURRENT_SOURCE_DIR})
@@ -108,11 +86,12 @@ endif()
 target_link_libraries(${TARGET_NAME} omm-shared glm stb_lib xxHash::xxhash) 
 
 set_target_properties(${TARGET_NAME} PROPERTIES VERSION ${PROJECT_VERSION})
-target_include_directories(${TARGET_NAME} PUBLIC "include" "shaders")
+target_include_directories(${TARGET_NAME} PUBLIC "include")
+target_include_directories(${TARGET_NAME} PRIVATE "shaders")
 set_property(TARGET ${TARGET_NAME} PROPERTY FOLDER "${OMM_PROJECT_FOLDER}") 
 
 if (OMM_ENABLE_PRECOMPILED_SHADERS)
-    add_dependencies(${TARGET_NAME} Shaders)
+    add_dependencies(${TARGET_NAME} omm-shaders)
 endif()
 
 if (OMM_ENABLE_INTERFACE_GEN)
@@ -190,7 +169,7 @@ endif()
 set_target_properties(${TARGET_NAME} PROPERTIES FOLDER "${OMM_PROJECT_FOLDER}")
 
 if (NOT ${OMM_OUTPUT_BIN_PATH} STREQUAL "")
-    message(STATUS "OMMBake output path: '${OMM_OUTPUT_BIN_PATH}'")
+    message(STATUS "OMM-SDK output path: '${OMM_OUTPUT_BIN_PATH}'")
     set_target_properties(${TARGET_NAME} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${OMM_OUTPUT_BIN_PATH}/$<CONFIG>")
     set_target_properties(${TARGET_NAME} PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${OMM_OUTPUT_BIN_PATH}/$<CONFIG>")
     set_target_properties(${TARGET_NAME} PROPERTIES ARCHIVE_OUTPUT_DIRECTORY "${OMM_OUTPUT_BIN_PATH}/$<CONFIG>")

@@ -23,7 +23,15 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 // BINDINGS
 //=================================================================================================================================
 
-#if( defined COMPILER_FXC || defined COMPILER_DXC )
+#ifndef COMPILER_DXC
+#define COMPILER_DXC (1)
+#endif
+
+#ifndef COMPILER_FXC
+#define COMPILER_FXC (0)
+#endif
+
+#if( COMPILER_FXC || COMPILER_DXC )
 
 #define OMM_CONSTANTS_START(name) \
         struct name {
