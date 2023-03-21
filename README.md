@@ -1,5 +1,10 @@
 [![Build Opacity Micro-Map SDK](https://github.com/NVIDIAGameWorks/Opacity-MicroMap-SDK/actions/workflows/build.yml/badge.svg?branch=main&event=push)](https://github.com/NVIDIAGameWorks/Opacity-MicroMap-SDK/actions/workflows/build.yml)
 
+# Runnable Samples
+Get the OMM SDK demo app: [https://github.com/NVIDIAGameWorks/Opacity-MicroMap-Samples](https://github.com/NVIDIAGameWorks/Opacity-MicroMap-Samples)
+
+Or check out it's use in Path Tracing SDK: [https://github.com/NVIDIAGameWorks/Path-Tracing-SDK](https://github.com/NVIDIAGameWorks/Path-Tracing-SDK)
+
 # Opacity Micro-Map SDK
 
 <p align="center">
@@ -25,11 +30,15 @@ Opacity Micro-Map SDK is used to automatically convert existing alpha tested or 
 ## Integration Guide
 To read more about OMMs, the SDK and practical integration tips please see the [integration guide](docs/integration_guide.md).
 
+# Sample Application(s)
 
-# Sample Application
-A sample application with the OMM Bake SDK integrated can be found here: *[Opacity-MicroMap-Samples](https://github.com/NVIDIAGameWorks/Opacity-MicroMap-Samples)*.
+## Opacity Micro-Map Samples
+A full features sample application using the OMM SDK can be found here: *[Opacity-MicroMap-Samples](https://github.com/NVIDIAGameWorks/Opacity-MicroMap-Samples)*.
 
-The sample demonstrates OMMs running on D3D12 or Vulkan with both GPU and CPU baking enabled. The sample app runs raytracing with primary rays with specular and diffuse reflections with a configurable number of bounces. Use the UI to tweak the OMM format, subdivision level and other baking parameters. The sample includes a caching mechanism that is meant to illustrate the use of prebaked OMM data.
+The sample demonstrates all features of the SDK, running on D3D12 or Vulkan with both GPU and CPU baking toggleable. The sample app runs raytracing with primary rays with specular and diffuse reflections with a configurable number of bounces. Use the UI to tweak the OMM format, subdivision level and other baking parameters. The sample includes a caching mechanism that is meant to illustrate the use of prebaked OMM data.
+
+## Path Tracing SDK
+Additionally the OMM SDK GPU baker is integrated in to the Path Tracing SDK: *[https://github.com/NVIDIAGameWorks/Path-Tracing-SDK](https://github.com/NVIDIAGameWorks/Path-Tracing-SDK)*.
 
 # Prerequisites and useful resources
 - See [NVIDIA ADA GPU ARCHITECTURE - 2x Faster Alpha Traversal Performance with Opacity Micromap Engine](https://images.nvidia.com/aem-dam/Solutions/geforce/ada/nvidia-ada-gpu-architecture.pdf) for a technical overview of Opacity Micro-Maps and how they can help accelerate raytracing workloads.
