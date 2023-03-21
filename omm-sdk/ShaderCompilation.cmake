@@ -1,5 +1,13 @@
+# Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
+# 
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto. Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
+
 ##########################################################################
-################################ UTIL ####################################
+###################### Shader Compilation Util ###########################
 ##########################################################################
 
 function(compile_shaders)
@@ -125,11 +133,17 @@ util_generate_shader_config_file(
     ""
 )
 
-compile_shaders(
-    TARGET omm-shaders
-    CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/shaders.cfg
-    SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/shaders
-    FOLDER "shaders"
-    SPIRV ${PROJECT_BINARY_DIR}/bin
-    DXIL ${PROJECT_BINARY_DIR}/bin
-)
+if (OMM_ENABLE_PRECOMPILED_SHADERS_DXIL OR OMM_ENABLE_PRECOMPILED_SHADERS_SPIRV)
+    compile_shaders(
+        TARGET omm-shaders
+        CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/shaders.cfg
+        SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/shaders
+        FOLDER "shaders"
+        if (OMM_ENABLE_PRECOMPILED_SHADERS_DXIL)
+            DXIL ${PROJECT_BINARY_DIR}/bin
+        endif()
+        if (OMM_ENABLE_PRECOMPILED_SHADERS_DXIL)
+            SPIRV ${PROJECT_BINARY_DIR}/bin
+        endif()
+    )
+endif()

@@ -1,9 +1,22 @@
+# Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
+# 
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto. Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
 cmake_minimum_required(VERSION 3.12)
+
+if (WIN32)
+    set(DXIL_DEFAULT ON)
+else()
+    set(DXIL_DEFAULT OFF)
+endif()
 
 option(OMM_DISABLE_INTERPROCEDURAL_OPTIMIZATION "disable interprocedural optimization" OFF)
 option(OMM_ENABLE_OPENMP "enable openmp" ON)
-option(OMM_ENABLE_PRECOMPILED_SHADERS_DXIL "Embed precompiled dxil shaders. Require path to dxc.exe (normally located in WindowSDK)." ON)
-option(OMM_ENABLE_PRECOMPILED_SHADERS_SPIRV "Embed precompiled spirv shaders. Require path to VulkanSDK." ON)
+option(OMM_ENABLE_PRECOMPILED_SHADERS_DXIL "Embedded precompiled DXIL shaders. Require path to dxc.exe (normally located in Window SDK)." ${DXIL_DEFAULT})
+option(OMM_ENABLE_PRECOMPILED_SHADERS_SPIRV "Embedded precompiled SPIRV shaders. Require path to Vulkan SDK." ON)
 option(OMM_STATIC_LIBRARY "build static lib" OFF)
 option(OMM_CROSSCOMPILE_AARCH64 "cross compilation for aarch64" OFF)
 option(OMM_CROSSCOMPILE_X86_64 "cross compilation for x86_64" OFF)
