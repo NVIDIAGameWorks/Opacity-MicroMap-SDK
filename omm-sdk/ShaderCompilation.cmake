@@ -152,7 +152,7 @@ util_generate_shader_config_file(
 
 if (OMM_ENABLE_PRECOMPILED_SHADERS_DXIL)
     compile_shaders(
-        TARGET omm-shaders
+        TARGET omm-shaders-dxil
         CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/shaders.cfg
         SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/shaders
         FOLDER "shaders"
@@ -162,7 +162,7 @@ endif()
 
 if (OMM_ENABLE_PRECOMPILED_SHADERS_SPIRV)
     compile_shaders(
-        TARGET omm-shaders
+        TARGET omm-shaders-spirv
         CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/shaders.cfg
         SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/shaders
         FOLDER "shaders"
