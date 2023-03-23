@@ -49,6 +49,8 @@ add_subdirectory("gbenchmark")
 set_target_properties("benchmark" "benchmark_main" PROPERTIES FOLDER "${OMM_PROJECT_FOLDER}/Thirdparty")
 
 # ShaderMake
-add_subdirectory("ShaderMake")
-set_property(TARGET ShaderMake PROPERTY FOLDER "${OMM_PROJECT_FOLDER}/Thirdparty") 
-set_property(TARGET ShaderMakeBlob PROPERTY FOLDER "${OMM_PROJECT_FOLDER}/Thirdparty") 
+if (NOT TARGET ShaderMake)
+    add_subdirectory("ShaderMake")
+    set_property(TARGET ShaderMake PROPERTY FOLDER "${OMM_PROJECT_FOLDER}/Thirdparty") 
+    set_property(TARGET ShaderMakeBlob PROPERTY FOLDER "${OMM_PROJECT_FOLDER}/Thirdparty")
+endif()

@@ -54,7 +54,6 @@ function(compile_shaders)
 
         add_custom_command(TARGET ${params_TARGET} PRE_BUILD
                           COMMAND ShaderMake
-                                   --useExe
                                    --header
                                    --config=${params_CONFIG}
                                    --out ${params_DXIL}
@@ -75,38 +74,20 @@ function(compile_shaders)
             set(CFLAGS ${params_CFLAGS})
         endif()
 
-        if (WIN32)
-            add_custom_command(TARGET ${params_TARGET} PRE_BUILD
-                              COMMAND ShaderMake
-                                       --useExe
-                                       --header
-                                       --vulkanVersion=1.2
-                                       --config=${params_CONFIG}
-                                       --out ${params_SPIRV}
-                                       --compiler ${DXC_SPIRV_PATH}
-                                       --platform=SPIRV
-                                       --sRegShift=${OMM_VK_S_SHIFT}
-                                       --tRegShift=${OMM_VK_T_SHIFT}
-                                       --bRegShift=${OMM_VK_B_SHIFT}
-                                       --uRegShift=${OMM_VK_U_SHIFT}
-                                       ${INCLUDE_PATH}
-                                       )
-        else()
-            add_custom_command(TARGET ${params_TARGET} PRE_BUILD
-                        COMMAND ShaderMake
-                                --header
-                                --vulkanVersion=1.2
-                                --config=${params_CONFIG}
-                                --out ${params_SPIRV}
-                                --compiler ${DXC_SPIRV_PATH}
-                                --platform=SPIRV
-                                --sRegShift=${OMM_VK_S_SHIFT}
-                                --tRegShift=${OMM_VK_T_SHIFT}
-                                --bRegShift=${OMM_VK_B_SHIFT}
-                                --uRegShift=${OMM_VK_U_SHIFT}
-                                ${INCLUDE_PATH}
-                                )
-        endif()
+        add_custom_command(TARGET ${params_TARGET} PRE_BUILD
+                            COMMAND ShaderMake
+                                    --header
+                                    --vulkanVersion=1.2
+                                    --config=${params_CONFIG}
+                                    --out ${params_SPIRV}
+                                    --compiler ${DXC_SPIRV_PATH}
+                                    --platform=SPIRV
+                                    --sRegShift=${OMM_VK_S_SHIFT}
+                                    --tRegShift=${OMM_VK_T_SHIFT}
+                                    --bRegShift=${OMM_VK_B_SHIFT}
+                                    --uRegShift=${OMM_VK_U_SHIFT}
+                                    ${INCLUDE_PATH}
+                                    )
     endif()
 
     if(params_FOLDER)
