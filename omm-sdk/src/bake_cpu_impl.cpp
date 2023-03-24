@@ -57,6 +57,30 @@ namespace Cpu
         static_assert((uint32_t)BakeFlagsInternal::EnableWorkloadValidation == (uint32_t)ommCpuBakeFlags_EnableWorkloadValidation);
     }
 
+    struct Options
+    {
+        Options(ommCpuBakeFlags flags) :
+            enableInternalThreads(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableInternalThreads) == (uint32_t)BakeFlagsInternal::EnableInternalThreads),
+            disableSpecialIndices(((uint32_t)flags& (uint32_t)BakeFlagsInternal::DisableSpecialIndices) == (uint32_t)BakeFlagsInternal::DisableSpecialIndices),
+            disableDuplicateDetection(((uint32_t)flags& (uint32_t)BakeFlagsInternal::DisableDuplicateDetection) == (uint32_t)BakeFlagsInternal::DisableDuplicateDetection),
+            enableNearDuplicateDetection(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableNearDuplicateDetection) == (uint32_t)BakeFlagsInternal::EnableNearDuplicateDetection),
+            enableNearDuplicateDetectionBruteForce(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableNearDuplicateDetectionBruteForce) == (uint32_t)BakeFlagsInternal::EnableNearDuplicateDetectionBruteForce),
+            enableWorkloadValidation(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableWorkloadValidation) == (uint32_t)BakeFlagsInternal::EnableWorkloadValidation),
+            enableAABBTesting(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableAABBTesting) == (uint32_t)BakeFlagsInternal::EnableAABBTesting),
+            disableRemovePoorQualityOMM(((uint32_t)flags& (uint32_t)BakeFlagsInternal::DisableRemovePoorQualityOMM) == (uint32_t)BakeFlagsInternal::DisableRemovePoorQualityOMM),
+            disableLevelLineIntersection(((uint32_t)flags& (uint32_t)BakeFlagsInternal::DisableLevelLineIntersection) == (uint32_t)BakeFlagsInternal::DisableLevelLineIntersection)
+        { }
+        const bool enableInternalThreads;
+        const bool disableSpecialIndices;
+        const bool disableDuplicateDetection;
+        const bool enableNearDuplicateDetection;
+        const bool enableNearDuplicateDetectionBruteForce;
+        const bool enableWorkloadValidation;
+        const bool enableAABBTesting;
+        const bool disableRemovePoorQualityOMM;
+        const bool disableLevelLineIntersection;
+    };
+
     BakerImpl::~BakerImpl()
     {}
 
@@ -152,6 +176,8 @@ namespace Cpu
     }
 
     ommResult BakeOutputImpl::ValidateDesc(const ommCpuBakeInputDesc& desc) {
+        const Options options(desc.bakeFlags);
+
         if (desc.texture == 0)
             return ommResult_INVALID_ARGUMENT;
         if (desc.alphaMode == ommAlphaMode_MAX_NUM)
@@ -171,6 +197,8 @@ namespace Cpu
         if (desc.indexCount == 0)
             return ommResult_INVALID_ARGUMENT;
         if (desc.maxSubdivisionLevel > kMaxSubdivLevel)
+            return ommResult_INVALID_ARGUMENT;
+        if ((options.enableNearDuplicateDetection || options.enableNearDuplicateDetectionBruteForce) && options.disableDuplicateDetection)
             return ommResult_INVALID_ARGUMENT;
         return ommResult_SUCCESS;
     }
@@ -418,30 +446,6 @@ namespace Cpu
             return desc.maxSubdivisionLevel;
         }
     }
-
-    struct Options
-    {
-        Options(ommCpuBakeFlags flags) :
-            enableInternalThreads(((uint32_t)flags & (uint32_t)BakeFlagsInternal::EnableInternalThreads) == (uint32_t)BakeFlagsInternal::EnableInternalThreads),
-            disableSpecialIndices(((uint32_t)flags& (uint32_t)BakeFlagsInternal::DisableSpecialIndices) == (uint32_t)BakeFlagsInternal::DisableSpecialIndices),
-            disableDuplicateDetection(((uint32_t)flags& (uint32_t)BakeFlagsInternal::DisableDuplicateDetection) == (uint32_t)BakeFlagsInternal::DisableDuplicateDetection),
-            enableNearDuplicateDetection(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableNearDuplicateDetection) == (uint32_t)BakeFlagsInternal::EnableNearDuplicateDetection),
-            enableNearDuplicateDetectionBruteForce(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableNearDuplicateDetectionBruteForce) == (uint32_t)BakeFlagsInternal::EnableNearDuplicateDetectionBruteForce),
-            enableWorkloadValidation(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableWorkloadValidation) == (uint32_t)BakeFlagsInternal::EnableWorkloadValidation),
-            enableAABBTesting(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableAABBTesting) == (uint32_t)BakeFlagsInternal::EnableAABBTesting),
-            disableRemovePoorQualityOMM(((uint32_t)flags& (uint32_t)BakeFlagsInternal::DisableRemovePoorQualityOMM) == (uint32_t)BakeFlagsInternal::DisableRemovePoorQualityOMM),
-            disableLevelLineIntersection(((uint32_t)flags& (uint32_t)BakeFlagsInternal::DisableLevelLineIntersection) == (uint32_t)BakeFlagsInternal::DisableLevelLineIntersection)
-        { }
-        const bool enableInternalThreads;
-        const bool disableSpecialIndices;
-        const bool disableDuplicateDetection;
-        const bool enableNearDuplicateDetection;
-        const bool enableNearDuplicateDetectionBruteForce;
-        const bool enableWorkloadValidation;
-        const bool enableAABBTesting;
-        const bool disableRemovePoorQualityOMM;
-        const bool disableLevelLineIntersection;
-    };
 
     namespace impl
     {
@@ -831,6 +835,8 @@ namespace Cpu
 
         static ommResult DeduplicateSimilarLSH(StdAllocator<uint8_t>& allocator, const Options& options, vector<OmmWorkItem>& vmWorkItems, uint32_t iterations)
         {
+            if (options.disableDuplicateDetection)
+                return ommResult_SUCCESS;
             if (!options.enableNearDuplicateDetection || options.enableNearDuplicateDetectionBruteForce)
                 return ommResult_SUCCESS;
 
@@ -1049,6 +1055,9 @@ namespace Cpu
 
         static ommResult DeduplicateSimilarBruteForce(StdAllocator<uint8_t>& allocator, const Options& options, vector<OmmWorkItem>& vmWorkItems)
         {
+            if (options.disableDuplicateDetection)
+                return ommResult_SUCCESS;
+
             if (!options.enableNearDuplicateDetection || !options.enableNearDuplicateDetectionBruteForce)
                return ommResult_SUCCESS;
 

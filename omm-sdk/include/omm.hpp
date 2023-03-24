@@ -196,7 +196,7 @@ namespace omm
          // Pros: normally reduces resulting OMM size drastically, especially when there's overlapping UVs.
          // Cons: The merging comes at the cost of coverage.
          // The resulting OMM Arrays will have lower fraction of known states. For large working sets it can be quite CPU heavy to
-         // compute.
+         // compute. Note: can not be used if DisableDuplicateDetection is set.
          EnableNearDuplicateDetection = 1u << 4,
 
          // Workload validation is a safety mechanism that will let the SDK reject workloads that become unreasonably large, which
@@ -356,9 +356,8 @@ namespace omm
          OUT_OMM_INDEX_BUFFER,
          // Used directly as argument for OMM build in DX/VK. (Read back to CPU to query memory requirements during OMM Blas build)
          OUT_OMM_INDEX_HISTOGRAM,
-         // (Optional, enabled if EnablePostBuildInfo is set). Read back the PostBakeInfo struct containing the actual sizes of
-         // ARRAY_DATA and DESC_ARRAY.
-         OUT_POST_BAKE_INFO,
+         // Read back the PostDispatchInfo struct containing the actual sizes of ARRAY_DATA and DESC_ARRAY.
+         OUT_POST_DISPATCH_INFO,
          // Can be reused after baking
          TRANSIENT_POOL_BUFFER,
          // Initialize on startup. Read-only.
@@ -428,14 +427,17 @@ namespace omm
          Invalid                      = 0,
 
          // (Default) OUT_OMM_DESC_ARRAY_HISTOGRAM, OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_DESC_ARRAY and
-         // (optionally) OUT_POST_BAKE_INFO will be updated.
+         // OUT_POST_DISPATCH_INFO will be updated.
          PerformSetup                 = 1u << 0,
 
-         // (Default) OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_ARRAY_DATA will be written to. If special indices are
-         // detected OUT_OMM_INDEX_BUFFER may also be modified.
+         // (Default) OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_ARRAY_DATA and OUT_POST_DISPATCH_INFO (if stats
+         // enabled) will be updated. If special indices are detected OUT_OMM_INDEX_BUFFER may also be modified.
          // If PerformBuild is not used with this flag, OUT_OMM_DESC_ARRAY_HISTOGRAM, OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER,
          // OUT_OMM_DESC_ARRAY must contain valid data from a prior PerformSetup pass.
          PerformBake                  = 1u << 1,
+
+         // Alias for (PerformSetup | PerformBake)
+         PerformSetupAndBake          = 3u,
 
          // Baking will only be done using compute shaders and no gfx involvement (drawIndirect or graphics PSOs). (Beta)
          // Will become default mode in the future.
@@ -446,8 +448,9 @@ namespace omm
          // jobs. However this is generally not a big problem.
          ComputeOnly                  = 1u << 2,
 
-         // Baking will also output post build info. (OUT_POST_BUILD_INFO).
-         EnablePostBuildInfo          = 1u << 3,
+         // Must be used together with EnablePostDispatchInfo. If set baking (PerformBake) will fill the stats data of
+         // OUT_POST_DISPATCH_INFO.
+         EnablePostDispatchInfoStats  = 1u << 3,
 
          // Will disable the use of special indices in case the OMM-state is uniform. Only set this flag for debug purposes.
          DisableSpecialIndices        = 1u << 4,
@@ -515,29 +518,13 @@ namespace omm
          static constexpr bool         isPerInstanced  = false;
       };
 
-      // The graphics pipeline desc structs defines dynamically only a subset of the available raster states, what is not defined
-      // dynamically is defined in this header via documentation (or constexpr variables). Keep in mind that the constexpr fields
-      // may change to become non-constexpr in future releases, for this reason it's recommended to add static asserts in
-      // integration code to catch it if it changes.
-      // Statically asserting on the GraphicsPipelineVersion::VERSION. The purpose of doing this is to keep the integration code
-      // as minimal as possible, while still keeping the door open for future extensions. For instance,
-      // static_assert(GraphicsPipelineVersion::VERSION == 1, "Graphics pipeline state version changed, update integration
-      // code");
-      enum class GraphicsPipelineDescVersion
-      {
-         VERSION = 2,
-      };
-
-      // Config specification not declared in the GraphicsPipelineDesc is meant to be hard-coded and may only change in future
-      // SDK versions.
-      // When SDK updates the spec of GraphicsPipelineDesc GraphicsPipelineVersion::VERSION will be updated.
-      // It's recommended to keep a static_assert(GraphicsPipelineVersion::VERSION == X) in the client integration layer to be
-      // notified of changes.
+      // Config specification not declared in the GraphicsPipelineDesc is implied, but may become explicit in future versions.
       // Stenci state = disabled
       // BlendState = disabled
       // Primitive topology = triangle list
       // Input element = count 1, see GraphicsPipelineInputElementDesc
       // Fill mode = solid
+      // Track any changes via OMM_GRAPHICS_PIPELINE_DESC_VERSION
       struct GraphicsPipelineDesc
       {
          ShaderBytecode             vertexShader;
@@ -680,30 +667,30 @@ namespace omm
       struct PreDispatchInfo
       {
          // Format of outOmmIndexBuffer
-         IndexFormat outOmmIndexBufferFormat            = IndexFormat::MAX_NUM;
-         uint32_t    outOmmIndexCount                   = 0xFFFFFFFF;
-         // Min required size of OUT_OMM_ARRAY_DATA. GetBakeInfo returns most conservative estimation while less conservative number
-         // can be obtained via BakePrepass
-         uint32_t    outOmmArraySizeInBytes             = 0xFFFFFFFF;
-         // Min required size of OUT_OMM_DESC_ARRAY. GetBakeInfo returns most conservative estimation while less conservative number
-         // can be obtained via BakePrepass
-         uint32_t    outOmmDescSizeInBytes              = 0xFFFFFFFF;
+         IndexFormat outOmmIndexBufferFormat                                         = IndexFormat::MAX_NUM;
+         uint32_t    outOmmIndexCount                                                = 0xFFFFFFFF;
+         // Min required size of OUT_OMM_ARRAY_DATA. GetPreDispatchInfo returns most conservative estimation while less conservative
+         // number can be obtained via BakePrepass
+         uint32_t    outOmmArraySizeInBytes                                          = 0xFFFFFFFF;
+         // Min required size of OUT_OMM_DESC_ARRAY. GetPreDispatchInfo returns most conservative estimation while less conservative
+         // number can be obtained via BakePrepass
+         uint32_t    outOmmDescSizeInBytes                                           = 0xFFFFFFFF;
          // Min required size of OUT_OMM_INDEX_BUFFER
-         uint32_t    outOmmIndexBufferSizeInBytes       = 0xFFFFFFFF;
+         uint32_t    outOmmIndexBufferSizeInBytes                                    = 0xFFFFFFFF;
          // Min required size of OUT_OMM_ARRAY_HISTOGRAM
-         uint32_t    outOmmArrayHistogramSizeInBytes    = 0xFFFFFFFF;
+         uint32_t    outOmmArrayHistogramSizeInBytes                                 = 0xFFFFFFFF;
          // Min required size of OUT_OMM_INDEX_HISTOGRAM
-         uint32_t    outOmmIndexHistogramSizeInBytes    = 0xFFFFFFFF;
-         // Min required size of OUT_POST_BUILD_INFO
-         uint32_t    outOmmPostBuildInfoSizeInBytes     = 0xFFFFFFFF;
+         uint32_t    outOmmIndexHistogramSizeInBytes                                 = 0xFFFFFFFF;
+         // Min required size of OUT_POST_DISPATCH_INFO
+         uint32_t    outOmmPostDispatchInfoSizeInBytes                               = 0xFFFFFFFF;
          // Min required sizes of TRANSIENT_POOL_BUFFERs
-         uint32_t    transientPoolBufferSizeInBytes[8];
-         uint32_t    numTransientPoolBuffers            = 0;
+         uint32_t    transientPoolBufferSizeInBytes[OMM_MAX_TRANSIENT_POOL_BUFFERS];
+         uint32_t    numTransientPoolBuffers                                         = 0;
       };
 
       struct DispatchConfigDesc
       {
-         BakeFlags           bakeFlags                     = BakeFlags::Invalid;
+         BakeFlags           bakeFlags                     = BakeFlags::PerformSetupAndBake;
          // RuntimeSamplerDesc describes the texture sampler that will be used in the runtime alpha test shader code.
          SamplerDesc         runtimeSamplerDesc            = {};
          AlphaMode           alphaMode                     = AlphaMode::MAX_NUM;
@@ -732,7 +719,7 @@ namespace omm
          uint8_t             maxSubdivisionLevel           = 8;
          bool                enableSubdivisionLevelBuffer  = false;
          // The SDK will try to limit the omm array size of PreDispatchInfo::outOmmArraySizeInBytes and
-         // PostBakeInfo::outOmmArraySizeInBytes.
+         // PostDispatchInfo::outOmmArraySizeInBytes.
          // Currently a greedy algorithm is implemented with a first come-first serve order.
          // The SDK may (or may not) apply more sophisticated heuristics in the future.
          // If no memory is available to allocate an OMM Array Block the state will default to Unknown Opaque (ignoring any bake
@@ -755,11 +742,23 @@ namespace omm
          uint32_t                 staticSamplersNum;
       };
 
-      // Format of OUT_POST_BAKE_INFO
-      struct PostBakeInfo
+      // Format of OUT_POST_DISPATCH_INFO
+      struct PostDispatchInfo
       {
          uint32_t outOmmArraySizeInBytes;
          uint32_t outOmmDescSizeInBytes;
+         // Will be populated if EnablePostDispatchInfoStats is set.
+         uint32_t outStatsTotalOpaqueCount;
+         // Will be populated if EnablePostDispatchInfoStats is set.
+         uint32_t outStatsTotalTransparentCount;
+         // Will be populated if EnablePostDispatchInfoStats is set.
+         uint32_t outStatsTotalUnknownCount;
+         // Will be populated if EnablePostDispatchInfoStats is set.
+         uint32_t outStatsTotalFullyOpaqueCount;
+         // Will be populated if EnablePostDispatchInfoStats is set.
+         uint32_t outStatsTotalFullyTransparentCount;
+         // Will be populated if EnablePostDispatchInfoStats is set.
+         uint32_t outStatsTotalFullyStatsUnknownCount;
       };
 
       struct DispatchChain

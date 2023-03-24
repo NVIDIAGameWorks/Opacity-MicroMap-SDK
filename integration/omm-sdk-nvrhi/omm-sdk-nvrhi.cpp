@@ -163,7 +163,7 @@ class GpuBakeNvrhiImpl
 {
 public:
 
-	GpuBakeNvrhiImpl(nvrhi::DeviceHandle device, nvrhi::CommandListHandle commandList, bool enableDebug, GpuBakeNvrhi::ShaderProviderCb* shaderProviderCb);
+	GpuBakeNvrhiImpl(nvrhi::DeviceHandle device, nvrhi::CommandListHandle commandList, bool enableDebug, GpuBakeNvrhi::ShaderProvider* shaderProvider);
 	~GpuBakeNvrhiImpl();
 
 	// CPU side pre-build info.
@@ -176,8 +176,7 @@ public:
 
 	void Clear();
 
-	// This assumes pData is the CPU-side pointer of the contents in vmUsageDescReadbackBufferSize.
-	static void ReadPostBuildInfo(void* pData, size_t byteSize, GpuBakeNvrhi::PostBuildInfo& outPostBuildInfo);
+	static void ReadPostDispatchInfo(void* pData, size_t byteSize, GpuBakeNvrhi::PostDispatchInfo& outPostDispatchInfo);
 	static void ReadUsageDescBuffer(void* pData, size_t byteSize, std::vector<nvrhi::rt::OpacityMicromapUsageCount>& outVmUsages);
 
 	// Debug dumping
@@ -204,12 +203,12 @@ public:
 private:
 
 	void InitStaticBuffers(nvrhi::CommandListHandle commandList);
-	void InitBaker(GpuBakeNvrhi::ShaderProviderCb* shaderProviderCb);
+	void InitBaker(GpuBakeNvrhi::ShaderProvider* shaderProvider);
 	void DestroyBaker();
 
 	void SetupPipelines(
 		const omm::Gpu::PipelineInfoDesc* desc,
-		GpuBakeNvrhi::ShaderProviderCb* shaderProviderCb);
+		GpuBakeNvrhi::ShaderProvider* shaderProvider);
 
 	omm::Gpu::DispatchConfigDesc GetConfig(const GpuBakeNvrhi::Input& params);
 
@@ -244,13 +243,13 @@ private:
 	bool m_enableDebug = false;
 };
 
-GpuBakeNvrhiImpl::GpuBakeNvrhiImpl(nvrhi::DeviceHandle device, nvrhi::CommandListHandle commandList, bool enableDebug, GpuBakeNvrhi::ShaderProviderCb* shaderProviderCb)
+GpuBakeNvrhiImpl::GpuBakeNvrhiImpl(nvrhi::DeviceHandle device, nvrhi::CommandListHandle commandList, bool enableDebug, GpuBakeNvrhi::ShaderProvider* shaderProvider)
 	: m_device(device)
 	, m_bindingCache(new BindingCache(device))
 	, m_enableDebug(enableDebug)
 {
 	InitStaticBuffers(commandList);
-	InitBaker(shaderProviderCb);
+	InitBaker(shaderProvider);
 }
 
 GpuBakeNvrhiImpl::~GpuBakeNvrhiImpl()
@@ -341,7 +340,7 @@ void GpuBakeNvrhiImpl::ReserveGlobalCBuffer(size_t byteSize, uint32_t slot)
 	m_globalCBufferSlot = slot;
 }
 
-void GpuBakeNvrhiImpl::InitBaker(GpuBakeNvrhi::ShaderProviderCb* shaderProviderCb)
+void GpuBakeNvrhiImpl::InitBaker(GpuBakeNvrhi::ShaderProvider* shaderProvider)
 {
 	assert(m_device->getGraphicsAPI() == nvrhi::GraphicsAPI::D3D12 || m_device->getGraphicsAPI() == nvrhi::GraphicsAPI::VULKAN);
 
@@ -374,7 +373,7 @@ void GpuBakeNvrhiImpl::InitBaker(GpuBakeNvrhi::ShaderProviderCb* shaderProviderC
 		res = omm::Gpu::GetPipelineDesc(m_pipeline, &desc);
 		assert(res == omm::Result::SUCCESS);
 
-		SetupPipelines(desc, shaderProviderCb);
+		SetupPipelines(desc, shaderProvider);
 
 		ReserveGlobalCBuffer(desc->globalConstantBufferDesc.maxDataSize, desc->globalConstantBufferDesc.registerIndex);
 		m_localCBufferSlot = desc->localConstantBufferDesc.registerIndex;
@@ -396,20 +395,20 @@ void GpuBakeNvrhiImpl::DestroyBaker()
 
 void GpuBakeNvrhiImpl::SetupPipelines(
 	const omm::Gpu::PipelineInfoDesc* desc,
-	GpuBakeNvrhi::ShaderProviderCb* shaderProviderCb)
+	GpuBakeNvrhi::ShaderProvider* shaderProvider)
 {
-	auto CreateBindingLayout = [this, desc](
+	auto CreateBindingLayout = [this, shaderProvider, desc](
 		nvrhi::ShaderType visibility, 
 		const omm::Gpu::DescriptorRangeDesc* ranges, uint32_t numRanges)->nvrhi::BindingLayoutHandle {
-		nvrhi::VulkanBindingOffsets bindingOffsets;
-		bindingOffsets.shaderResource = desc->spirvBindingOffsets.textureOffset;
-		bindingOffsets.sampler = desc->spirvBindingOffsets.samplerOffset;
-		bindingOffsets.constantBuffer = desc->spirvBindingOffsets.constantBufferOffset;
-		bindingOffsets.unorderedAccess = desc->spirvBindingOffsets.storageTextureAndBufferOffset;
+		nvrhi::VulkanBindingOffsets defaultBindingOffsets;
+		defaultBindingOffsets.shaderResource = desc->spirvBindingOffsets.textureOffset;
+		defaultBindingOffsets.sampler = desc->spirvBindingOffsets.samplerOffset;
+		defaultBindingOffsets.constantBuffer = desc->spirvBindingOffsets.constantBufferOffset;
+		defaultBindingOffsets.unorderedAccess = desc->spirvBindingOffsets.storageTextureAndBufferOffset;
 
 		nvrhi::BindingLayoutDesc layoutDesc;
 		layoutDesc.visibility = visibility;
-		layoutDesc.bindingOffsets = bindingOffsets;
+		layoutDesc.bindingOffsets = shaderProvider ? shaderProvider->bindingOffsets : defaultBindingOffsets;
 
 		nvrhi::BindingLayoutItem constantBufferItem = nvrhi::BindingLayoutItem::ConstantBuffer(desc->globalConstantBufferDesc.registerIndex);
 		layoutDesc.bindings.push_back(constantBufferItem);
@@ -478,9 +477,9 @@ void GpuBakeNvrhiImpl::SetupPipelines(
 			const omm::Gpu::ComputePipelineDesc& compute = pipeline.compute;
 
 			nvrhi::ShaderHandle shader;
-			if (shaderProviderCb)
+			if (shaderProvider)
 			{
-				shader = (*shaderProviderCb)(nvrhi::ShaderType::Compute, compute.shaderFileName, compute.shaderEntryPointName);
+				shader = shaderProvider->shaders(nvrhi::ShaderType::Compute, compute.shaderFileName, compute.shaderEntryPointName);
 			}
 			else
 			{
@@ -506,12 +505,12 @@ void GpuBakeNvrhiImpl::SetupPipelines(
 		case omm::Gpu::PipelineType::Graphics:
 		{
 			const omm::Gpu::GraphicsPipelineDesc& gfx = pipeline.graphics;
-			static_assert((uint32_t)omm::Gpu::GraphicsPipelineDescVersion::VERSION == 2, "New GFX pipeline version detected, update integration code.");
+			static_assert(OMM_GRAPHICS_PIPELINE_DESC_VERSION == 3, "New GFX pipeline version detected, update integration code.");
 
 			nvrhi::ShaderHandle vertex;
-			if (shaderProviderCb)
+			if (shaderProvider)
 			{
-				vertex = (*shaderProviderCb)(nvrhi::ShaderType::Vertex, gfx.vertexShaderFileName, gfx.vertexShaderEntryPointName);
+				vertex = shaderProvider->shaders(nvrhi::ShaderType::Vertex, gfx.vertexShaderFileName, gfx.vertexShaderEntryPointName);
 			}
 			else
 			{
@@ -524,9 +523,9 @@ void GpuBakeNvrhiImpl::SetupPipelines(
 			nvrhi::ShaderHandle geometry;
 			if (gfx.geometryShaderFileName)
 			{
-				if (shaderProviderCb)
+				if (shaderProvider)
 				{
-					geometry = (*shaderProviderCb)(nvrhi::ShaderType::Geometry, gfx.geometryShaderFileName, gfx.geometryShaderEntryPointName);
+					geometry = shaderProvider->shaders(nvrhi::ShaderType::Geometry, gfx.geometryShaderFileName, gfx.geometryShaderEntryPointName);
 				}
 				else
 				{
@@ -539,9 +538,9 @@ void GpuBakeNvrhiImpl::SetupPipelines(
 
 			nvrhi::ShaderHandle pixel;
 			{
-				if (shaderProviderCb)
+				if (shaderProvider)
 				{
-					pixel = (*shaderProviderCb)(nvrhi::ShaderType::Pixel, gfx.pixelShaderFileName, gfx.pixelShaderEntryPointName);
+					pixel = shaderProvider->shaders(nvrhi::ShaderType::Pixel, gfx.pixelShaderFileName, gfx.pixelShaderEntryPointName);
 				}
 				else
 				{
@@ -609,15 +608,19 @@ omm::Gpu::DispatchConfigDesc GpuBakeNvrhiImpl::GetConfig(const GpuBakeNvrhi::Inp
 	config.runtimeSamplerDesc.addressingMode	= GetTextureAddressMode(params.sampleMode);
 	config.runtimeSamplerDesc.filter			= params.bilinearFilter ? TextureFilterMode::Linear : TextureFilterMode::Nearest;
 	
+	config.bakeFlags = Gpu::BakeFlags::Invalid;
+
 	if (((uint32_t)params.operation & (uint32_t)GpuBakeNvrhi::Operation::Setup) == (uint32_t)GpuBakeNvrhi::Operation::Setup)
 		config.bakeFlags = (omm::Gpu::BakeFlags)((uint32_t)config.bakeFlags | (uint32_t)omm::Gpu::BakeFlags::PerformSetup);
 
 	if (((uint32_t)params.operation & (uint32_t)GpuBakeNvrhi::Operation::Bake) == (uint32_t)GpuBakeNvrhi::Operation::Bake)
 		config.bakeFlags = (omm::Gpu::BakeFlags)((uint32_t)config.bakeFlags | (uint32_t)omm::Gpu::BakeFlags::PerformBake);
 
+	if (params.enableStats)
+		config.bakeFlags = (omm::Gpu::BakeFlags)((uint32_t)config.bakeFlags | (uint32_t)omm::Gpu::BakeFlags::EnablePostDispatchInfoStats);
+
 	if (m_enableDebug)
 		config.bakeFlags = (omm::Gpu::BakeFlags)((uint32_t)config.bakeFlags | (uint32_t)omm::Gpu::BakeFlags::EnableNsightDebugMode);
-	config.bakeFlags = (omm::Gpu::BakeFlags)((uint32_t)config.bakeFlags | (uint32_t)omm::Gpu::BakeFlags::EnablePostBuildInfo);
 	
 	if (!params.enableSpecialIndices)
 		config.bakeFlags = (omm::Gpu::BakeFlags)((uint32_t)config.bakeFlags | (uint32_t)omm::Gpu::BakeFlags::DisableSpecialIndices);
@@ -697,7 +700,7 @@ void GpuBakeNvrhiImpl::GetPreDispatchInfo(const GpuBakeNvrhi::Input& params, Gpu
 	info.ommArrayBufferSize = preBuildInfo.outOmmArraySizeInBytes;
 	info.ommDescBufferSize = preBuildInfo.outOmmDescSizeInBytes;
 	info.ommDescArrayHistogramSize = preBuildInfo.outOmmArrayHistogramSizeInBytes;
-	info.ommPostBuildInfoBufferSize = preBuildInfo.outOmmPostBuildInfoSizeInBytes;
+	info.ommPostDispatchInfoBufferSize = preBuildInfo.outOmmPostDispatchInfoSizeInBytes;
 }
 
 void GpuBakeNvrhiImpl::Dispatch(
@@ -727,11 +730,11 @@ void GpuBakeNvrhiImpl::Clear()
 	m_bindingCache->Clear();
 }
 
-void GpuBakeNvrhiImpl::ReadPostBuildInfo(void* pData, size_t byteSize, GpuBakeNvrhi::PostBuildInfo& outPostBuildInfo)
+void GpuBakeNvrhiImpl::ReadPostDispatchInfo(void* pData, size_t byteSize, GpuBakeNvrhi::PostDispatchInfo& outPostDispatchInfo)
 {
-	static_assert(sizeof(omm::Gpu::PostBakeInfo) == sizeof(GpuBakeNvrhi::PostBuildInfo));
-	assert(byteSize >= sizeof(GpuBakeNvrhi::PostBuildInfo));
-	memcpy(&outPostBuildInfo, pData, sizeof(GpuBakeNvrhi::PostBuildInfo));
+	static_assert(sizeof(omm::Gpu::PostDispatchInfo) == sizeof(GpuBakeNvrhi::PostDispatchInfo));
+	assert(byteSize >= sizeof(GpuBakeNvrhi::PostDispatchInfo));
+	memcpy(&outPostDispatchInfo, pData, sizeof(GpuBakeNvrhi::PostDispatchInfo));
 }
 
 void GpuBakeNvrhiImpl::ReadUsageDescBuffer(void* pData, size_t byteSize, std::vector<nvrhi::rt::OpacityMicromapUsageCount>& outVmUsages)
@@ -798,9 +801,9 @@ nvrhi::BufferHandle GpuBakeNvrhiImpl::GetBufferResource(
 		resourceHandle = output.ommIndexHistogramBuffer;
 		offsetInBytes = output.ommIndexHistogramBufferOffset;
 		break;
-	case omm::Gpu::ResourceType::OUT_POST_BAKE_INFO:
-		resourceHandle = output.ommPostBuildInfoBuffer;
-		offsetInBytes = output.ommPostBuildInfoBufferOffset;
+	case omm::Gpu::ResourceType::OUT_POST_DISPATCH_INFO:
+		resourceHandle = output.ommPostDispatchInfoBuffer;
+		offsetInBytes = output.ommPostDispatchInfoBufferOffset;
 		break;
 	case omm::Gpu::ResourceType::IN_INDEX_BUFFER:
 		resourceHandle = params.indexBuffer;
@@ -1181,8 +1184,8 @@ GpuBakeNvrhi::Stats GpuBakeNvrhiImpl::GetStats(const omm::Cpu::BakeResultDesc& d
 }
 
 
-GpuBakeNvrhi::GpuBakeNvrhi(nvrhi::DeviceHandle device, nvrhi::CommandListHandle commandList, bool enableDebug, ShaderProviderCb* shaderProviderCb)
-	:m_impl(std::make_unique<GpuBakeNvrhiImpl>(device, commandList, enableDebug, shaderProviderCb))
+GpuBakeNvrhi::GpuBakeNvrhi(nvrhi::DeviceHandle device, nvrhi::CommandListHandle commandList, bool enableDebug, ShaderProvider* shaderProvider)
+	:m_impl(std::make_unique<GpuBakeNvrhiImpl>(device, commandList, enableDebug, shaderProvider))
 {
 
 }
@@ -1212,9 +1215,9 @@ void GpuBakeNvrhi::Clear()
 }
 
 // This assumes pData is the CPU-side pointer of the contents in vmUsageDescReadbackBufferSize.
-void GpuBakeNvrhi::ReadPostBuildInfo(void* pData, size_t byteSize, PostBuildInfo& outPostBuildInfo)
+void GpuBakeNvrhi::ReadPostDispatchInfo(void* pData, size_t byteSize, PostDispatchInfo& outPostDispatchInfo)
 {
-	GpuBakeNvrhiImpl::ReadPostBuildInfo(pData, byteSize, outPostBuildInfo);
+	GpuBakeNvrhiImpl::ReadPostDispatchInfo(pData, byteSize, outPostDispatchInfo);
 }
 
 void GpuBakeNvrhi::ReadUsageDescBuffer(void* pData, size_t byteSize, std::vector<nvrhi::rt::OpacityMicromapUsageCount>& outVmUsages)

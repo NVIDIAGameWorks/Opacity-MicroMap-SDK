@@ -27,8 +27,12 @@ namespace omm
 	{
 	public:
 
-		// In case the shaders are compiled externally the ShaderProviderCb can be used.
-		using ShaderProviderCb = std::function<nvrhi::ShaderHandle(nvrhi::ShaderType type, const char* shaderName, const char* shaderEntryName)>;
+		// (Optional) In case the shaders are compiled externally the ShaderProvider can be provided 
+		struct ShaderProvider
+		{
+			nvrhi::VulkanBindingOffsets bindingOffsets;
+			std::function<nvrhi::ShaderHandle(nvrhi::ShaderType type, const char* shaderName, const char* shaderEntryName)> shaders;
+		};
 
 		enum class Operation
 		{
@@ -60,6 +64,7 @@ namespace omm
 			nvrhi::rt::OpacityMicromapFormat	format = nvrhi::rt::OpacityMicromapFormat::OC1_4_State;
 			float								dynamicSubdivisionScale = 0.5f;
 			bool								minimalMemoryMode = false;
+			bool								enableStats = false;
 			bool								enableSpecialIndices = true;
 			bool								force32BitIndices = false;
 			bool								enableTexCoordDeduplication = true;
@@ -76,7 +81,7 @@ namespace omm
 			size_t			ommArrayBufferSize;
 			size_t			ommDescBufferSize;
 			size_t			ommDescArrayHistogramSize;
-			size_t			ommPostBuildInfoBufferSize;
+			size_t			ommPostDispatchInfoBufferSize;
 		};
 
 		struct Buffers
@@ -86,20 +91,26 @@ namespace omm
 			nvrhi::BufferHandle ommIndexBuffer;
 			nvrhi::BufferHandle ommDescArrayHistogramBuffer;
 			nvrhi::BufferHandle ommIndexHistogramBuffer;
-			nvrhi::BufferHandle ommPostBuildInfoBuffer;
+			nvrhi::BufferHandle ommPostDispatchInfoBuffer;
 
 			uint32_t ommArrayBufferOffset = 0;
 			uint32_t ommDescBufferOffset = 0;
 			uint32_t ommIndexBufferOffset = 0;
 			uint32_t ommDescArrayHistogramBufferOffset = 0;
 			uint32_t ommIndexHistogramBufferOffset = 0;
-			uint32_t ommPostBuildInfoBufferOffset = 0;
+			uint32_t ommPostDispatchInfoBufferOffset = 0;
 		};
 
-		struct PostBuildInfo
+		struct PostDispatchInfo
 		{
 			uint32_t ommArrayBufferSize;
 			uint32_t ommDescBufferSize;
+			uint32_t ommTotalOpaqueCount;
+			uint32_t ommTotalTransparentCount;
+			uint32_t ommTotalUnknownCount;
+			uint32_t ommTotalFullyOpaqueCount;
+			uint32_t ommTotalFullyTransparentCount;
+			uint32_t ommTotalFullyUnknownCount;
 		};
 
 		struct Stats
@@ -114,7 +125,7 @@ namespace omm
 			uint32_t totalFullyUnknownTransparent = 0;
 		};
 
-		GpuBakeNvrhi(nvrhi::DeviceHandle device, nvrhi::CommandListHandle commandList, bool enableDebug, ShaderProviderCb* shaderProviderCb = nullptr);
+		GpuBakeNvrhi(nvrhi::DeviceHandle device, nvrhi::CommandListHandle commandList, bool enableDebug, ShaderProvider* shaderProvider = nullptr);
 		~GpuBakeNvrhi();
 
 		// CPU side pre-build info.
@@ -127,8 +138,7 @@ namespace omm
 
 		void Clear();
 
-		// This assumes pData is the CPU-side pointer of the contents in vmUsageDescReadbackBufferSize.
-		static void ReadPostBuildInfo(void* pData, size_t byteSize, PostBuildInfo& outPostBuildInfo);
+		static void ReadPostDispatchInfo(void* pData, size_t byteSize, PostDispatchInfo& outPostDispatchInfo);
 		static void ReadUsageDescBuffer(void* pData, size_t byteSize, std::vector<nvrhi::rt::OpacityMicromapUsageCount>& outVmUsages);
 
 		// Debug dumping

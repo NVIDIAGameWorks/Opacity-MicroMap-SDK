@@ -33,17 +33,27 @@ uint GetMaxThreadCountX()
 
 void StoreMacroTriangleState(OpacityState opacityState, uint primitiveIndex)
 {
-	if (!g_GlobalConstants.EnableSpecialIndices)
-		return;
-
 	const uint bakeResultMacroOffset = 12 * (primitiveIndex);
 
-	if (opacityState == OpacityState::Opaque)
-		OMM_SUBRESOURCE_STORE(SpecialIndicesStateBuffer, bakeResultMacroOffset, 1);
-	else if (opacityState == OpacityState::Transparent)
-		OMM_SUBRESOURCE_STORE(SpecialIndicesStateBuffer, bakeResultMacroOffset + 4, 1);
-	else // if (opacityState == OpacityState::UnknownTransparent || opacityState == OpacityState::UnknownOpaque)
-		OMM_SUBRESOURCE_STORE(SpecialIndicesStateBuffer, bakeResultMacroOffset + 8, 1);
+	if (g_GlobalConstants.EnablePostDispatchInfoStats)
+	{
+		uint dummy;
+		if (opacityState == OpacityState::Opaque)
+			OMM_SUBRESOURCE_INTERLOCKEDADD(SpecialIndicesStateBuffer, bakeResultMacroOffset, 1, dummy);
+		else if (opacityState == OpacityState::Transparent)
+			OMM_SUBRESOURCE_INTERLOCKEDADD(SpecialIndicesStateBuffer, bakeResultMacroOffset + 4, 1, dummy);
+		else // if (opacityState == OpacityState::UnknownTransparent || opacityState == OpacityState::UnknownOpaque)
+			OMM_SUBRESOURCE_INTERLOCKEDADD(SpecialIndicesStateBuffer, bakeResultMacroOffset + 8, 1, dummy);
+	}
+	else if (g_GlobalConstants.EnableSpecialIndices)
+	{
+		if (opacityState == OpacityState::Opaque)
+			OMM_SUBRESOURCE_STORE(SpecialIndicesStateBuffer, bakeResultMacroOffset, 1);
+		else if (opacityState == OpacityState::Transparent)
+			OMM_SUBRESOURCE_STORE(SpecialIndicesStateBuffer, bakeResultMacroOffset + 4, 1);
+		else // if (opacityState == OpacityState::UnknownTransparent || opacityState == OpacityState::UnknownOpaque)
+			OMM_SUBRESOURCE_STORE(SpecialIndicesStateBuffer, bakeResultMacroOffset + 8, 1);
+	}
 }
 
 [numthreads(128, 1, 1)]
@@ -91,7 +101,7 @@ void main(uint3 tid : SV_DispatchThreadID)
 				const uint2 counts = OMM_SUBRESOURCE_LOAD2(BakeResultBuffer, vmBakeResultOffset);
 				OMM_SUBRESOURCE_STORE2(BakeResultBuffer, vmBakeResultOffset, 0); // clear for next iteration
 
-				OpacityState opacityState = GetOpacityState(/*numOpaque*/ counts.x, /*numTransparent*/ counts.y);
+				OpacityState opacityState = GetOpacityState(/*numOpaque*/ counts.x, /*numTransparent*/ counts.y, vmFormat);
 
 				if (microTriangleIndex < numMicroTrianglesPerPrimitive)
 					StoreMacroTriangleState(opacityState, vmPrimitiveIndex);
@@ -122,7 +132,7 @@ void main(uint3 tid : SV_DispatchThreadID)
 				const uint2 counts = OMM_SUBRESOURCE_LOAD2(BakeResultBuffer, vmBakeResultOffset);
 				OMM_SUBRESOURCE_STORE2(BakeResultBuffer, vmBakeResultOffset, 0); // clear for next iteration
 
-				OpacityState opacityState = GetOpacityState(/*numOpaque*/ counts.x, /*numTransparent*/ counts.y);
+				OpacityState opacityState = GetOpacityState(/*numOpaque*/ counts.x, /*numTransparent*/ counts.y, vmFormat);
 
 				if (microTriangleIndex < numMicroTrianglesPerPrimitive)
 					StoreMacroTriangleState(opacityState, vmPrimitiveIndex);

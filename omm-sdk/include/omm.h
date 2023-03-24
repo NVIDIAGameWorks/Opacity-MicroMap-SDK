@@ -14,9 +14,13 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include <stdint.h>
 #include <stddef.h>
 
-#define OMM_VERSION_MAJOR 0
-#define OMM_VERSION_MINOR 9
-#define OMM_VERSION_BUILD 2
+#define OMM_VERSION_MAJOR 1
+#define OMM_VERSION_MINOR 0
+#define OMM_VERSION_BUILD 1
+
+#define OMM_MAX_TRANSIENT_POOL_BUFFERS 8
+
+#define OMM_GRAPHICS_PIPELINE_DESC_VERSION 3
 
 #if defined(_MSC_VER)
     #define OMM_CALL __fastcall
@@ -251,7 +255,7 @@ typedef enum ommCpuBakeFlags
    // Pros: normally reduces resulting OMM size drastically, especially when there's overlapping UVs.
    // Cons: The merging comes at the cost of coverage.
    // The resulting OMM Arrays will have lower fraction of known states. For large working sets it can be quite CPU heavy to
-   // compute.
+   // compute. Note: can not be used if DisableDuplicateDetection is set.
    ommCpuBakeFlags_EnableNearDuplicateDetection = 1u << 4,
 
    // Workload validation is a safety mechanism that will let the SDK reject workloads that become unreasonably large, which
@@ -451,9 +455,8 @@ typedef enum ommGpuResourceType
    ommGpuResourceType_OUT_OMM_INDEX_BUFFER,
    // Used directly as argument for OMM build in DX/VK. (Read back to CPU to query memory requirements during OMM Blas build)
    ommGpuResourceType_OUT_OMM_INDEX_HISTOGRAM,
-   // (Optional, enabled if EnablePostBuildInfo is set). Read back the PostBakeInfo struct containing the actual sizes of
-   // ARRAY_DATA and DESC_ARRAY.
-   ommGpuResourceType_OUT_POST_BAKE_INFO,
+   // Read back the PostDispatchInfo struct containing the actual sizes of ARRAY_DATA and DESC_ARRAY.
+   ommGpuResourceType_OUT_POST_DISPATCH_INFO,
    // Can be reused after baking
    ommGpuResourceType_TRANSIENT_POOL_BUFFER,
    // Initialize on startup. Read-only.
@@ -523,14 +526,17 @@ typedef enum ommGpuBakeFlags
    ommGpuBakeFlags_Invalid                      = 0,
 
    // (Default) OUT_OMM_DESC_ARRAY_HISTOGRAM, OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_DESC_ARRAY and
-   // (optionally) OUT_POST_BAKE_INFO will be updated.
+   // OUT_POST_DISPATCH_INFO will be updated.
    ommGpuBakeFlags_PerformSetup                 = 1u << 0,
 
-   // (Default) OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_ARRAY_DATA will be written to. If special indices are
-   // detected OUT_OMM_INDEX_BUFFER may also be modified.
+   // (Default) OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER, OUT_OMM_ARRAY_DATA and OUT_POST_DISPATCH_INFO (if stats
+   // enabled) will be updated. If special indices are detected OUT_OMM_INDEX_BUFFER may also be modified.
    // If PerformBuild is not used with this flag, OUT_OMM_DESC_ARRAY_HISTOGRAM, OUT_OMM_INDEX_HISTOGRAM, OUT_OMM_INDEX_BUFFER,
    // OUT_OMM_DESC_ARRAY must contain valid data from a prior PerformSetup pass.
    ommGpuBakeFlags_PerformBake                  = 1u << 1,
+
+   // Alias for (PerformSetup | PerformBake)
+   ommGpuBakeFlags_PerformSetupAndBake          = 3u,
 
    // Baking will only be done using compute shaders and no gfx involvement (drawIndirect or graphics PSOs). (Beta)
    // Will become default mode in the future.
@@ -541,8 +547,9 @@ typedef enum ommGpuBakeFlags
    // jobs. However this is generally not a big problem.
    ommGpuBakeFlags_ComputeOnly                  = 1u << 2,
 
-   // Baking will also output post build info. (OUT_POST_BUILD_INFO).
-   ommGpuBakeFlags_EnablePostBuildInfo          = 1u << 3,
+   // Must be used together with EnablePostDispatchInfo. If set baking (PerformBake) will fill the stats data of
+   // OUT_POST_DISPATCH_INFO.
+   ommGpuBakeFlags_EnablePostDispatchInfoStats  = 1u << 3,
 
    // Will disable the use of special indices in case the OMM-state is uniform. Only set this flag for debug purposes.
    ommGpuBakeFlags_DisableSpecialIndices        = 1u << 4,
@@ -621,21 +628,13 @@ inline ommGpuGraphicsPipelineInputElementDesc ommGpuGraphicsPipelineInputElement
    return v;
 }
 
-typedef enum ommGpuGraphicsPipelineDescVersion
-{
-   ommGpuGraphicsPipelineDescVersion_VERSION = 2,
-} ommGpuGraphicsPipelineDescVersion;
-
-// Config specification not declared in the GraphicsPipelineDesc is meant to be hard-coded and may only change in future
-// SDK versions.
-// When SDK updates the spec of GraphicsPipelineDesc GraphicsPipelineVersion::VERSION will be updated.
-// It's recommended to keep a static_assert(GraphicsPipelineVersion::VERSION == X) in the client integration layer to be
-// notified of changes.
+// Config specification not declared in the GraphicsPipelineDesc is implied, but may become explicit in future versions.
 // Stenci state = disabled
 // BlendState = disabled
 // Primitive topology = triangle list
 // Input element = count 1, see GraphicsPipelineInputElementDesc
 // Fill mode = solid
+// Track any changes via OMM_GRAPHICS_PIPELINE_DESC_VERSION
 typedef struct ommGpuGraphicsPipelineDesc
 {
    ommGpuShaderBytecode             vertexShader;
@@ -787,11 +786,11 @@ typedef struct ommGpuPreDispatchInfo
    // Format of outOmmIndexBuffer
    ommIndexFormat outOmmIndexBufferFormat;
    uint32_t       outOmmIndexCount;
-   // Min required size of OUT_OMM_ARRAY_DATA. GetBakeInfo returns most conservative estimation while less conservative number
-   // can be obtained via BakePrepass
+   // Min required size of OUT_OMM_ARRAY_DATA. GetPreDispatchInfo returns most conservative estimation while less conservative
+   // number can be obtained via BakePrepass
    uint32_t       outOmmArraySizeInBytes;
-   // Min required size of OUT_OMM_DESC_ARRAY. GetBakeInfo returns most conservative estimation while less conservative number
-   // can be obtained via BakePrepass
+   // Min required size of OUT_OMM_DESC_ARRAY. GetPreDispatchInfo returns most conservative estimation while less conservative
+   // number can be obtained via BakePrepass
    uint32_t       outOmmDescSizeInBytes;
    // Min required size of OUT_OMM_INDEX_BUFFER
    uint32_t       outOmmIndexBufferSizeInBytes;
@@ -799,25 +798,25 @@ typedef struct ommGpuPreDispatchInfo
    uint32_t       outOmmArrayHistogramSizeInBytes;
    // Min required size of OUT_OMM_INDEX_HISTOGRAM
    uint32_t       outOmmIndexHistogramSizeInBytes;
-   // Min required size of OUT_POST_BUILD_INFO
-   uint32_t       outOmmPostBuildInfoSizeInBytes;
+   // Min required size of OUT_POST_DISPATCH_INFO
+   uint32_t       outOmmPostDispatchInfoSizeInBytes;
    // Min required sizes of TRANSIENT_POOL_BUFFERs
-   uint32_t       transientPoolBufferSizeInBytes[8];
+   uint32_t       transientPoolBufferSizeInBytes[OMM_MAX_TRANSIENT_POOL_BUFFERS];
    uint32_t       numTransientPoolBuffers;
 } ommGpuPreDispatchInfo;
 
 inline ommGpuPreDispatchInfo ommGpuPreDispatchInfoDefault()
 {
    ommGpuPreDispatchInfo v;
-   v.outOmmIndexBufferFormat            = ommIndexFormat_MAX_NUM;
-   v.outOmmIndexCount                   = 0xFFFFFFFF;
-   v.outOmmArraySizeInBytes             = 0xFFFFFFFF;
-   v.outOmmDescSizeInBytes              = 0xFFFFFFFF;
-   v.outOmmIndexBufferSizeInBytes       = 0xFFFFFFFF;
-   v.outOmmArrayHistogramSizeInBytes    = 0xFFFFFFFF;
-   v.outOmmIndexHistogramSizeInBytes    = 0xFFFFFFFF;
-   v.outOmmPostBuildInfoSizeInBytes     = 0xFFFFFFFF;
-   v.numTransientPoolBuffers            = 0;
+   v.outOmmIndexBufferFormat                                         = ommIndexFormat_MAX_NUM;
+   v.outOmmIndexCount                                                = 0xFFFFFFFF;
+   v.outOmmArraySizeInBytes                                          = 0xFFFFFFFF;
+   v.outOmmDescSizeInBytes                                           = 0xFFFFFFFF;
+   v.outOmmIndexBufferSizeInBytes                                    = 0xFFFFFFFF;
+   v.outOmmArrayHistogramSizeInBytes                                 = 0xFFFFFFFF;
+   v.outOmmIndexHistogramSizeInBytes                                 = 0xFFFFFFFF;
+   v.outOmmPostDispatchInfoSizeInBytes                               = 0xFFFFFFFF;
+   v.numTransientPoolBuffers                                         = 0;
    return v;
 }
 
@@ -852,7 +851,7 @@ typedef struct ommGpuDispatchConfigDesc
    uint8_t                   maxSubdivisionLevel;
    ommBool                   enableSubdivisionLevelBuffer;
    // The SDK will try to limit the omm array size of PreDispatchInfo::outOmmArraySizeInBytes and
-   // PostBakeInfo::outOmmArraySizeInBytes.
+   // PostDispatchInfo::outOmmArraySizeInBytes.
    // Currently a greedy algorithm is implemented with a first come-first serve order.
    // The SDK may (or may not) apply more sophisticated heuristics in the future.
    // If no memory is available to allocate an OMM Array Block the state will default to Unknown Opaque (ignoring any bake
@@ -866,7 +865,7 @@ typedef struct ommGpuDispatchConfigDesc
 inline ommGpuDispatchConfigDesc ommGpuDispatchConfigDescDefault()
 {
    ommGpuDispatchConfigDesc v;
-   v.bakeFlags                     = ommGpuBakeFlags_Invalid;
+   v.bakeFlags                     = ommGpuBakeFlags_PerformSetupAndBake;
    v.runtimeSamplerDesc            = ommSamplerDescDefault();
    v.alphaMode                     = ommAlphaMode_MAX_NUM;
    v.alphaTextureWidth             = 0;
@@ -900,12 +899,24 @@ typedef struct ommGpuPipelineInfoDesc
    uint32_t                       staticSamplersNum;
 } ommGpuPipelineInfoDesc;
 
-// Format of OUT_POST_BAKE_INFO
-typedef struct ommGpuPostBakeInfo
+// Format of OUT_POST_DISPATCH_INFO
+typedef struct ommGpuPostDispatchInfo
 {
    uint32_t outOmmArraySizeInBytes;
    uint32_t outOmmDescSizeInBytes;
-} ommGpuPostBakeInfo;
+   // Will be populated if EnablePostDispatchInfoStats is set.
+   uint32_t outStatsTotalOpaqueCount;
+   // Will be populated if EnablePostDispatchInfoStats is set.
+   uint32_t outStatsTotalTransparentCount;
+   // Will be populated if EnablePostDispatchInfoStats is set.
+   uint32_t outStatsTotalUnknownCount;
+   // Will be populated if EnablePostDispatchInfoStats is set.
+   uint32_t outStatsTotalFullyOpaqueCount;
+   // Will be populated if EnablePostDispatchInfoStats is set.
+   uint32_t outStatsTotalFullyTransparentCount;
+   // Will be populated if EnablePostDispatchInfoStats is set.
+   uint32_t outStatsTotalFullyStatsUnknownCount;
+} ommGpuPostDispatchInfo;
 
 typedef struct ommGpuDispatchChain
 {

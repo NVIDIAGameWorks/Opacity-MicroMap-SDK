@@ -47,3 +47,10 @@ set(BENCHMARK_ENABLE_INSTALL OFF)
 set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
 add_subdirectory("gbenchmark")
 set_target_properties("benchmark" "benchmark_main" PROPERTIES FOLDER "${OMM_PROJECT_FOLDER}/Thirdparty")
+
+# ShaderMake
+if (NOT TARGET ShaderMake)
+    add_subdirectory("ShaderMake")
+    set_property(TARGET ShaderMake PROPERTY FOLDER "${OMM_PROJECT_FOLDER}/Thirdparty") 
+    set_property(TARGET ShaderMakeBlob PROPERTY FOLDER "${OMM_PROJECT_FOLDER}/Thirdparty")
+endif()

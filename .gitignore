@@ -11,6 +11,9 @@ cmake_install.cmake
 # make
 Makefile
 
+# ShaderMake
+shaders.cfg
+
 # VS
 *.vcxproj*
 *.sln
