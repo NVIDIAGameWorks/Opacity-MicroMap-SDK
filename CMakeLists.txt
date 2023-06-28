@@ -1,7 +1,12 @@
 cmake_minimum_required(VERSION 3.12)
 
-option(OMM_ENABLE_BENCHMARK "Enable benchmark" ON)
-option(OMM_ENABLE_TESTS "Enable unit test" ON)
+if(EXISTS thirdparty/gbenchmark)
+	option(OMM_ENABLE_BENCHMARK "Enable benchmark" ON)
+endif()
+
+if(EXISTS thirdparty/gtest)
+	option(OMM_ENABLE_TESTS "Enable unit test" ON)
+endif()
 
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/omm-sdk/src/version.h" ver_h)
 string(REGEX MATCH "VERSION_MAJOR ([0-9]*)" _ ${ver_h})

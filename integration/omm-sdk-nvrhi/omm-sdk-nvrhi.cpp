@@ -10,6 +10,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 #include <omm-sdk-nvrhi.h>
 
+#ifdef OMM_NVRHI_AVAILABLE
 #include <nvrhi/common/misc.h>
 #include <nvrhi/utils.h>
 
@@ -1269,3 +1270,5 @@ GpuBakeNvrhi::Stats GpuBakeNvrhi::GetStats(const omm::Cpu::BakeResultDesc& desc)
 }
 
 } // namespace omm
+
+#endif
