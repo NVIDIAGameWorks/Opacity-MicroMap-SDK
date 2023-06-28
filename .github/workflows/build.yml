@@ -1,11 +1,11 @@
-name: Build Opacity Micro-Map SDK
+name: Build Opacity Micro-Map SDK (minimal)
 on:
   push:
     branches:
-      - main
+      - main-minimal
   pull_request:
     branches:
-      - main
+      - main-minimal
 jobs:
   Build-Windows:
     runs-on: windows-latest
@@ -50,24 +50,6 @@ jobs:
           cd "build"
           cmake --build . --config Release
           cd ..
-      -
-        name: Run Tests
-        run: |
-          cd "build/bin/Release"
-          ./tests.exe --gtest_filter=-*GPU*
-          cd ../../..
-      -
-        name: Install Release
-        run: |
-          cd "build"
-          cmake --install . --config Release
-          cd ..
-      -
-        name: Upload Artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: Opacity Micro-Map SDK Windows
-          path: build/install
           
   Build-Ubuntu:
     runs-on: ubuntu-22.04
@@ -114,21 +96,3 @@ jobs:
           cd "build"
           cmake --build . --config Release
           cd ..
-      -
-         name: Test Release
-         run: |
-           cd "build"
-           cd "bin"
-           ./tests
-      -
-        name: Install Release
-        run: |
-          cd "build"
-          cmake --install . --config Release
-          cd ..
-      -
-        name: Upload Artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: Opacity Micro-Map SDK Linux
-          path: build/install

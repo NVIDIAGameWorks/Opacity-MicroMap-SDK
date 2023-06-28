@@ -1,14 +1,8 @@
 [submodule "thirdparty/glm"]
 	path = thirdparty/glm
 	url = https://github.com/g-truc/glm.git
-[submodule "test/thirdparty/gtest"]
-	path = thirdparty/gtest
-	url = https://github.com/google/googletest.git
 [submodule "benchmark/thirdparty/gbenchmark"]
 	path = benchmark/thirdparty/gbenchmark
-	url = https://github.com/google/benchmark.git
-[submodule "vm_bench/thirdparty/gbenchmark"]
-	path = thirdparty/gbenchmark
 	url = https://github.com/google/benchmark.git
 [submodule "thirdparty/xxHash"]
 	path = thirdparty/xxHash
@@ -16,9 +10,6 @@
 [submodule "thirdparty/stb"]
 	path = thirdparty/stb
 	url = https://github.com/nothings/stb.git
-[submodule "thirdparty/nvrhi"]
-	path = thirdparty/nvrhi
-	url = https://github.com/NVIDIAGameWorks/nvrhi.git
 [submodule "thirdparty/ShaderMake"]
 	path = thirdparty/ShaderMake
 	url = https://github.com/NVIDIAGameWorks/ShaderMake.git
