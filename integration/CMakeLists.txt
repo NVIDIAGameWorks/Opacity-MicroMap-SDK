@@ -1,5 +1,5 @@
 
-if (WIN32)
+if (WIN32 AND TARGET nvrhi)
 	option(OMM_INTEGRATION_LAYER_NVRHI "Build nvrhi integration layer" ON)
 else()
 	option(OMM_INTEGRATION_LAYER_NVRHI "Build nvrhi integration layer" OFF)
