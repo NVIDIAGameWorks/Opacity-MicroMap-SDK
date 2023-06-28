@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.12)
 
-if(EXISTS thirdparty/gbenchmark)
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/gbenchmark)
 	option(OMM_ENABLE_BENCHMARK "Enable benchmark" ON)
 endif()
 
-if(EXISTS thirdparty/gtest)
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/gtest)
 	option(OMM_ENABLE_TESTS "Enable unit test" ON)
 endif()
 
