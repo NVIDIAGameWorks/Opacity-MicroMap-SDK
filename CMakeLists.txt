@@ -16,7 +16,7 @@ set(ver_minor ${CMAKE_MATCH_1})
 string(REGEX MATCH "VERSION_BUILD ([0-9]*)" _ ${ver_h})
 set(ver_patch ${CMAKE_MATCH_1})
 
-project(omm-sdk VERSION ${ver_major}.${ver_minor}.${ver_patch} LANGUAGES CXX)
+project("Opacity Micro-Map SDK" VERSION ${ver_major}.${ver_minor}.${ver_patch} LANGUAGES CXX)
 message(STATUS "${PROJECT_NAME} version: ${ver_major}.${ver_minor}.${ver_patch}")
 
 set (CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
