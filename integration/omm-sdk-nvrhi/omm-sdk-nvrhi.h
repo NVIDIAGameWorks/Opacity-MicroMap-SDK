@@ -10,7 +10,6 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 #pragma once
 
-#ifdef OMM_NVRHI_AVAILABLE
 #include <nvrhi/nvrhi.h>
 
 #include <algorithm>
@@ -167,5 +166,3 @@ namespace omm
 		std::unique_ptr< GpuBakeNvrhiImpl> m_impl;
 	};
 } // namespace omm
-
-#endif

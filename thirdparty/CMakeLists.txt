@@ -26,7 +26,7 @@ if (NOT TARGET ShaderMake)
 endif()
 
 # nvrhi
-if(EXISTS nvrhi)
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/nvrhi)
 	if (NOT TARGET nvrhi)
 		option(NVRHI_INSTALL OFF)
 		set(NVRHI_WITH_SHADER_COMPILER OFF CACHE BOOL "" FORCE)
@@ -45,7 +45,7 @@ if(EXISTS nvrhi)
 endif()
 
 # gtest
-if(EXISTS gtest)
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/gtest)
 	set(INSTALL_GTEST OFF)
 	set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 	add_subdirectory("gtest")
@@ -53,7 +53,7 @@ if(EXISTS gtest)
 endif()
 
 # gbenchmark
-if(EXISTS gbenchmark)
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/gbenchmark)
 	set(BENCHMARK_ENABLE_INSTALL OFF)
 	set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
 	add_subdirectory("gbenchmark")

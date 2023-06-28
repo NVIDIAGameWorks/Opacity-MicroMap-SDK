@@ -53,3 +53,7 @@ endif()
 if (OMM_ENABLE_PRECOMPILED_SHADERS_SPIRV)
     target_compile_definitions(tests PRIVATE OMM_ENABLE_PRECOMPILED_SHADERS_SPIRV)
 endif()
+
+if (TARGET nvrhi)
+    target_compile_definitions(tests PRIVATE OMM_NVRHI_AVAILABLE)
+endif()
