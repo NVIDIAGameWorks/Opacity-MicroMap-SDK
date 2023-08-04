@@ -120,7 +120,8 @@ private:
         }
 
         bool IsPointOnEdge(const float2& p) const {
-            return IsZero(length(p - _p0) + length(p - _p1) - _length);
+            const float l = length(p - _p0) + length(p - _p1) - _length;
+            return IsZero(l, 1e-5f);
         }
     private:
         const float2 _p0;
@@ -128,8 +129,7 @@ private:
         const float _length;
     };
      
-    static bool IsZero(float value) {
-        constexpr float kEpsilon = 1e-6f;
+    static bool IsZero(float value, float kEpsilon = 1e-6f) {
         return std::abs(value) < kEpsilon;
     };
 
