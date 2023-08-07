@@ -1,9 +1,22 @@
+# Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
+# 
+# NVIDIA CORPORATION and its licensors retain all intellectual property
+# and proprietary rights in and to this software, related documentation
+# and any modifications thereto. Any use, reproduction, disclosure or
+# distribution of this software and related documentation without an express
+# license agreement from NVIDIA CORPORATION is strictly prohibited.
 cmake_minimum_required(VERSION 3.12)
+
+if (WIN32)
+    set(DXIL_DEFAULT ON)
+else()
+    set(DXIL_DEFAULT OFF)
+endif()
 
 option(OMM_DISABLE_INTERPROCEDURAL_OPTIMIZATION "disable interprocedural optimization" OFF)
 option(OMM_ENABLE_OPENMP "enable openmp" ON)
-option(OMM_ENABLE_PRECOMPILED_SHADERS_DXIL "Embed precompiled dxil shaders. Require path to dxc.exe (normally located in WindowSDK)." ON)
-option(OMM_ENABLE_PRECOMPILED_SHADERS_SPIRV "Embed precompiled spirv shaders. Require path to VulkanSDK." ON)
+option(OMM_ENABLE_PRECOMPILED_SHADERS_DXIL "Embedded precompiled DXIL shaders. Require path to dxc.exe (normally located in Window SDK)." ${DXIL_DEFAULT})
+option(OMM_ENABLE_PRECOMPILED_SHADERS_SPIRV "Embedded precompiled SPIRV shaders. Require path to Vulkan SDK." ON)
 option(OMM_STATIC_LIBRARY "build static lib" OFF)
 option(OMM_CROSSCOMPILE_AARCH64 "cross compilation for aarch64" OFF)
 option(OMM_CROSSCOMPILE_X86_64 "cross compilation for x86_64" OFF)
@@ -24,8 +37,6 @@ if (OMM_CROSSCOMPILE_X86_64)
     message(STATUS "CROSSCOMPILE_X86_64 enabled.")
 endif()
 
-set(OMM_ENABLE_PRECOMPILED_SHADERS ${OMM_ENABLE_PRECOMPILED_SHADERS_DXIL} OR ${OMM_ENABLE_PRECOMPILED_SHADERS_SPIRV} CACHE INTERNAL "")
-
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -39,40 +50,18 @@ if (OMM_DISABLE_INTERPROCEDURAL_OPTIMIZATION)
 endif()
 
 if ("${OMM_SHADER_OUTPUT_PATH}" STREQUAL "")
-    set(OMM_SHADER_OUTPUT_PATH "${PROJECT_BINARY_DIR}/shaders")
+    set(OMM_SHADER_OUTPUT_PATH "${PROJECT_BINARY_DIR}/bin/shaders")
 endif()
 
 # Vulkan resource offsets
-set (OMM_VK_S_SHIFT 100)
-set (OMM_VK_T_SHIFT 200)
-set (OMM_VK_B_SHIFT 300)
-set (OMM_VK_U_SHIFT 400)
+set(OMM_VK_S_SHIFT 100)
+set(OMM_VK_T_SHIFT 200)
+set(OMM_VK_B_SHIFT 300)
+set(OMM_VK_U_SHIFT 400)
 add_definitions(-DOMM_VK_S_SHIFT=${OMM_VK_S_SHIFT} -DOMM_VK_T_SHIFT=${OMM_VK_T_SHIFT} -DOMM_VK_B_SHIFT=${OMM_VK_B_SHIFT} -DOMM_VK_U_SHIFT=${OMM_VK_U_SHIFT})
 
-if (OMM_ENABLE_PRECOMPILED_SHADERS)
-    # include path for DXC and FXC (used in ShaderCompilation.cmake)
-    set(OMM_SHADER_INCLUDE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/shaders")
-    set(OMM_HEADER_INCLUDE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/shaders")
-
-    # list HLSL shaders and headers
-    file(GLOB_RECURSE OMM_HLSL_FILES "shaders/*.hlsl")
-    file(GLOB_RECURSE OMM_HLSL_INCLUDE "shaders/*.hlsli")
-
-    # Vulkan resource offsets
+if (OMM_ENABLE_PRECOMPILED_SHADERS_DXIL OR OMM_ENABLE_PRECOMPILED_SHADERS_SPIRV)
     include(ShaderCompilation.cmake)
-
-    # create "build/Shaders"
-    add_custom_target(CreateFolderForShaders ALL
-        COMMAND ${CMAKE_COMMAND} -E make_directory "${OMM_SHADER_OUTPUT_PATH}")
-    set_property(TARGET CreateFolderForShaders PROPERTY FOLDER "${OMM_PROJECT_FOLDER}/CustomScripts") 
-
-    # define build rules for the shaders
-    list_hlsl_headers("${OMM_HLSL_FILES}" OMM_HEADER_FILES)
-    list_hlsl_headers("${OMM_HLSL_INCLUDE}" OMM_HEADER_FILES)
-    list_hlsl_shaders("${OMM_HLSL_FILES}" "${OMM_HEADER_FILES}" OMM_SHADER_FILES)
-    add_custom_target(Shaders ALL DEPENDS ${OMM_SHADER_FILES} SOURCES "${OMM_HEADER_FILES}")
-    add_dependencies(Shaders CreateFolderForShaders)
-    set_property(TARGET Shaders PROPERTY FOLDER "${OMM_PROJECT_FOLDER}/Shaders") 
 endif()
 
 if (${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_CURRENT_SOURCE_DIR})
@@ -108,11 +97,16 @@ endif()
 target_link_libraries(${TARGET_NAME} omm-shared glm stb_lib xxHash::xxhash) 
 
 set_target_properties(${TARGET_NAME} PROPERTIES VERSION ${PROJECT_VERSION})
-target_include_directories(${TARGET_NAME} PUBLIC "include" "shaders")
+target_include_directories(${TARGET_NAME} PUBLIC "include")
+target_include_directories(${TARGET_NAME} PRIVATE "shaders")
 set_property(TARGET ${TARGET_NAME} PROPERTY FOLDER "${OMM_PROJECT_FOLDER}") 
 
-if (OMM_ENABLE_PRECOMPILED_SHADERS)
-    add_dependencies(${TARGET_NAME} Shaders)
+if (OMM_ENABLE_PRECOMPILED_SHADERS_DXIL)
+    add_dependencies(${TARGET_NAME} omm-shaders-dxil)
+endif()
+
+if (OMM_ENABLE_PRECOMPILED_SHADERS_SPIRV)
+    add_dependencies(${TARGET_NAME} omm-shaders-spirv)
 endif()
 
 if (OMM_ENABLE_INTERFACE_GEN)
@@ -144,7 +138,7 @@ if (OMM_ENABLE_INTERFACE_GEN)
     endif()
 endif()
 
-if (OMM_ENABLE_PRECOMPILED_SHADERS)
+if (OMM_ENABLE_PRECOMPILED_SHADERS_DXIL OR OMM_ENABLE_PRECOMPILED_SHADERS_SPIRV)
     target_include_directories(${TARGET_NAME} PRIVATE "${OMM_SHADER_OUTPUT_PATH}")
 endif()
 if (OMM_ENABLE_PRECOMPILED_SHADERS_DXIL)
@@ -190,7 +184,7 @@ endif()
 set_target_properties(${TARGET_NAME} PROPERTIES FOLDER "${OMM_PROJECT_FOLDER}")
 
 if (NOT ${OMM_OUTPUT_BIN_PATH} STREQUAL "")
-    message(STATUS "OMMBake output path: '${OMM_OUTPUT_BIN_PATH}'")
+    message(STATUS "OMM-SDK output path: '${OMM_OUTPUT_BIN_PATH}'")
     set_target_properties(${TARGET_NAME} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${OMM_OUTPUT_BIN_PATH}/$<CONFIG>")
     set_target_properties(${TARGET_NAME} PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${OMM_OUTPUT_BIN_PATH}/$<CONFIG>")
     set_target_properties(${TARGET_NAME} PROPERTIES ARCHIVE_OUTPUT_DIRECTORY "${OMM_OUTPUT_BIN_PATH}/$<CONFIG>")

@@ -731,8 +731,8 @@ namespace {
 
 		ExpectEqual(stats, {
 			.totalOpaque = 521,
-			.totalTransparent = 287,
-			.totalUnknownTransparent = 81,
+			.totalTransparent = 286,
+			.totalUnknownTransparent = 82,
 			.totalUnknownOpaque = 135,
 			});
 	}
@@ -1422,10 +1422,10 @@ namespace {
 		omm::Debug::Stats stats = LeafletLevelN(4);
 
 		ExpectEqual(stats, {
-			.totalOpaque = 36,
-			.totalTransparent = 110,
-			.totalUnknownTransparent = 66,
-			.totalUnknownOpaque = 44,
+			.totalOpaque = 35,
+			.totalTransparent = 108,
+			.totalUnknownTransparent = 68,
+			.totalUnknownOpaque = 45,
 			});
 	}
 

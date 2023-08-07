@@ -82,6 +82,7 @@ namespace {
 		void TearDown() override {
 			EXPECT_EQ(omm::DestroyBaker(_baker), omm::Result::SUCCESS);
 		}
+		void TestShaders(omm::Gpu::RenderAPI api, bool expectingShaders);
 		omm::Baker _baker = 0;
 	};
 
@@ -97,6 +98,110 @@ namespace {
 		res = omm::Gpu::DestroyPipeline(_baker, pipeline);
 		EXPECT_EQ(res, omm::Result::SUCCESS);
 	}
+
+	void GpuTest::TestShaders(omm::Gpu::RenderAPI renderAPI, bool expectingShaders)
+	{
+		omm::Gpu::PipelineConfigDesc cfg;
+		cfg.renderAPI = renderAPI;
+
+		omm::Gpu::Pipeline pipeline = 0;
+		omm::Result res = omm::Gpu::CreatePipeline(_baker, cfg, &pipeline);
+		ASSERT_EQ(res, omm::Result::SUCCESS);
+
+		const omm::Gpu::PipelineInfoDesc* outPipelineDescs = nullptr;
+		res = omm::Gpu::GetPipelineDesc(pipeline, &outPipelineDescs);
+		ASSERT_EQ(res, omm::Result::SUCCESS);
+
+		for (uint32_t i = 0; i < outPipelineDescs->pipelineNum; ++i)
+		{
+			const omm::Gpu::PipelineDesc& pipeline = outPipelineDescs->pipelines[i];
+			ASSERT_LT(pipeline.type, omm::Gpu::PipelineType::MAX_NUM);
+
+			switch (pipeline.type)
+			{
+			case omm::Gpu::PipelineType::Compute:
+			{
+				if (expectingShaders)
+				{
+					ASSERT_NE(pipeline.compute.computeShader.data, nullptr);
+					ASSERT_NE(pipeline.compute.computeShader.size, 0);
+				}
+				else
+				{
+					ASSERT_EQ(pipeline.compute.computeShader.data, nullptr);
+					ASSERT_EQ(pipeline.compute.computeShader.size, 0);
+				}
+				break;
+			}
+			case omm::Gpu::PipelineType::Graphics:
+			{
+				if (expectingShaders)
+				{
+					bool anyShader = false;
+					if (pipeline.graphics.pixelShader.data)
+					{
+						anyShader = true;
+						ASSERT_NE(pipeline.graphics.pixelShader.size, 0);
+					}
+
+					if (pipeline.graphics.geometryShader.data)
+					{
+						anyShader = true;
+						ASSERT_NE(pipeline.graphics.geometryShader.size, 0);
+					}
+
+					if (pipeline.graphics.vertexShader.data)
+					{
+						anyShader = true;
+						ASSERT_NE(pipeline.graphics.vertexShader.size, 0);
+					}
+
+					ASSERT_EQ(anyShader, true);
+				}
+				else
+				{
+					ASSERT_EQ(pipeline.graphics.pixelShader.data, nullptr);
+					ASSERT_EQ(pipeline.graphics.pixelShader.size, 0);
+
+					ASSERT_EQ(pipeline.graphics.geometryShader.data, nullptr);
+					ASSERT_EQ(pipeline.graphics.geometryShader.size, 0);
+
+					ASSERT_EQ(pipeline.graphics.vertexShader.data, nullptr);
+					ASSERT_EQ(pipeline.graphics.vertexShader.size, 0);
+				}
+				break;
+			}
+			default:
+			{
+				ASSERT_EQ(false, true);
+				break;
+			}
+			}
+		}
+
+		res = omm::Gpu::DestroyPipeline(_baker, pipeline);
+		EXPECT_EQ(res, omm::Result::SUCCESS);
+	}
+
+#if defined(OMM_ENABLE_PRECOMPILED_SHADERS_DXIL)
+	TEST_F(GpuTest, ShadersDXIL) {
+		TestShaders(omm::Gpu::RenderAPI::DX12, true /*expectingShaders*/);
+	}
+#else
+	TEST_F(GpuTest, NoShadersDXIL) {
+		TestShaders(omm::Gpu::RenderAPI::DX12, false /*expectingShaders*/);
+	}
+#endif
+
+#if defined(OMM_ENABLE_PRECOMPILED_SHADERS_SPIRV)
+	TEST_F(GpuTest, ShadersSPIRV) {
+		TestShaders(omm::Gpu::RenderAPI::Vulkan, true /*expectingShaders*/);
+	}
+#else
+	TEST_F(GpuTest, NoShadersSPIRV) {
+		TestShaders(omm::Gpu::RenderAPI::Vulkan, false /*expectingShaders*/);
+	}
+#endif
 
 	class TextureTest : public ::testing::Test {
 	protected:

@@ -22,7 +22,6 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include <list>
 #include <shared_mutex>
 
-
 constexpr uint32_t g_DebugRTVDimension =  6 * 1024;
 
 namespace
