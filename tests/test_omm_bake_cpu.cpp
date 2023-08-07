@@ -29,6 +29,7 @@ namespace {
 		TextureDisableZOrder,
 		Force32BitIndices,
 		TextureAsUNORM8,
+		StaticAlphaCutoff,
 	};
 
 	struct Options
@@ -60,6 +61,7 @@ namespace {
 		bool EnableZOrder() const { return !((GetParam() & TestSuiteConfig::TextureDisableZOrder) == TestSuiteConfig::TextureDisableZOrder); }
 		bool Force32BitIndices() const { return (GetParam() & TestSuiteConfig::Force32BitIndices) == TestSuiteConfig::Force32BitIndices; }
 		bool TextureAsUNORM8() const { return (GetParam() & TestSuiteConfig::TextureAsUNORM8) == TestSuiteConfig::TextureAsUNORM8; }
+		bool EnableStaticAlphaCutoff() const { return (GetParam() & TestSuiteConfig::StaticAlphaCutoff) == TestSuiteConfig::StaticAlphaCutoff; }
 
 		omm::Cpu::Texture CreateTexture(const omm::Cpu::TextureDesc& desc) {
 			omm::Cpu::Texture tex = 0;
@@ -104,6 +106,7 @@ namespace {
 			desc.alphaCutoff = alphaCutoff;
 			desc.unknownStatePromotion = opt.unknownStatePromotion;
 			desc.bakeFlags = (omm::Cpu::BakeFlags)((uint32_t)omm::Cpu::BakeFlags::EnableInternalThreads);
+
 			if (opt.mergeSimilar)
 				desc.bakeFlags = (omm::Cpu::BakeFlags)((uint32_t)desc.bakeFlags | (uint32_t)omm::Cpu::BakeFlags::EnableNearDuplicateDetection);
 			if (Force32BitIndices())
@@ -168,7 +171,7 @@ namespace {
 			std::function<float(int i, int j, int w, int h, int mip)> tex,
 			const Options opt = {})
 		{
-			vmtest::TextureFP32 texture(texSize.x, texSize.y, opt.mipCount, EnableZOrder(), tex);
+			vmtest::TextureFP32 texture(texSize.x, texSize.y, opt.mipCount, EnableZOrder(), EnableStaticAlphaCutoff(), tex);
 			omm::Cpu::Texture texHandle = CreateTexture(texture.GetDesc());
 			return RunOmmBake(alphaCutoff, subdivisionLevel, texSize, indexCount, triangleIndices, texCoords, texHandle, opt);
 		}
@@ -195,7 +198,7 @@ namespace {
 			std::function<uint8_t(int i, int j, int w, int h, int mip)> tex,
 			const Options opt = {})
 		{
-			vmtest::TextureUNORM8 texture(texSize.x, texSize.y, opt.mipCount, EnableZOrder(), tex);
+			vmtest::TextureUNORM8 texture(texSize.x, texSize.y, opt.mipCount, EnableZOrder(), EnableStaticAlphaCutoff(), tex);
 			omm::Cpu::Texture texHandle = CreateTexture(texture.GetDesc());
 			return RunOmmBake(alphaCutoff, subdivisionLevel, texSize, indexCount, triangleIndices, texCoords, texHandle, opt);
 		}
@@ -209,7 +212,7 @@ namespace {
 		{
 			uint32_t triangleIndices[6] = { 0, 1, 2, 3, 1, 2 };
 			float texCoords[8] = { 0.f, 0.f,	0.f, 1.f,	1.f, 0.f,	 1.f, 1.f };
-			vmtest::TextureUNORM8 texture(texSize.x, texSize.y, opt.mipCount, EnableZOrder(), tex);
+			vmtest::TextureUNORM8 texture(texSize.x, texSize.y, opt.mipCount, EnableZOrder(), EnableStaticAlphaCutoff(), tex);
 			omm::Cpu::Texture texHandle = CreateTexture(texture.GetDesc());
 			return RunOmmBake(alphaCutoff, subdivisionLevel, texSize, 6, triangleIndices, texCoords, texHandle, opt);
 		}
@@ -1491,6 +1494,7 @@ namespace {
 		,	TestSuiteConfig::TextureDisableZOrder
 		,	TestSuiteConfig::Force32BitIndices
 		,	TestSuiteConfig::TextureAsUNORM8
+		,	TestSuiteConfig::StaticAlphaCutoff
 	));
 
 }  // namespace

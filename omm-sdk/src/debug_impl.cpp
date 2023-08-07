@@ -276,6 +276,13 @@ namespace omm
 
                                 if (alpha < (1.f - p->alphaCutoff))
                                     alphaFinal++;
+
+                                float2 pixelOffset = float2((uv ) * (float2)p->srcAlphaFp[mipIt].GetSize() + 0.5f);
+                                int2 texel = int2(glm::floor(pixelOffset + 0.5f));
+
+                                alphaFinal *= 0.85f;
+                                if ((texel.x % 2) == (texel.y % 2))
+                                    alphaFinal += 0.15f;
                             }
 
                             alphaFinal /= (float)p->mipCount;
