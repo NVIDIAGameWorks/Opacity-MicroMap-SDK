@@ -62,6 +62,58 @@ namespace omm
             return (uint32_t)m_mips.size();
         }
 
+        bool HasAlphaCutoff() const {
+            return m_alphaCutoff >= 0.f;
+        }
+
+        float GetAlphaCutoff() const {
+            return m_alphaCutoff;
+        }
+
+        bool InTexture(int2 texCoord, int32_t mip) const
+        {
+            return texCoord.x >= 0 &&
+                texCoord.y >= 0 &&
+                texCoord.x < m_mips[mip].size.x &&
+                texCoord.y < m_mips[mip].size.y;
+        }
+
+        bool HasSAT() const
+        {
+            return m_dataSAT != nullptr;
+        }
+
+        uint32_t SAT(int2 s, int2 e, int32_t mip) const
+        {
+            OMM_ASSERT(InTexture(s, mip));
+            OMM_ASSERT(InTexture(e, mip));
+#if 1
+            uint32_t* dataSAT = (uint32_t*)(m_dataSAT + m_mips[mip].dataOffsetSAT);
+
+            int32_t s_x_minus_one = (s.x - 1);
+            int32_t s_y_minus_one = (s.y - 1);
+
+            const uint32_t A = s_x_minus_one >= 0 && s_y_minus_one >= 0 ? dataSAT[(s_x_minus_one) + (s_y_minus_one) * m_mips[mip].size.x] : 0;
+            const uint32_t B = s_y_minus_one >= 0 ? dataSAT[e.x + (s_y_minus_one) * m_mips[mip].size.x] : 0;
+            const uint32_t C = s_x_minus_one >= 0 ? dataSAT[(s_x_minus_one) + (e.y) * m_mips[mip].size.x] : 0;
+            const uint32_t D = dataSAT[e.x + (e.y) * m_mips[mip].size.x];
+            int32_t sum = D + A - B - C;
+            return sum;
+#else
+
+            uint32_t sumTrue = 0;
+            for (int j = s.y; j <= e.y; ++j)
+            {
+                for (int i = s.x; i <= e.x; ++i)
+                {
+                    const float val = Load(int2(i, j), mip);
+                    sumTrue += val > m_alphaCutoff;
+                }
+            }
+            return sumTrue;
+#endif
+        }
+
     private:
         static ommResult Validate(const ommCpuTextureDesc& desc);
         void Deallocate();
@@ -83,12 +135,15 @@ namespace omm
             int2 sizeMinusOne;
             uintptr_t dataOffset;
             size_t numElements;
+            uintptr_t dataOffsetSAT;
         };
 
         vector<Mips> m_mips;
         TilingMode m_tilingMode;
         ommCpuTextureFormat m_textureFormat;
+        float m_alphaCutoff;
         uint8_t* m_data;
+        uint8_t* m_dataSAT;
         size_t m_dataSize;
     };
 

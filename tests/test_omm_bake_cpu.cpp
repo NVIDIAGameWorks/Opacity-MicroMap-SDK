@@ -29,6 +29,7 @@ namespace {
 		TextureDisableZOrder,
 		Force32BitIndices,
 		TextureAsUNORM8,
+		AlphaCutoff,
 	};
 
 	struct Options
@@ -60,6 +61,7 @@ namespace {
 		bool EnableZOrder() const { return !((GetParam() & TestSuiteConfig::TextureDisableZOrder) == TestSuiteConfig::TextureDisableZOrder); }
 		bool Force32BitIndices() const { return (GetParam() & TestSuiteConfig::Force32BitIndices) == TestSuiteConfig::Force32BitIndices; }
 		bool TextureAsUNORM8() const { return (GetParam() & TestSuiteConfig::TextureAsUNORM8) == TestSuiteConfig::TextureAsUNORM8; }
+		bool EnableAlphaCutoff() const { return (GetParam() & TestSuiteConfig::AlphaCutoff) == TestSuiteConfig::AlphaCutoff; }
 
 		omm::Cpu::Texture CreateTexture(const omm::Cpu::TextureDesc& desc) {
 			omm::Cpu::Texture tex = 0;
@@ -104,6 +106,7 @@ namespace {
 			desc.alphaCutoff = alphaCutoff;
 			desc.unknownStatePromotion = opt.unknownStatePromotion;
 			desc.bakeFlags = (omm::Cpu::BakeFlags)((uint32_t)omm::Cpu::BakeFlags::EnableInternalThreads);
+
 			if (opt.mergeSimilar)
 				desc.bakeFlags = (omm::Cpu::BakeFlags)((uint32_t)desc.bakeFlags | (uint32_t)omm::Cpu::BakeFlags::EnableNearDuplicateDetection);
 			if (Force32BitIndices())
@@ -168,7 +171,7 @@ namespace {
 			std::function<float(int i, int j, int w, int h, int mip)> tex,
 			const Options opt = {})
 		{
-			vmtest::TextureFP32 texture(texSize.x, texSize.y, opt.mipCount, EnableZOrder(), tex);
+			vmtest::TextureFP32 texture(texSize.x, texSize.y, opt.mipCount, EnableZOrder(), EnableAlphaCutoff() ? alphaCutoff : -1.f, tex);
 			omm::Cpu::Texture texHandle = CreateTexture(texture.GetDesc());
 			return RunOmmBake(alphaCutoff, subdivisionLevel, texSize, indexCount, triangleIndices, texCoords, texHandle, opt);
 		}
@@ -195,7 +198,7 @@ namespace {
 			std::function<uint8_t(int i, int j, int w, int h, int mip)> tex,
 			const Options opt = {})
 		{
-			vmtest::TextureUNORM8 texture(texSize.x, texSize.y, opt.mipCount, EnableZOrder(), tex);
+			vmtest::TextureUNORM8 texture(texSize.x, texSize.y, opt.mipCount, EnableZOrder(), EnableAlphaCutoff() ? alphaCutoff : -1.f, tex);
 			omm::Cpu::Texture texHandle = CreateTexture(texture.GetDesc());
 			return RunOmmBake(alphaCutoff, subdivisionLevel, texSize, indexCount, triangleIndices, texCoords, texHandle, opt);
 		}
@@ -209,12 +212,12 @@ namespace {
 		{
 			uint32_t triangleIndices[6] = { 0, 1, 2, 3, 1, 2 };
 			float texCoords[8] = { 0.f, 0.f,	0.f, 1.f,	1.f, 0.f,	 1.f, 1.f };
-			vmtest::TextureUNORM8 texture(texSize.x, texSize.y, opt.mipCount, EnableZOrder(), tex);
+			vmtest::TextureUNORM8 texture(texSize.x, texSize.y, opt.mipCount, EnableZOrder(), EnableAlphaCutoff() ? alphaCutoff : -1.f, tex);
 			omm::Cpu::Texture texHandle = CreateTexture(texture.GetDesc());
 			return RunOmmBake(alphaCutoff, subdivisionLevel, texSize, 6, triangleIndices, texCoords, texHandle, opt);
 		}
 
-		omm::Debug::Stats LeafletMipN(uint32_t mipStart, uint32_t NumMip)
+		omm::Debug::Stats LeafletMipN(uint32_t mipStart, uint32_t NumMip, float alphaCutoff = 0.5f)
 		{
 			uint32_t subdivisionLevel = 6;
 			uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
@@ -280,7 +283,7 @@ namespace {
 			}
 
 			int2 size = { std::get<0>(mipDims[mipStart]), std::get<1>(mipDims[mipStart]) };
-			omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, size, indexCount, triangleIndices, texCoords, [mipStart, mips](int i, int j, int w, int h, int mip)->float {
+			omm::Debug::Stats stats = RunOmmBakeFP32(alphaCutoff, subdivisionLevel, size, indexCount, triangleIndices, texCoords, [mipStart, mips](int i, int j, int w, int h, int mip)->float {
 
 				return 1.f - mips[mipStart + mip][w * j + i];
 
@@ -804,7 +807,7 @@ namespace {
 			col = float2(mq / 2.f, mq / 2.f);
 		}
 
-		float alpha = std::clamp(col.x, 0.f, 1.f);
+		float alpha = std::clamp(col.x, 0.f, 1.f) >= 0.5f ? 0.6f : 0.4f;
 		return 1.f - alpha;
 	}
 
@@ -818,16 +821,16 @@ namespace {
 		float texCoords[8] = { 0.2f, 0.f,  0.1f, 0.8f,  0.9f, 0.1f };
 
 		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, indexCount, triangleIndices, texCoords, [](int i, int j, int w, int h, int mip)->float {
-			
+
 			return GetJulia(i, j, w, h, mip);
 
 			}, { .format = omm::Format::OC1_4_State });
 
 		ExpectEqual(stats, {
-			.totalOpaque = 254735,
-			.totalTransparent = 4295,
-			.totalUnknownTransparent = 2054,
-			.totalUnknownOpaque = 1060,
+			.totalOpaque = 254265, 
+			.totalTransparent = 5055,
+			.totalUnknownTransparent = 1336,
+			.totalUnknownOpaque = 1488,
 			});
 	}
 
@@ -847,10 +850,10 @@ namespace {
 			}, { .format = omm::Format::OC1_4_State });
 
 		ExpectEqual(stats, {
-			.totalOpaque = 254711,
-			.totalTransparent = 4637,
-			.totalUnknownTransparent = 1720,
-			.totalUnknownOpaque = 1076,
+			.totalOpaque = 254251,
+			.totalTransparent = 5176,
+			.totalUnknownTransparent = 1215,
+			.totalUnknownOpaque = 1502,
 			});
 	}
 
@@ -1185,6 +1188,18 @@ namespace {
 			});
 	}
 
+	TEST_P(OMMBakeTestCPU, Leaflet_Alpha_0_2) {
+
+		omm::Debug::Stats stats = LeafletMipN(0, 1, 0.2f);
+
+		ExpectEqual(stats, {
+			.totalOpaque = 864,
+			.totalTransparent = 2712,
+			.totalUnknownTransparent = 275,
+			.totalUnknownOpaque = 245,
+			});
+	}
+
 	TEST_P(OMMBakeTestCPU, LeafletMip0_to_0) {
 
 		omm::Debug::Stats stats = LeafletMipN(0, 1);
@@ -1487,10 +1502,11 @@ namespace {
 	}
 
 	INSTANTIATE_TEST_SUITE_P(OMMTestCPU, OMMBakeTestCPU, ::testing::Values(
-			TestSuiteConfig::Default
+		TestSuiteConfig::Default
 		,	TestSuiteConfig::TextureDisableZOrder
 		,	TestSuiteConfig::Force32BitIndices
 		,	TestSuiteConfig::TextureAsUNORM8
+		, TestSuiteConfig::AlphaCutoff
 	));
 
 }  // namespace

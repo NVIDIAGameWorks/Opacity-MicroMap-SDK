@@ -44,7 +44,8 @@ namespace Cpu
         EnableAABBTesting               = 1u << 6,
         DisableRemovePoorQualityOMM     = 1u << 7,
         DisableLevelLineIntersection    = 1u << 8,
-        EnableNearDuplicateDetectionBruteForce = 1u << 9,
+        DisableFineClassification       = 1u << 9,
+        EnableNearDuplicateDetectionBruteForce = 1u << 10,
     };
 
     constexpr void ValidateInternalBakeFlags()
@@ -68,7 +69,8 @@ namespace Cpu
             enableWorkloadValidation(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableWorkloadValidation) == (uint32_t)BakeFlagsInternal::EnableWorkloadValidation),
             enableAABBTesting(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableAABBTesting) == (uint32_t)BakeFlagsInternal::EnableAABBTesting),
             disableRemovePoorQualityOMM(((uint32_t)flags& (uint32_t)BakeFlagsInternal::DisableRemovePoorQualityOMM) == (uint32_t)BakeFlagsInternal::DisableRemovePoorQualityOMM),
-            disableLevelLineIntersection(((uint32_t)flags& (uint32_t)BakeFlagsInternal::DisableLevelLineIntersection) == (uint32_t)BakeFlagsInternal::DisableLevelLineIntersection)
+            disableLevelLineIntersection(((uint32_t)flags& (uint32_t)BakeFlagsInternal::DisableLevelLineIntersection) == (uint32_t)BakeFlagsInternal::DisableLevelLineIntersection),
+            disableFineClassification(((uint32_t)flags& (uint32_t)BakeFlagsInternal::DisableFineClassification) == (uint32_t)BakeFlagsInternal::DisableFineClassification)
         { }
         const bool enableInternalThreads;
         const bool disableSpecialIndices;
@@ -79,6 +81,7 @@ namespace Cpu
         const bool enableAABBTesting;
         const bool disableRemovePoorQualityOMM;
         const bool disableLevelLineIntersection;
+        const bool disableFineClassification;
     };
 
     BakerImpl::~BakerImpl()
@@ -200,6 +203,15 @@ namespace Cpu
             return ommResult_INVALID_ARGUMENT;
         if ((options.enableNearDuplicateDetection || options.enableNearDuplicateDetectionBruteForce) && options.disableDuplicateDetection)
             return ommResult_INVALID_ARGUMENT;
+
+        if (TextureImpl* texture = ((TextureImpl*)desc.texture))
+        {
+            if (texture->HasAlphaCutoff() && texture->GetAlphaCutoff() != desc.alphaCutoff)
+            {
+                return ommResult_INVALID_ARGUMENT;
+            }
+        }
+
         return ommResult_SUCCESS;
     }
 
@@ -320,6 +332,15 @@ namespace Cpu
             data.resize(maxSizeInBytes);
             data3state.resize(maxSizeInBytes);
             OmmArrayDataView::SetData((uint8_t*)data.data(), data3state.data(), maxSizeInBytes);
+            Init();
+        }
+
+    private:
+
+        void Init()
+        {
+            std::fill(data.begin(), data.end(), ommOpacityState_UnknownOpaque);
+            std::fill(data3state.begin(), data3state.end(), ommOpacityState_UnknownOpaque);
         }
 
     private:
@@ -549,10 +570,108 @@ namespace Cpu
         }
 
         template<ommCpuTextureFormat eFormat, TilingMode eTilingMode, ommTextureAddressMode eTextureAddressMode, ommTextureFilterMode eFilterMode>
-        static ommResult Resample(const ommCpuBakeInputDesc& desc, const Options& options, vector<OmmWorkItem>& vmWorkItems)
+        static ommResult ResampleCoarse(const ommCpuBakeInputDesc& desc, const Options& options, vector<OmmWorkItem>& vmWorkItems)
         {
             if (options.enableAABBTesting && !options.disableLevelLineIntersection)
                 return ommResult_INVALID_ARGUMENT;
+
+            const TextureImpl* texture = ((const TextureImpl*)desc.texture);
+
+            if (!texture->HasSAT())
+                return ommResult_SUCCESS;
+
+            if (texture->GetMipCount() != 1)
+                return ommResult_SUCCESS;
+
+            // 3. Process the queue of unique triangles...
+            {
+                const int32_t numWorkItems = (int32_t)vmWorkItems.size();
+
+                // 3.1 Rasterize...
+                {
+                    #pragma omp parallel for if(options.enableInternalThreads)
+                    for (int32_t workItemIt = 0; workItemIt < numWorkItems; ++workItemIt) {
+
+                        // 3.2 figure out the sub-states via rasterization...
+                        {
+                            // Subdivide the input triangle in to smaller triangles. They will be "bird-curve" ordered.
+                            OmmWorkItem& workItem = vmWorkItems[workItemIt];
+
+                            const uint32_t numMicroTriangles = omm::bird::GetNumMicroTriangles(workItem.subdivisionLevel);
+
+                            // Perform rasterization of each individual VM.
+                            if (eFilterMode == ommTextureFilterMode_Linear)
+                            {
+                                // Run conservative rasterization on the micro triangle
+                                for (uint32_t uTriIt = 0; uTriIt < numMicroTriangles; ++uTriIt)
+                                {
+                                    const Triangle subTri = omm::bird::GetMicroTriangle(workItem.uvTri, uTriIt, workItem.subdivisionLevel);
+
+                                    const int32_t Sx = (int32_t)subTri.aabb_s.x;
+                                    const int32_t Sy = (int32_t)subTri.aabb_s.y;
+
+                                    const int32_t Ex = (int32_t)subTri.aabb_e.x;
+                                    const int32_t Ey = (int32_t)subTri.aabb_e.y;
+
+                                    if (Sx != Ex || Sy != Ey)
+                                    {
+                                        continue;
+                                    }
+
+                                    const uint32_t mip = 0;
+
+                                    const float2 faabb_s = (subTri.aabb_s * (float2)texture->GetSize(mip)) - 0.5f;
+                                    const float2 faabb_e = (subTri.aabb_e * (float2)texture->GetSize(mip)) - 0.5f;
+                                    int2 iaabb_s[TexelOffset::MAX_NUM];
+                                    omm::GatherTexCoord4<eTextureAddressMode>(glm::floor(faabb_s), texture->GetSize(mip), iaabb_s);
+
+                                    int2 iaabb_e[TexelOffset::MAX_NUM];
+                                    omm::GatherTexCoord4<eTextureAddressMode>(glm::floor(faabb_e), texture->GetSize(mip), iaabb_e);
+
+                                    const int2 aabb_s = iaabb_s[TexelOffset::I0x0];
+                                    const int2 aabb_e = iaabb_e[TexelOffset::I1x1];
+
+                                    // This means the micro-triangle wraps over the image border.
+                                    if (aabb_e.x < aabb_s.x || aabb_e.y < aabb_s.y)
+                                        continue;
+
+                                    if (!texture->InTexture(aabb_s, mip) || !texture->InTexture(aabb_e, mip))
+                                    {
+                                        continue;
+                                    }
+
+                                    const int2 aabb = (aabb_e - aabb_s);
+                                    const uint32_t area = (aabb.x + 1) * (aabb.y + 1);
+
+                                    const uint32_t sa = texture->SAT(aabb_s, aabb_e, mip);
+
+                                    if (sa == 0)
+                                    {
+                                        // transparent
+                                        workItem.vmStates.SetState(uTriIt, ommOpacityState_Transparent);
+                                    }
+                                    else if (sa == area)
+                                    {
+                                        // opaque
+                                        workItem.vmStates.SetState(uTriIt, ommOpacityState_Opaque);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            return ommResult_SUCCESS;
+        }
+
+        template<ommCpuTextureFormat eFormat, TilingMode eTilingMode, ommTextureAddressMode eTextureAddressMode, ommTextureFilterMode eFilterMode>
+        static ommResult ResampleFine(const ommCpuBakeInputDesc& desc, const Options& options, vector<OmmWorkItem>& vmWorkItems)
+        {
+            if (options.enableAABBTesting && !options.disableLevelLineIntersection)
+                return ommResult_INVALID_ARGUMENT;
+
+            if (options.disableFineClassification)
+                return ommResult_SUCCESS;
 
             const TextureImpl* texture = ((const TextureImpl*)desc.texture);
 
@@ -578,6 +697,11 @@ namespace Cpu
                                 // Run conservative rasterization on the micro triangle
                                 for (uint32_t uTriIt = 0; uTriIt < numMicroTriangles; ++uTriIt)
                                 {
+                                    if (workItem.vmStates.GetState(uTriIt) != ommOpacityState_UnknownOpaque)
+                                    {
+                                        continue;
+                                    }
+
                                     const Triangle subTri = omm::bird::GetMicroTriangle(workItem.uvTri, uTriIt, workItem.subdivisionLevel);
 
                                     // Figure out base-state by sampling at the center of the triangle.
@@ -651,7 +775,7 @@ namespace Cpu
                                         // This is only correct for bilinear version, nearest sampling should map exactly to the source alpha texture.
 
                                         uint32_t mip = 0;
-                                        OMM_ASSERT(texture->GetMipCount() == 0);
+                                        OMM_ASSERT(texture->GetMipCount() == 1);
                                         const int2 rasterSize = texture->GetSize(mip);
 
                                         float2 pixelOffset = -float2(0.5, 0.5);
@@ -1386,8 +1510,12 @@ namespace Cpu
 
         m_bakeInputDesc = desc;
 
-        auto impl__Resample = [](const ommCpuBakeInputDesc& desc, const Options& options, vector<OmmWorkItem>& vmWorkItems) { 
-            return impl::Resample<eFormat, eTilingMode, eTextureAddressMode, eFilterMode>(desc, options, vmWorkItems);
+        auto impl__ResampleCoarse = [](const ommCpuBakeInputDesc& desc, const Options& options, vector<OmmWorkItem>& vmWorkItems) {
+            return impl::ResampleCoarse<eFormat, eTilingMode, eTextureAddressMode, eFilterMode>(desc, options, vmWorkItems);
+        };
+
+        auto impl__ResampleFine = [](const ommCpuBakeInputDesc& desc, const Options& options, vector<OmmWorkItem>& vmWorkItems) {
+            return impl::ResampleFine<eFormat, eTilingMode, eTextureAddressMode, eFilterMode>(desc, options, vmWorkItems);
         };
 
         {
@@ -1397,7 +1525,9 @@ namespace Cpu
 
             RETURN_STATUS_IF_FAILED(impl::ValidateWorkloadSize(m_stdAllocator, desc, options, vmWorkItems));
 
-            RETURN_STATUS_IF_FAILED(impl__Resample(desc, options, vmWorkItems));
+            RETURN_STATUS_IF_FAILED(impl__ResampleCoarse(desc, options, vmWorkItems));
+
+            RETURN_STATUS_IF_FAILED(impl__ResampleFine(desc, options, vmWorkItems));
 
             RETURN_STATUS_IF_FAILED(impl::PromoteToSpecialIndices(desc, options, vmWorkItems));
 

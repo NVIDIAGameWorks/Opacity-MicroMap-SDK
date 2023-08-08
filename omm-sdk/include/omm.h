@@ -15,7 +15,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include <stddef.h>
 
 #define OMM_VERSION_MAJOR 1
-#define OMM_VERSION_MINOR 0
+#define OMM_VERSION_MINOR 1
 #define OMM_VERSION_BUILD 2
 
 #define OMM_MAX_TRANSIENT_POOL_BUFFERS 8
@@ -291,15 +291,19 @@ typedef struct ommCpuTextureDesc
    ommCpuTextureFlags          flags;
    const ommCpuTextureMipDesc* mips;
    uint32_t                    mipCount;
+   // Setting the alphaCutoff [0,1] allows the alpha cutoff to be embeded in the texture object which may accelerate the
+   // baking operation in some circumstances. Note: if set it must match the alphaCutoff in the bake desc exactly.
+   float                       alphaCutoff;
 } ommCpuTextureDesc;
 
 inline ommCpuTextureDesc ommCpuTextureDescDefault()
 {
    ommCpuTextureDesc v;
-   v.format    = ommCpuTextureFormat_MAX_NUM;
-   v.flags     = ommCpuTextureFlags_None;
-   v.mips      = NULL;
-   v.mipCount  = 0;
+   v.format       = ommCpuTextureFormat_MAX_NUM;
+   v.flags        = ommCpuTextureFlags_None;
+   v.mips         = NULL;
+   v.mipCount     = 0;
+   v.alphaCutoff  = -1.f;
    return v;
 }
 

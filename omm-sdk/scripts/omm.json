@@ -667,6 +667,12 @@
                 "type": "uint32_t",
                 "name": "mipCount",
                 "value": "0"
+            },
+            {
+                "type": "float",
+                "name": "alphaCutoff",
+                "value": "-1.f",
+                "comment": "Setting the alphaCutoff [0,1] allows the alpha cutoff to be embeded in the texture object which may accelerate the baking operation in some circumstances. Note: if set it must match the alphaCutoff in the bake desc exactly."
             }
         ]
     },
