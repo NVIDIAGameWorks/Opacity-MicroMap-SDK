@@ -221,7 +221,7 @@ namespace {
 
 	TEST_F(TextureTest, Create64x100) {
 
-		vmtest::TextureFP32 tex(64, 100, 1, true /*enableZorder*/, false /*enableStaticAlphaCutoff*/, [](int i, int j, int w, int h, int mip)->float {return 0.f; });
+		vmtest::TextureFP32 tex(64, 100, 1, true /*enableZorder*/, -1.f /*alphaCutoff*/, [](int i, int j, int w, int h, int mip)->float {return 0.f; });
 		omm::Cpu::Texture outTexture = 0;
 		EXPECT_EQ(omm::Cpu::CreateTexture(_baker, tex.GetDesc(), &outTexture), omm::Result::SUCCESS);
 		EXPECT_NE(outTexture, 0);
@@ -230,7 +230,7 @@ namespace {
 
 
 	TEST_F(TextureTest, Create100x100) {
-		vmtest::TextureFP32 tex(100, 100, 1, true /*enableZorder*/, false /*enableStaticAlphaCutoff*/, [](int i, int j, int w, int h, int mip)->float {return 0.f; });
+		vmtest::TextureFP32 tex(100, 100, 1, true /*enableZorder*/, -1.f /*alphaCutoff*/, [](int i, int j, int w, int h, int mip)->float {return 0.f; });
 
 		omm::Cpu::Texture outTexture = 0;
 		EXPECT_EQ(omm::Cpu::CreateTexture(_baker, tex.GetDesc(), &outTexture), omm::Result::SUCCESS);
@@ -240,7 +240,7 @@ namespace {
 
 
 	TEST_F(TextureTest, Create100x64) {
-		vmtest::TextureFP32 tex(100, 64, 1, true /*enableZorder*/, false /*enableStaticAlphaCutoff*/, [](int i, int j, int w, int h, int mip)->float {return 0.f; });
+		vmtest::TextureFP32 tex(100, 64, 1, true /*enableZorder*/, -1.f /*alphaCutoff*/, [](int i, int j, int w, int h, int mip)->float {return 0.f; });
 
 		omm::Cpu::Texture outTexture = 0;
 		EXPECT_EQ(omm::Cpu::CreateTexture(_baker, tex.GetDesc(), &outTexture), omm::Result::SUCCESS);
@@ -249,28 +249,28 @@ namespace {
 	}
 
 	TEST_F(TextureTest, Create0x64) {
-		vmtest::TextureFP32 tex(0, 64, 1, true /*enableZorder*/, false /*enableStaticAlphaCutoff*/, [](int i, int j, int w, int h, int mip)->float {return 0.f; });
+		vmtest::TextureFP32 tex(0, 64, 1, true /*enableZorder*/, -1.f /*alphaCutoff*/, [](int i, int j, int w, int h, int mip)->float {return 0.f; });
 
 		omm::Cpu::Texture outTexture = 0;
 		EXPECT_EQ(omm::Cpu::CreateTexture(_baker, tex.GetDesc(), &outTexture), omm::Result::INVALID_ARGUMENT);
 	}
 
 	TEST_F(TextureTest, Create0x0) {
-		vmtest::TextureFP32 tex(0, 0, 1, true /*enableZorder*/, false /*enableStaticAlphaCutoff*/, [](int i, int j, int w, int h, int mip)->float {return 0.f; });
+		vmtest::TextureFP32 tex(0, 0, 1, true /*enableZorder*/, -1.f /*alphaCutoff*/, [](int i, int j, int w, int h, int mip)->float {return 0.f; });
 
 		omm::Cpu::Texture outTexture = 0;
 		EXPECT_EQ(omm::Cpu::CreateTexture(_baker, tex.GetDesc(), &outTexture), omm::Result::INVALID_ARGUMENT);
 	}
 
 	TEST_F(TextureTest, Create65536x0) {
-		vmtest::TextureFP32 tex(65536, 1, 1, false /*enableZorder*/, false /*enableStaticAlphaCutoff*/, [](int i, int j, int w, int h, int mip)->float {return 0.f; });
+		vmtest::TextureFP32 tex(65536, 1, 1, false /*enableZorder*/, -1.f /*alphaCutoff*/, [](int i, int j, int w, int h, int mip)->float {return 0.f; });
 
 		omm::Cpu::Texture outTexture = 0;
 		EXPECT_EQ(omm::Cpu::CreateTexture(_baker, tex.GetDesc(), &outTexture), omm::Result::SUCCESS);
 	}
 
 	TEST_F(TextureTest, Create65537x0) {
-		vmtest::TextureFP32 tex(65537, 1, 1, false /*enableZorder*/, false /*enableStaticAlphaCutoff*/, [](int i, int j, int w, int h, int mip)->float {return 0.f; });
+		vmtest::TextureFP32 tex(65537, 1, 1, false /*enableZorder*/, -1.f /*alphaCutoff*/, [](int i, int j, int w, int h, int mip)->float {return 0.f; });
 
 		omm::Cpu::Texture outTexture = 0;
 		EXPECT_EQ(omm::Cpu::CreateTexture(_baker, tex.GetDesc(), &outTexture), omm::Result::INVALID_ARGUMENT);

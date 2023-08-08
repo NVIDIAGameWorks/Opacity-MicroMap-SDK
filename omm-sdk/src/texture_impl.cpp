@@ -188,7 +188,7 @@ namespace omm
                 {
                     for (int i = 0; i < m_mips[mipIt].size.x; ++i)
                     {
-                        dataSAT[i + j * m_mips[mipIt].size.x] = Load(int2(i, j), mipIt) > 0.5f;
+                        dataSAT[i + j * m_mips[mipIt].size.x] = Load(int2(i, j), mipIt) > m_alphaCutoff;
                     }
                 }
 

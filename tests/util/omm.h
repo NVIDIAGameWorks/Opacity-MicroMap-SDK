@@ -18,7 +18,7 @@ namespace vmtest
 	template<class T, omm::Cpu::TextureFormat Format>
 	struct TextureImpl
 	{
-		TextureImpl(int w, int h, int mipCount, bool enableZorder, bool enableStaticAlphaCutoff, std::function<T(int x, int y, int w, int h, int mip)> cb)
+		TextureImpl(int w, int h, int mipCount, bool enableZorder, float alphaCutoff, std::function<T(int x, int y, int w, int h, int mip)> cb)
 		{
 			_mipDescs.resize(mipCount);
 			_mipData.resize(mipCount);
@@ -28,8 +28,7 @@ namespace vmtest
 			_desc.format = Format;
 			if (!enableZorder)
 				_desc.flags = omm::Cpu::TextureFlags::DisableZOrder;
-			if (enableStaticAlphaCutoff)
-				_desc.alphaCutoff = 0.5f;
+			_desc.alphaCutoff = alphaCutoff;
 
 			for (int mipIt = 0; mipIt < mipCount; ++mipIt)
 			{

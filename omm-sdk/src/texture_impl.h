@@ -107,7 +107,7 @@ namespace omm
                 for (int i = s.x; i <= e.x; ++i)
                 {
                     const float val = Load(int2(i, j), mip);
-                    sumTrue += val > 0.5f;
+                    sumTrue += val > m_alphaCutoff;
                 }
             }
             return sumTrue;
