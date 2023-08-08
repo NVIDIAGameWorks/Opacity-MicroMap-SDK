@@ -44,9 +44,10 @@ namespace {
 
 		void Bake(uint32_t triangleCount, bool force32bitIndexFormat, omm::IndexFormat expectedOutput, omm::Result expectedResult) {
 
+			const float alphaCutoff = 0.3f;
 			omm::Cpu::Texture tex_04 = 0;
 			{
-				vmtest::TextureFP32 texture(1024, 1024, 1, false, false, [](int i, int j, int w, int h, int mip) {
+				vmtest::TextureFP32 texture(1024, 1024, 1, false, alphaCutoff, [](int i, int j, int w, int h, int mip) {
 					if ((i) % 2 != (j) % 2)
 						return 0.f;
 					else
@@ -81,7 +82,7 @@ namespace {
 			desc.texCoordFormat = omm::TexCoordFormat::UV32_FLOAT;
 			desc.indexCount = (uint32_t)indices.size();
 			desc.maxSubdivisionLevel = 4;
-			desc.alphaCutoff = 0.3f;
+			desc.alphaCutoff = alphaCutoff;
 			desc.bakeFlags = (omm::Cpu::BakeFlags)(
 				(uint32_t)omm::Cpu::BakeFlags::EnableInternalThreads |
 				(uint32_t)omm::Cpu::BakeFlags::DisableSpecialIndices |

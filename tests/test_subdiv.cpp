@@ -80,10 +80,12 @@ namespace {
 		void BakeMixedSubDivs(
 			const SubDivDistr& p) {
 
+			const float alphaCutoff = 0.3f;
+
 			omm::Cpu::Texture tex_04 = 0;
 			{
 				// Create checkerboard pattern to make sure that no special-index case will happen.
-				vmtest::TextureFP32 texture(1024, 1024, 1, true /*enableZorder*/, false /*enableStaticAlphaCutoff*/, [](int i, int j, int w, int h, int mip){
+				vmtest::TextureFP32 texture(1024, 1024, 1, true /*enableZorder*/, alphaCutoff, [](int i, int j, int w, int h, int mip){
 					if ((i) % 2 != (j) % 2)
 						return 0.f;
 					else
@@ -149,7 +151,7 @@ namespace {
 			desc.indexCount = (uint32_t)indices.size();
 			desc.maxSubdivisionLevel = p.globalSubDivLvl;
 			desc.subdivisionLevels = subDivNum.data();
-			desc.alphaCutoff = 0.3f;
+			desc.alphaCutoff = alphaCutoff;
 			desc.bakeFlags = (omm::Cpu::BakeFlags)(
 				(uint32_t)omm::Cpu::BakeFlags::EnableInternalThreads |
 				(uint32_t)omm::Cpu::BakeFlags::DisableSpecialIndices | 
