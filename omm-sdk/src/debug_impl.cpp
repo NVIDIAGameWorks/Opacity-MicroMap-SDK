@@ -162,7 +162,11 @@ namespace omm
         }
 
         // Iterate over macro triangles.
-        const uint32_t primitiveCount = desc.indexCount / 3;
+        uint32_t primitiveCount = desc.indexCount / 3;
+
+        if (dumpDesc.dumpOnlyFirstOMM)
+            primitiveCount = std::min<uint32_t>(primitiveCount, 1);
+
         for (uint32_t primIt = 0; primIt < primitiveCount; ++primIt) {
 
             const int32_t vmIdx = parse::GetOmmIndexForTriangleIndex(*resDesc, primIt);
