@@ -162,7 +162,11 @@ namespace omm
         }
 
         // Iterate over macro triangles.
-        const uint32_t primitiveCount = desc.indexCount / 3;
+        uint32_t primitiveCount = desc.indexCount / 3;
+
+        if (dumpDesc.dumpOnlyFirstOMM)
+            primitiveCount = std::min<uint32_t>(primitiveCount, 1);
+
         for (uint32_t primIt = 0; primIt < primitiveCount; ++primIt) {
 
             const int32_t vmIdx = parse::GetOmmIndexForTriangleIndex(*resDesc, primIt);
@@ -203,7 +207,7 @@ namespace omm
                 size = int2(glm::floor(float2(srcSize) * (macroTriangle.aabb_e - macroTriangle.aabb_s))) + int2{ 1,1 };
             }
             else {
-                scale = (int2)5;
+                scale = (int2)10;
                 srcSize = alphaFps[0].GetSize() * scale;
                 offset = (int2)0;// int2(float2(srcSize)* macroTriangle.aabb_s);
                 size = srcSize;// int2(float2(srcSize)* (macroTriangle.aabb_e - macroTriangle.aabb_s)) + int2{ 1,1 };
@@ -276,6 +280,13 @@ namespace omm
 
                                 if (alpha < (1.f - p->alphaCutoff))
                                     alphaFinal++;
+
+                                float2 pixelOffset = float2((uv ) * (float2)p->srcAlphaFp[mipIt].GetSize() + 0.5f);
+                                int2 texel = int2(glm::floor(pixelOffset + 0.5f));
+
+                                alphaFinal *= 0.85f;
+                                if ((texel.x % 2) == (texel.y % 2))
+                                    alphaFinal += 0.15f;
                             }
 
                             alphaFinal /= (float)p->mipCount;

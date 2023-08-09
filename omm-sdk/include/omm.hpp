@@ -218,10 +218,13 @@ namespace omm
 
       struct TextureDesc
       {
-         TextureFormat         format    = TextureFormat::MAX_NUM;
-         TextureFlags          flags     = TextureFlags::None;
-         const TextureMipDesc* mips      = nullptr;
-         uint32_t              mipCount  = 0;
+         TextureFormat         format       = TextureFormat::MAX_NUM;
+         TextureFlags          flags        = TextureFlags::None;
+         const TextureMipDesc* mips         = nullptr;
+         uint32_t              mipCount     = 0;
+         // Setting the alphaCutoff [0,1] allows the alpha cutoff to be embeded in the texture object which may accelerate the
+         // baking operation in some circumstances. Note: if set it must match the alphaCutoff in the bake desc exactly.
+         float                 alphaCutoff  = -1.f;
       };
 
       struct BakeInputDesc

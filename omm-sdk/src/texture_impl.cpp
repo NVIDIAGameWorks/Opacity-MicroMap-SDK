@@ -26,7 +26,9 @@ namespace omm
         m_mips(stdAllocator),
         m_textureFormat(ommCpuTextureFormat_MAX_NUM),
         m_tilingMode(TilingMode::MAX_NUM),
-        m_data(nullptr)
+        m_alphaCutoff(-1.f),
+        m_data(nullptr),
+        m_dataSAT(nullptr)
     {
     }
 
@@ -67,6 +69,7 @@ namespace omm
         m_mips.resize(desc.mipCount);
         m_tilingMode = !!((uint32_t)desc.flags & (uint32_t)ommCpuTextureFlags_DisableZOrder) ? TilingMode::Linear : TilingMode::MortonZ;
         m_textureFormat = desc.format;
+        m_alphaCutoff = desc.alphaCutoff;
 
         auto GetSizePerPixel = [](ommCpuTextureFormat format)->size_t
         {
@@ -80,13 +83,17 @@ namespace omm
 
         const size_t sizePerPixel = GetSizePerPixel(m_textureFormat);
 
+        const bool enableSAT = std::numeric_limits<uint32_t>::max() > m_mips[0].numElements && m_alphaCutoff >= 0;
+
         size_t totalSize = 0;
+        size_t totalSizeSAT = 0;
         for (uint32_t mipIt = 0; mipIt < desc.mipCount; ++mipIt)
         {
             m_mips[mipIt].size = { desc.mips[mipIt].width, desc.mips[mipIt].height };
             m_mips[mipIt].sizeMinusOne = m_mips[mipIt].size - 1;
             m_mips[mipIt].rcpSize = 1.f / (float2)m_mips[mipIt].size;
             m_mips[mipIt].dataOffset = totalSize;
+            m_mips[mipIt].dataOffsetSAT = totalSizeSAT;
 
             if (m_tilingMode == TilingMode::Linear)
             {
@@ -105,9 +112,16 @@ namespace omm
 
             totalSize += sizePerPixel * m_mips[mipIt].numElements;
             totalSize = math::Align(totalSize, kAlignment);
+
+            if (enableSAT)
+            {
+                totalSizeSAT += sizeof(uint32_t) * m_mips[mipIt].numElements;;
+                totalSizeSAT = math::Align(totalSizeSAT, kAlignment);
+            }
         }
 
         m_data = m_stdAllocator.allocate(totalSize, kAlignment);
+        m_dataSAT = enableSAT ? m_stdAllocator.allocate(totalSizeSAT, kAlignment) : nullptr;
 
         for (uint32_t mipIt = 0; mipIt < desc.mipCount; ++mipIt)
         {
@@ -165,6 +179,37 @@ namespace omm
                 OMM_ASSERT(false);
                 return ommResult_INVALID_ARGUMENT;
             }
+
+            if (enableSAT)
+            {
+                uint32_t* dataSAT = (uint32_t * )(m_dataSAT + m_mips[mipIt].dataOffsetSAT);
+
+                for (int j = 0; j < m_mips[mipIt].size.y; ++j)
+                {
+                    for (int i = 0; i < m_mips[mipIt].size.x; ++i)
+                    {
+                        dataSAT[i + j * m_mips[mipIt].size.x] = Load(int2(i, j), mipIt) > m_alphaCutoff;
+                    }
+                }
+
+                // sum in X
+                for (int j = 0; j < m_mips[mipIt].size.y; ++j)
+                {
+                    for (int i = 1; i < m_mips[mipIt].size.x; ++i)
+                    {
+                        dataSAT[i + j * m_mips[mipIt].size.x] += dataSAT[i - 1 + j * m_mips[mipIt].size.x];
+                    }
+                }
+
+                // sum in Y
+                for (int j = 1; j < m_mips[mipIt].size.y; ++j)
+                {
+                    for (int i = 0; i < m_mips[mipIt].size.x; ++i)
+                    {
+                        dataSAT[i + j * m_mips[mipIt].size.x] += dataSAT[i + (j - 1) * m_mips[mipIt].size.x];
+                    }
+                }
+            }
         }
 
         return ommResult_SUCCESS;
@@ -176,6 +221,11 @@ namespace omm
         {
             m_stdAllocator.deallocate(m_data, 0);
             m_data = nullptr;
+        }
+        if (m_dataSAT != nullptr)
+        {
+            m_stdAllocator.deallocate((uint8_t*)m_dataSAT, 0);
+            m_dataSAT = nullptr;
         }
         m_mips.clear();
     }
