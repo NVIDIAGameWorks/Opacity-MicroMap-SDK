@@ -23,7 +23,7 @@ OMM_DECLARE_SUBRESOURCES
 [numthreads(128, 1, 1)]
 void main(uint3 tid : SV_DispatchThreadID)
 {
-	if (tid.x > (g_GlobalConstants.MaxSubdivisionLevel + 1))
+	if (tid.x > g_GlobalConstants.MaxSubdivisionLevel)
 		return;
 
 	const uint subdivisionLevel = tid.x;

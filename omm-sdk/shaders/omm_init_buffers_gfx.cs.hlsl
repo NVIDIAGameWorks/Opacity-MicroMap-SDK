@@ -27,7 +27,7 @@ uint GetNumMicroTri(uint subdivisionLevel) {
 [numthreads(128, 1, 1)]
 void main(uint3 tid : SV_DispatchThreadID)
 {
-	if (tid.x > (g_GlobalConstants.MaxSubdivisionLevel + 1) * g_GlobalConstants.MaxBatchCount)
+	if (tid.x > (g_GlobalConstants.MaxSubdivisionLevel) * g_GlobalConstants.MaxBatchCount)
 		return;
 
 	const uint subdivisionLevel = tid.x / g_GlobalConstants.MaxBatchCount;
