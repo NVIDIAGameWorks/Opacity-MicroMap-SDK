@@ -1477,7 +1477,7 @@ namespace Cpu
             }
 
             // Compress to 16 bit indices if possible & allowed.
-            ommIndexFormat ommIndexFormat = ommIndexFormat_I32_UINT;
+            ommIndexFormat ommIndexFormat = ommIndexFormat_UINT_32;
             {
                 const bool force32bit = ((int32_t)desc.bakeFlags & (int32_t)ommCpuBakeFlags_Force32BitIndices) == (int32_t)ommCpuBakeFlags_Force32BitIndices;
                 const bool canCompressTo16Bit = triangleCount <= std::numeric_limits<int16_t>::max();
@@ -1491,7 +1491,7 @@ namespace Cpu
                         ommIndexBuffer16[i] = idx16;
                     }
 
-                    ommIndexFormat = ommIndexFormat_I16_UINT;
+                    ommIndexFormat = ommIndexFormat_UINT_16;
                 }
             }
 

@@ -23,7 +23,6 @@ namespace omm
       INVALID_ARGUMENT,
       INSUFFICIENT_SCRATCH_MEMORY,
       NOT_IMPLEMENTED,
-      WORKLOAD_TOO_BIG,
       MAX_NUM,
    };
 
@@ -89,8 +88,10 @@ namespace omm
 
    enum class IndexFormat
    {
-      I16_UINT,
-      I32_UINT,
+      UINT_16,
+      UINT_32,
+      I16_UINT OMM_DEPRECATED_MSG("omm::IndexFormat::I16_UINT is deprecated, please use omm::IndexFormat::UINT_16 instead") = UINT_16,
+      I32_UINT OMM_DEPRECATED_MSG("omm::IndexFormat::I32_UINT is deprecated, please use omm::IndexFormat::UINT_32 instead") = UINT_32,
       MAX_NUM,
    };
 

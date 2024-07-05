@@ -647,7 +647,7 @@ omm::Gpu::DispatchConfigDesc GpuBakeNvrhiImpl::GetConfig(const GpuBakeNvrhi::Inp
 	config.texCoordFormat						= TexCoordFormat::UV32_FLOAT;
 	config.texCoordOffsetInBytes				= params.texCoordBufferOffsetInBytes;
 	config.texCoordStrideInBytes				= params.texCoordStrideInBytes;
-	config.indexFormat							= IndexFormat::I32_UINT;
+	config.indexFormat							= IndexFormat::UINT_32;
 	config.indexCount							= (uint32_t)params.numIndices;
 	config.globalFormat							= params.format == nvrhi::rt::OpacityMicromapFormat::OC1_2_State ? Format::OC1_2_State : Format::OC1_4_State;
 	config.maxScratchMemorySize					= params.minimalMemoryMode ? Gpu::ScratchMemoryBudget::MB_4 : Gpu::ScratchMemoryBudget::MB_256;
@@ -692,7 +692,7 @@ void GpuBakeNvrhiImpl::GetPreDispatchInfo(const GpuBakeNvrhi::Input& params, Gpu
 	omm::Result res = Gpu::GetPreDispatchInfo(m_pipeline, config, &preBuildInfo);
 	assert(res == omm::Result::SUCCESS);
 
-	info.ommIndexFormat = preBuildInfo.outOmmIndexBufferFormat == omm::IndexFormat::I16_UINT ? nvrhi::Format::R16_UINT : nvrhi::Format::R32_UINT;
+	info.ommIndexFormat = preBuildInfo.outOmmIndexBufferFormat == omm::IndexFormat::UINT_16 ? nvrhi::Format::R16_UINT : nvrhi::Format::R32_UINT;
 	info.ommIndexBufferSize = preBuildInfo.outOmmIndexBufferSizeInBytes;
 	info.ommIndexHistogramSize = preBuildInfo.outOmmIndexHistogramSizeInBytes;
 	info.ommIndexCount = preBuildInfo.outOmmIndexCount;
@@ -1107,7 +1107,7 @@ void GpuBakeNvrhiImpl::DumpDebug(
 	const uint32_t height
 )
 {
-	const omm::IndexFormat ommIndexBufferFormat = indexBufferFormat == nvrhi::Format::R32_UINT ? omm::IndexFormat::I32_UINT : omm::IndexFormat::I16_UINT;
+	const omm::IndexFormat ommIndexBufferFormat = indexBufferFormat == nvrhi::Format::R32_UINT ? omm::IndexFormat::UINT_32 : omm::IndexFormat::UINT_16;
 
 	omm::Cpu::BakeResultDesc result;
 	result.arrayData = ommArrayBuffer.data();
@@ -1139,7 +1139,7 @@ void GpuBakeNvrhiImpl::DumpDebug(
 	config.alphaMode = /*task.geometry->material->domain == MaterialDomain::AlphaBlended ? omm::AlphaMode::Blend : */omm::AlphaMode::Test;
 	config.indexBuffer = indexBuffer;
 	config.indexCount = indexCount;
-	config.indexFormat = omm::IndexFormat::I32_UINT;
+	config.indexFormat = omm::IndexFormat::UINT_32;
 	config.texture = texHandle;
 	config.texCoords = texCoords;
 	config.texCoordFormat = omm::TexCoordFormat::UV32_FLOAT;

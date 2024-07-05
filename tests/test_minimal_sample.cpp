@@ -108,7 +108,7 @@ namespace {
 		bakeDesc.texCoords = texCoordBuffer.data();
 		bakeDesc.indexBuffer = indexBuffer.data();
 		bakeDesc.indexCount = (uint32_t)indexBuffer.size();
-		bakeDesc.indexFormat = omm::IndexFormat::I32_UINT;
+		bakeDesc.indexFormat = omm::IndexFormat::UINT_32;
 		bakeDesc.subdivisionLevels = subdivisionLevels.data();
 		// Desired output config
 		bakeDesc.format = omm::Format::OC1_2_State;

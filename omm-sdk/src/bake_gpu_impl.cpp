@@ -607,11 +607,11 @@ ommResult PipelineImpl::GetPreDispatchInfo(const ommGpuDispatchConfigDesc& confi
     const size_t maxNumMicroTris        = bird::GetNumMicroTriangles(config.maxSubdivisionLevel);
     const size_t bitsPerState           = size_t(config.globalFormat);
     const size_t vmArraySizeInBits      = size_t(primitiveCount) * std::max<size_t>(maxNumMicroTris * bitsPerState, 32u);
-    ommIndexFormat outOmmIndexBufferFormat = primitiveCount < std::numeric_limits<int16_t>::max() - kNumSpecialIndices ? ommIndexFormat_I16_UINT : ommIndexFormat_I32_UINT;
+    ommIndexFormat outOmmIndexBufferFormat = primitiveCount < std::numeric_limits<int16_t>::max() - kNumSpecialIndices ? ommIndexFormat_UINT_16 : ommIndexFormat_UINT_32;
     if (force32BitIndices)
-        outOmmIndexBufferFormat = ommIndexFormat_I32_UINT;
+        outOmmIndexBufferFormat = ommIndexFormat_UINT_32;
 
-    const size_t indexBufferFormatSize  = outOmmIndexBufferFormat == ommIndexFormat_I16_UINT ? 2 : 4;
+    const size_t indexBufferFormatSize  = outOmmIndexBufferFormat == ommIndexFormat_UINT_16 ? 2 : 4;
 
     const size_t outMaxTheoreticalOmmArraySizeInBytes   = math::Align<size_t>(math::DivUp<size_t>(vmArraySizeInBits, 8u), 4u);
 
@@ -690,7 +690,7 @@ ommResult PipelineImpl::InitGlobalConstants(const ommGpuDispatchConfigDesc& conf
     const uint32_t primitiveCount = config.indexCount / 3;
     const uint32_t hashTableEntryCount = info.hashTableBuffer.GetSize() / kHashTableEntrySize;
 
-    const bool IsOmmIndexFormat16bit = preBuildInfo.outOmmIndexBufferFormat == ommIndexFormat_I16_UINT;
+    const bool IsOmmIndexFormat16bit = preBuildInfo.outOmmIndexBufferFormat == ommIndexFormat_UINT_16;
     const bool enableSpecialIndices = ((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_DisableSpecialIndices) != (uint32_t)ommGpuBakeFlags_DisableSpecialIndices;
     const bool enableTexCoordDeduplication = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_DisableTexCoordDeduplication) != (uint32_t)ommGpuBakeFlags_DisableTexCoordDeduplication);
     const bool computeOnly = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_ComputeOnly) == (uint32_t)ommGpuBakeFlags_ComputeOnly);
@@ -789,7 +789,7 @@ ommResult PipelineImpl::GetDispatchDesc(const ommGpuDispatchConfigDesc& config, 
     const bool computeOnly = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_ComputeOnly) == (uint32_t)ommGpuBakeFlags_ComputeOnly);
     const bool doSetup = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_PerformSetup) == (uint32_t)ommGpuBakeFlags_PerformSetup);
     const bool doBake = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_PerformBake) == (uint32_t)ommGpuBakeFlags_PerformBake);
-    const bool IsOmmIndexFormat16bit = preBuildInfo.outOmmIndexBufferFormat == ommIndexFormat_I16_UINT;
+    const bool IsOmmIndexFormat16bit = preBuildInfo.outOmmIndexBufferFormat == ommIndexFormat_UINT_16;
 
     bool enableValidation = false;
 

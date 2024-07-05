@@ -39,9 +39,17 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #endif
 
 #ifdef DEFINE_ENUM_FLAG_OPERATORS
-#define OMM_DEFINE_ENUM_FLAG_OPERATORS(x) DEFINE_ENUM_FLAG_OPERATORS(x)
+    #define OMM_DEFINE_ENUM_FLAG_OPERATORS(x) DEFINE_ENUM_FLAG_OPERATORS(x)
 #else
-#define OMM_DEFINE_ENUM_FLAG_OPERATORS(x)
+    #define OMM_DEFINE_ENUM_FLAG_OPERATORS(x)
+#endif
+
+#ifndef OMM_DEPRECATED_MSG
+    #if defined(__has_cpp_attribute) && __has_cpp_attribute(deprecated)
+        #define OMM_DEPRECATED_MSG(msg) [[deprecated( msg )]]
+    #else
+        #define OMM_DEPRECATED_MSG(msg)
+    #endif
 #endif
 
 typedef void* (*ommAllocate)(void* userArg, size_t size, size_t alignment);
@@ -123,8 +131,10 @@ typedef enum ommTexCoordFormat
 
 typedef enum ommIndexFormat
 {
-   ommIndexFormat_I16_UINT,
-   ommIndexFormat_I32_UINT,
+   ommIndexFormat_UINT_16,
+   ommIndexFormat_UINT_32,
+   ommIndexFormat_I16_UINT OMM_DEPRECATED_MSG("ommIndexFormat_I16_UINT is deprecated, please use ommIndexFormat_UINT_16 instead") = ommIndexFormat_UINT_16,
+   ommIndexFormat_I32_UINT OMM_DEPRECATED_MSG("ommIndexFormat_I32_UINT is deprecated, please use ommIndexFormat_UINT_32 instead") = ommIndexFormat_UINT_32,
    ommIndexFormat_MAX_NUM,
 } ommIndexFormat;
 
