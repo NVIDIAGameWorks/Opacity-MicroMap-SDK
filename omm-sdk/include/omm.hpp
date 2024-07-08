@@ -26,11 +26,12 @@ namespace omm
       MAX_NUM,
    };
 
-   struct LibraryDesc
+   enum class MessageSeverity
    {
-      uint8_t versionMajor;
-      uint8_t versionMinor;
-      uint8_t versionBuild;
+       Info,
+       Warning,
+       Fatal,
+       MAX_NUM,
    };
 
    enum class OpacityState
@@ -119,6 +120,13 @@ namespace omm
       MAX_NUM,
    };
 
+   struct LibraryDesc
+   {
+       uint8_t versionMajor;
+       uint8_t versionMinor;
+       uint8_t versionBuild;
+   };
+
    struct SamplerDesc
    {
       TextureAddressMode addressingMode  = TextureAddressMode::MAX_NUM;
@@ -128,17 +136,37 @@ namespace omm
 
    struct MemoryAllocatorInterface
    {
-      ommAllocate   Allocate    = nullptr;
-      ommReallocate Reallocate  = nullptr;
-      ommFree       Free        = nullptr;
-      void*         UserArg     = nullptr;
+      union {
+          ommAllocate                                                                        allocate = nullptr;
+          ommAllocate     OMM_DEPRECATED_MSG("Allocate is deprecated, use allocate instead") Allocate;
+      };
+      union {
+          ommReallocate                                                                          reallocate = nullptr;
+          ommReallocate   OMM_DEPRECATED_MSG("Reallocate is deprecated, use reallocate instead") Reallocate;
+      };
+      union {
+          ommFree                                                              free = nullptr;
+          ommFree   OMM_DEPRECATED_MSG("Free is deprecated, use free instead") Free;
+      };
+      union {
+          void*                                                                   userArg = nullptr;
+          void* OMM_DEPRECATED_MSG("UserArg is deprecated, use userArg instead")  UserArg;
+      };
+   };
+
+   typedef void(*MessageCallback)(MessageSeverity severity, const char* message, void* userArg);
+
+   struct MessageInterface
+   {
+       MessageCallback    messageCallback  = nullptr;
+       void*              userArg          = nullptr;
    };
 
    struct BakerCreationDesc
    {
       BakerType                type                      = BakerType::MAX_NUM;
-      bool                     enableValidation          = false;
       MemoryAllocatorInterface memoryAllocatorInterface  = {};
+      MessageInterface         messageInterface          = {};
    };
 
    using Handle = uintptr_t;
@@ -200,9 +228,9 @@ namespace omm
          // compute. Note: can not be used if DisableDuplicateDetection is set.
          EnableNearDuplicateDetection = 1u << 4,
 
-         // Workload validation is a safety mechanism that will let the SDK reject workloads that become unreasonably large, which
-         // may lead to long baking times. When this flag is set the bake operation may return error WORKLOAD_TOO_BIG
-         EnableWorkloadValidation     = 1u << 5,
+         // Enable additional validation, when enabled additional processing is performed to validate quality and sanity of input data
+         // which may help diagnose longer than expected bake time.
+         EnableValidation             = 1u << 5,
       };
       OMM_DEFINE_ENUM_FLAG_OPERATORS(BakeFlags);
 

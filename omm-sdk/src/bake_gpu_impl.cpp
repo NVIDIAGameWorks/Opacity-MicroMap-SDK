@@ -257,19 +257,19 @@ ommResult  PipelineImpl::Validate(const ommGpuDispatchConfigDesc& config) const
     const bool doBake                       = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_PerformBake) == (uint32_t)ommGpuBakeFlags_PerformBake);
     
     if (config.indexCount == 0)
-        return ommResult_INVALID_ARGUMENT;
+        return m_log.InvalidArg("[Invalid Arg] - indexCount must be non-zero");
     if (config.indexCount % 3 != 0)
-        return ommResult_INVALID_ARGUMENT;
+        return m_log.InvalidArg("[Invalid Arg] - indexCount must be multiple of 3");
     if (!computeOnly && config.maxSubdivisionLevel > MaxSubdivLevelGfx)
-        return ommResult_INVALID_ARGUMENT;
+        return m_log.InvalidArg("[Invalid Arg] - maxSubdivisionLevel must be less than MaxSubdivLevelGfx(10) for non-compute only baking");
     if (computeOnly && config.maxSubdivisionLevel > MaxSubdivLevelCS)
-        return ommResult_INVALID_ARGUMENT;
+        return m_log.InvalidArg("[Invalid Arg] - maxSubdivisionLevel must be less than MaxSubdivLevelCS(12)");
     if (config.enableSubdivisionLevelBuffer)
-        return ommResult_NOT_IMPLEMENTED;
+        return m_log.NotImplemented("[Invalid Arg] - enableSubdivisionLevelBuffer support is currently not implemented");
     if (config.alphaTextureChannel > 3)
-        return ommResult_INVALID_ARGUMENT;
+        return m_log.InvalidArg("[Invalid Arg] - alphaTextureChannel must be greater than 3");
     if (!doBake && !doSetup)
-        return ommResult_INVALID_ARGUMENT;
+        return m_log.InvalidArg("[Invalid Arg] - Either ommGpuBakeFlags_PerformBake or ommGpuBakeFlags_PerformSetup must be set");
     return ommResult_SUCCESS;
 }
 
@@ -418,7 +418,7 @@ ommResult  PipelineImpl::Create(const ommGpuPipelineConfigDesc& config)
 ommResult PipelineImpl::GetPipelineDesc(const ommGpuPipelineInfoDesc** outPipelineDesc)
 {
     if (outPipelineDesc == nullptr)
-        return ommResult_INVALID_ARGUMENT;
+        return m_log.InvalidArg("[Invalid Arg] - PipelineDesc is null");
 
     *outPipelineDesc = &m_pipelineBuilder._desc;
     return ommResult_SUCCESS;
@@ -596,7 +596,7 @@ ommResult PipelineImpl::GetPreDispatchInfo(const ommGpuDispatchConfigDesc& confi
 ommResult PipelineImpl::GetPreDispatchInfo(const ommGpuDispatchConfigDesc& config, ommGpuPreDispatchInfo* outPreBuildInfo) const
 {
     if (!outPreBuildInfo)
-        return ommResult_INVALID_ARGUMENT;
+        return m_log.InvalidArg("[Invalid Arg] - preBuildInfo is null");
 
     const bool force32BitIndices = ((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_Force32BitIndices) == (uint32_t)ommGpuBakeFlags_Force32BitIndices;
     const bool doBake            = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_PerformBake) == (uint32_t)ommGpuBakeFlags_PerformBake);
@@ -769,7 +769,7 @@ ommResult PipelineImpl::InitGlobalConstants(const ommGpuDispatchConfigDesc& conf
 ommResult PipelineImpl::GetDispatchDesc(const ommGpuDispatchConfigDesc& config, const ommGpuDispatchChain** outDispatchDesc)
 {
     if (outDispatchDesc == nullptr)
-        return ommResult_INVALID_ARGUMENT;
+        return m_log.InvalidArg("[Invalid Arg] - dispatchDesc is null");
 
     RETURN_STATUS_IF_FAILED(Validate(config));
 
@@ -860,7 +860,7 @@ ommResult PipelineImpl::GetDispatchDesc(const ommGpuDispatchConfigDesc& config, 
                     p.BindResource("u_ommDescArrayHistogramBuffer", ommGpuResourceType_OUT_OMM_DESC_ARRAY_HISTOGRAM);
                     p.BindResource("u_ommIndexHistogramBuffer", ommGpuResourceType_OUT_OMM_INDEX_HISTOGRAM);
                     p.AddComputeDispatch(m_pipelines.ommInitBuffersCsIdx, math::DivUp<uint32_t>(config.maxSubdivisionLevel + 1, 128u), 1);
-                });
+                }, enableValidation);
         }
 
         if (doSetup)
@@ -889,7 +889,7 @@ ommResult PipelineImpl::GetDispatchDesc(const ommGpuDispatchConfigDesc& config, 
                     p.BindSubRange("RasterItemsBuffer", info.rasterItemsBuffer);
 
                     p.AddComputeDispatch(m_pipelines.ommWorkSetupCsIdx, math::DivUp<uint32_t>(primitiveCount, 128u), 1);
-                });
+                }, enableValidation);
         }
         else
         {
@@ -914,7 +914,7 @@ ommResult PipelineImpl::GetDispatchDesc(const ommGpuDispatchConfigDesc& config, 
                     p.BindSubRange("IEBakeCsBuffer", info.IEBakeCsBuffer);
 
                     p.AddComputeDispatch(m_pipelines.ommWorkSetupBakeOnlyCsIdx, math::DivUp<uint32_t>(primitiveCount, 128u), 1);
-                });
+                }, enableValidation);
         }
 
         if (doSetup)
@@ -933,7 +933,7 @@ ommResult PipelineImpl::GetDispatchDesc(const ommGpuDispatchConfigDesc& config, 
                     p.BindSubRange("OmmDescAllocatorCounterBuffer", info.ommDescAllocatorCounter);
 
                     p.AddComputeDispatch(m_pipelines.ommPostBuildInfoBuffersIdx, 1, 1);
-                });
+                }, enableValidation);
         }
 
         if (doBake)
@@ -993,7 +993,7 @@ ommResult PipelineImpl::GetDispatchDesc(const ommGpuDispatchConfigDesc& config, 
                     p.BindResource("u_ommDescArrayHistogramBuffer", ommGpuResourceType_OUT_OMM_DESC_ARRAY_HISTOGRAM);
                     p.BindResource("u_ommIndexHistogramBuffer", ommGpuResourceType_OUT_OMM_INDEX_HISTOGRAM);
                     p.AddComputeDispatch(m_pipelines.ommInitBuffersGfxIdx, math::DivUp<uint32_t>((config.maxSubdivisionLevel + 1) * info.MaxBatchCount, 128u), 1);
-                });
+                }, enableValidation);
         }
 
         {
@@ -1025,7 +1025,7 @@ ommResult PipelineImpl::GetDispatchDesc(const ommGpuDispatchConfigDesc& config, 
                         p.BindSubRange("IECompressCsBuffer", info.IECompressCsBuffer);
 
                         p.AddComputeDispatch(m_pipelines.ommWorkSetupGfxIdx, math::DivUp<uint32_t>(primitiveCount, 128u), 1);
-                    });
+                    }, enableValidation);
             }
             else
             {
@@ -1049,7 +1049,7 @@ ommResult PipelineImpl::GetDispatchDesc(const ommGpuDispatchConfigDesc& config, 
                         p.BindSubRange("IECompressCsBuffer", info.IECompressCsBuffer);
 
                         p.AddComputeDispatch(m_pipelines.ommWorkSetupBakeOnlyGfxIdx, math::DivUp<uint32_t>(primitiveCount, 128u), 1);
-                    });
+                    }, enableValidation);
             }
         }
 
@@ -1069,7 +1069,7 @@ ommResult PipelineImpl::GetDispatchDesc(const ommGpuDispatchConfigDesc& config, 
                     p.BindSubRange("OmmDescAllocatorCounterBuffer", info.ommDescAllocatorCounter);
 
                     p.AddComputeDispatch(m_pipelines.ommPostBuildInfoBuffersIdx, 1, 1);
-                });
+                }, enableValidation);
         }
 
         auto GetOmmRasterizeIdx = [&](uint alphaTextureChannel) {
@@ -1192,7 +1192,7 @@ ommResult PipelineImpl::GetDispatchDesc(const ommGpuDispatchConfigDesc& config, 
                                     lCb.WriteDW(PrimitiveIdOffset /*PrimitiveIdOffset*/);
                                     for (uint32_t i = 0; i < 5u; ++i)
                                         lCb.WriteDW(4u /*dummy*/);
-                                });
+                                }, enableValidation);
                         }
                     }
                 }
@@ -1217,7 +1217,7 @@ ommResult PipelineImpl::GetDispatchDesc(const ommGpuDispatchConfigDesc& config, 
                 p.BindSubRange("SpecialIndicesStateBuffer", info.specialIndicesStateBuffer);
 
                 p.AddComputeDispatch(m_pipelines.ommDescPatchIdx, math::DivUp<uint32_t>(primitiveCount, 128u), 1);
-            });
+            }, enableValidation);
     }
 
     {
@@ -1237,7 +1237,7 @@ ommResult PipelineImpl::GetDispatchDesc(const ommGpuDispatchConfigDesc& config, 
                 lCb.WriteDW(threadCount /*threadCount*/);
                 for (uint32_t i = 0; i < 7u; ++i)
                     lCb.WriteDW(4u /*dummy*/);
-            });
+            }, enableValidation);
     }
 
     m_passBuilder.Finalize();
@@ -1257,9 +1257,10 @@ ommResult  PipelineImpl::ConfigurePipeline(const ommGpuPipelineConfigDesc& confi
 BakerImpl::~BakerImpl()
 {}
 
-ommResult BakerImpl::Create(const ommBakerCreationDesc& vmBakeCreationDesc)
+ommResult BakerImpl::Create(const ommBakerCreationDesc& desc)
 {
-    m_bakeCreationDesc = vmBakeCreationDesc;
+    m_bakeCreationDesc = desc;
+    m_log = Logger(desc.messageInterface);
     return ommResult_SUCCESS;
 }
 
@@ -1268,7 +1269,7 @@ ommResult BakerImpl::CreatePipeline(const ommGpuPipelineConfigDesc& config, ommG
     RETURN_STATUS_IF_FAILED(PipelineImpl::Validate(config));
 
     StdAllocator<uint8_t>& memoryAllocator = GetStdAllocator();
-    PipelineImpl* implementation = Allocate<PipelineImpl>(memoryAllocator, memoryAllocator, m_bakeCreationDesc.enableValidation);
+    PipelineImpl* implementation = Allocate<PipelineImpl>(memoryAllocator, memoryAllocator, GetLog());
     RETURN_STATUS_IF_FAILED(implementation->Create(config));
     *outPipeline = (ommGpuPipeline)implementation;
     return ommResult_SUCCESS;
@@ -1277,7 +1278,8 @@ ommResult BakerImpl::CreatePipeline(const ommGpuPipelineConfigDesc& config, ommG
 ommResult BakerImpl::DestroyPipeline(ommGpuPipeline pipeline)
 {
     if (pipeline == 0)
-        return ommResult_INVALID_ARGUMENT;
+        return m_log.InvalidArg("[Invalid Arg] - pipeline is null");
+
     PipelineImpl* impl = (PipelineImpl*)pipeline;
     StdAllocator<uint8_t>& memoryAllocator = GetStdAllocator();
     Deallocate(memoryAllocator, impl);

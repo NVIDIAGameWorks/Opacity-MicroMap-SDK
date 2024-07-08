@@ -66,7 +66,7 @@ namespace {
 
 		omm::BakerCreationDesc desc;
 		desc.type = omm::BakerType::CPU;
-		desc.enableValidation = true;
+
 		// desc.memoryAllocatorInterface = ...; // If we prefer to track memory allocations and / or use custom memory allocators we can override these callbacks. But it's not required.
 
 		omm::Baker bakerHandle; // Create the baker instance. This instance can be shared among all baking tasks. Typucally one per application.
@@ -94,7 +94,7 @@ namespace {
 
 		// Setup the baking parameters, setting only required data.
 		omm::Cpu::BakeInputDesc bakeDesc;
-		bakeDesc.bakeFlags = omm::Cpu::BakeFlags::None; // Default bake flags.
+		bakeDesc.bakeFlags = omm::Cpu::BakeFlags::EnableValidation;
 		// Texture object
 		bakeDesc.texture = textureHandle;
 		// Alpha test parameters.

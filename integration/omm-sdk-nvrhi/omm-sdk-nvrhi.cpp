@@ -346,7 +346,6 @@ void GpuBakeNvrhiImpl::InitBaker(GpuBakeNvrhi::ShaderProvider* shaderProvider)
 	{
 		omm::BakerCreationDesc desc;
 		desc.type = omm::BakerType::GPU;
-		desc.enableValidation = true;
 
 		omm::Result res = omm::CreateBaker(desc, &m_baker);
 		assert(res == omm::Result::SUCCESS);
@@ -355,7 +354,6 @@ void GpuBakeNvrhiImpl::InitBaker(GpuBakeNvrhi::ShaderProvider* shaderProvider)
 	{
 		omm::BakerCreationDesc desc;
 		desc.type = omm::BakerType::CPU;
-		desc.enableValidation = true;
 
 		omm::Result res = omm::CreateBaker(desc, &m_cpuBaker);
 		assert(res == omm::Result::SUCCESS);

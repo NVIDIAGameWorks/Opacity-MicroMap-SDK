@@ -14,6 +14,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include "std_containers.h"
 #include "shader_bindings.h"
 #include "std_allocator.h"
+#include "log.h"
 
 #include <shared/math.h>
 #include <shared/texture.h>
@@ -664,7 +665,7 @@ namespace Gpu
             }
         }
 
-        PassBuilder(const StdAllocator<uint8_t>& stdAllocator, const PipelineBuilder& pipelines, StringCache& strings, bool enableValidation)
+        PassBuilder(const StdAllocator<uint8_t>& stdAllocator, const PipelineBuilder& pipelines, StringCache& strings)
             : _stdAllocator(stdAllocator)
             , _dispatches(stdAllocator)
             , _resources(stdAllocator)
@@ -672,7 +673,6 @@ namespace Gpu
             , _globalCbufferData(stdAllocator)
             , _pipelines(pipelines)
             , _strings(strings)
-            , _enableValidation(enableValidation)
         { }
 
         void SetGlobalCbuffer(const uint8_t* cbuffer, size_t size)
@@ -681,8 +681,8 @@ namespace Gpu
             _globalCbufferData.insert(_globalCbufferData.end(), cbuffer, cbuffer + size);
         }
 
-        void PushPass(const char* pass, ommGpuDispatchType type, const ShaderBindings& binding, std::function<void(PassConfig&)> fillConfigCb) {
-            PassConfig dt(_stdAllocator, type, binding, _enableValidation);
+        void PushPass(const char* pass, ommGpuDispatchType type, const ShaderBindings& binding, std::function<void(PassConfig&)> fillConfigCb, bool enableValidation) {
+            PassConfig dt(_stdAllocator, type, binding, enableValidation);
             fillConfigCb(dt);
             // Copy to shared memory structs etc.
             FinalizePass(pass, dt);
@@ -898,7 +898,6 @@ namespace Gpu
         vector<uint8_t> _globalCbufferData;
         ommGpuDispatchChain _result;
         StringCache& _strings;
-        bool _enableValidation;
     };
 
     struct OmmStaticBuffers
@@ -910,14 +909,14 @@ namespace Gpu
     {
         // Internal
     public:
-        PipelineImpl(const StdAllocator<uint8_t>& stdAllocator, bool enableValidation)
+        PipelineImpl(const StdAllocator<uint8_t>& stdAllocator, const Logger& log)
             : m_stdAllocator(stdAllocator)
+            , m_log(log)
             , m_scratchBufferDescs(stdAllocator)
             , m_pipelineBuilder(stdAllocator)
             , m_strings(stdAllocator)
-            , m_passBuilder(stdAllocator, m_pipelineBuilder, m_strings, enableValidation)
+            , m_passBuilder(stdAllocator, m_pipelineBuilder, m_strings)
             , m_pipelines(stdAllocator)
-            , m_enableValidation(enableValidation)
         {}
 
         ~PipelineImpl();
@@ -940,11 +939,11 @@ namespace Gpu
 
         ommGpuPipelineConfigDesc m_config;
         StdAllocator<uint8_t> m_stdAllocator;
+        const Logger& m_log;
         vector<ommGpuBufferDesc> m_scratchBufferDescs;
         PipelineBuilder m_pipelineBuilder;
         StringCache m_strings;
         PassBuilder m_passBuilder;
-        bool m_enableValidation;
 
         struct Pipelines
         {
@@ -1065,6 +1064,8 @@ namespace Gpu
 
         inline StdAllocator<uint8_t>& GetStdAllocator()
         { return m_stdAllocator; }
+        inline const Logger& GetLog() const
+        { return m_log; }
 
         ommResult Create(const ommBakerCreationDesc& bakeCreationDesc);
 
@@ -1073,6 +1074,7 @@ namespace Gpu
 
     private:
         StdAllocator<uint8_t> m_stdAllocator;
+        Logger m_log;
         ommBakerCreationDesc m_bakeCreationDesc;
     };
 } // namespace Gpu
