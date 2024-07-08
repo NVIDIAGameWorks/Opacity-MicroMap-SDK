@@ -10,6 +10,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 #pragma once
 
+#include "defines.h"
 #include <omm.h>
 
 namespace omm
@@ -29,41 +30,58 @@ namespace omm
 
 		void Info(const char* msg) const
 		{
-			if (m_log.messageCallback)
-			{
-				(*m_log.messageCallback)(ommMessageSeverity_Info, msg, m_log.userArg);
-			}
+			_Log(ommMessageSeverity_Info, msg);
 		}
 
-		void Warn(const char* msg) const
+		void PerfWarn(const char* msg) const
 		{
-			if (m_log.messageCallback)
-			{
-				(*m_log.messageCallback)(ommMessageSeverity_Warning, msg, m_log.userArg);
-			}
+			_Log(ommMessageSeverity_PerfWarning, msg);
+		}
+
+		template<int N = 256, typename... Args>
+		void PerfWarnf(const char* format, Args&&... args) const
+		{
+			_Logf<N>(ommMessageSeverity_PerfWarning, format, std::forward<Args>(args)...);
 		}
 
 		void Fatal(const char* msg) const
 		{
-			if (m_log.messageCallback)
-			{
-				(*m_log.messageCallback)(ommMessageSeverity_Fatal, msg, m_log.userArg);
-			}
+			_Log(ommMessageSeverity_Fatal, msg);
 		}
 
 		// Helper versions that return specific error codes
 
 		[[nodiscard]] ommResult InvalidArg(const char* msg) const
 		{
-			if (m_log.messageCallback)
-			{
-				(*m_log.messageCallback)(ommMessageSeverity_Fatal, msg, m_log.userArg);
-			}
+			_Log(ommMessageSeverity_Fatal, msg);
 			return ommResult_INVALID_ARGUMENT;
 		}
 
 		template<int N = 256, typename... Args>
 		[[nodiscard]] ommResult InvalidArgf(const char* format, Args&&... args) const
+		{
+			RETURN_STATUS_IF_FAILED(_Logf<N>(ommMessageSeverity_Fatal, format, std::forward<Args>(args)...));
+			return ommResult_INVALID_ARGUMENT;
+		}
+
+		[[nodiscard]] ommResult NotImplemented(const char* msg) const
+		{
+			_Log(ommMessageSeverity_Fatal, msg);
+			return ommResult_NOT_IMPLEMENTED;
+		}
+
+	private:
+
+		void _Log(ommMessageSeverity severity, const char* msg) const
+		{
+			if (m_log.messageCallback)
+			{
+				(*m_log.messageCallback)(severity, msg, m_log.userArg);
+			}
+		}
+
+		template<int N, typename... Args>
+		ommResult _Logf(ommMessageSeverity severity, const char* format, Args&&... args) const
 		{
 			if (m_log.messageCallback)
 			{
@@ -73,18 +91,9 @@ namespace omm
 					return ommResult_FAILURE; // sprintf_s failed for some reason
 				}
 
-				(*m_log.messageCallback)(ommMessageSeverity_Fatal, buffer, m_log.userArg);
+				(*m_log.messageCallback)(severity, buffer, m_log.userArg);
 			}
-			return ommResult_INVALID_ARGUMENT;
-		}
-
-		[[nodiscard]] ommResult NotImplemented(const char* msg) const
-		{
-			if (m_log.messageCallback)
-			{
-				(*m_log.messageCallback)(ommMessageSeverity_Fatal, msg, m_log.userArg);
-			}
-			return ommResult_NOT_IMPLEMENTED;
+			return ommResult_SUCCESS;
 		}
 
 	private:

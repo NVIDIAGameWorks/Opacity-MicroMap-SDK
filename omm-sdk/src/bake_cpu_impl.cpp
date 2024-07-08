@@ -38,7 +38,7 @@ namespace Cpu
         Force32BitIndices               = 1u << 2,
         DisableDuplicateDetection       = 1u << 3,
         EnableNearDuplicateDetection    = 1u << 4,
-        EnableValidation                = 1u << 5,
+        EnableWorkloadValidation        = 1u << 5,
 
         // Internal / not publicly exposed options.
         EnableAABBTesting               = 1u << 6,
@@ -55,18 +55,18 @@ namespace Cpu
         static_assert((uint32_t)BakeFlagsInternal::DisableSpecialIndices == (uint32_t)ommCpuBakeFlags_DisableSpecialIndices);
         static_assert((uint32_t)BakeFlagsInternal::DisableDuplicateDetection == (uint32_t)ommCpuBakeFlags_DisableDuplicateDetection);
         static_assert((uint32_t)BakeFlagsInternal::EnableNearDuplicateDetection == (uint32_t)ommCpuBakeFlags_EnableNearDuplicateDetection);
-        static_assert((uint32_t)BakeFlagsInternal::EnableValidation == (uint32_t)ommCpuBakeFlags_EnableValidation);
+        static_assert((uint32_t)BakeFlagsInternal::EnableWorkloadValidation == (uint32_t)ommCpuBakeFlags_EnableWorkloadValidation);
     }
 
     struct Options
     {
         Options(ommCpuBakeFlags flags) :
-            enableInternalThreads(((uint32_t)flags& (uint32_t)ommCpuBakeFlags_EnableInternalThreads) == (uint32_t)ommCpuBakeFlags_EnableInternalThreads),
-            disableSpecialIndices(((uint32_t)flags& (uint32_t)ommCpuBakeFlags_DisableSpecialIndices) == (uint32_t)ommCpuBakeFlags_DisableSpecialIndices),
-            disableDuplicateDetection(((uint32_t)flags& (uint32_t)ommCpuBakeFlags_DisableDuplicateDetection) == (uint32_t)ommCpuBakeFlags_DisableDuplicateDetection),
-            enableNearDuplicateDetection(((uint32_t)flags& (uint32_t)ommCpuBakeFlags_EnableNearDuplicateDetection) == (uint32_t)ommCpuBakeFlags_EnableNearDuplicateDetection),
-            enableValidation(((uint32_t)flags& (uint32_t)ommCpuBakeFlags_EnableValidation) == (uint32_t)ommCpuBakeFlags_EnableValidation),
+            enableInternalThreads(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableInternalThreads) == (uint32_t)BakeFlagsInternal::EnableInternalThreads),
+            disableSpecialIndices(((uint32_t)flags& (uint32_t)BakeFlagsInternal::DisableSpecialIndices) == (uint32_t)BakeFlagsInternal::DisableSpecialIndices),
+            disableDuplicateDetection(((uint32_t)flags& (uint32_t)BakeFlagsInternal::DisableDuplicateDetection) == (uint32_t)BakeFlagsInternal::DisableDuplicateDetection),
+            enableNearDuplicateDetection(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableNearDuplicateDetection) == (uint32_t)BakeFlagsInternal::EnableNearDuplicateDetection),
             enableNearDuplicateDetectionBruteForce(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableNearDuplicateDetectionBruteForce) == (uint32_t)BakeFlagsInternal::EnableNearDuplicateDetectionBruteForce),
+            enableWorkloadValidation(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableWorkloadValidation) == (uint32_t)BakeFlagsInternal::EnableWorkloadValidation),
             enableAABBTesting(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableAABBTesting) == (uint32_t)BakeFlagsInternal::EnableAABBTesting),
             disableRemovePoorQualityOMM(((uint32_t)flags& (uint32_t)BakeFlagsInternal::DisableRemovePoorQualityOMM) == (uint32_t)BakeFlagsInternal::DisableRemovePoorQualityOMM),
             disableLevelLineIntersection(((uint32_t)flags& (uint32_t)BakeFlagsInternal::DisableLevelLineIntersection) == (uint32_t)BakeFlagsInternal::DisableLevelLineIntersection),
@@ -76,8 +76,8 @@ namespace Cpu
         const bool disableSpecialIndices;
         const bool disableDuplicateDetection;
         const bool enableNearDuplicateDetection;
-        const bool enableValidation;
         const bool enableNearDuplicateDetectionBruteForce;
+        const bool enableWorkloadValidation;
         const bool enableAABBTesting;
         const bool disableRemovePoorQualityOMM;
         const bool disableLevelLineIntersection;
@@ -214,8 +214,8 @@ namespace Cpu
         {
             return m_log.InvalidArg("[Invalid Argument] - EnableNearDuplicateDetection or EnableNearDuplicateDetectionBruteForce is used together with DisableDuplicateDetection");
         }
-        if (options.enableValidation && !m_log.HasLogger())
-            return m_log.InvalidArg("[Invalid Argument] - EnableValidation is set but not message callback was provided by the application"); // this works more as documentation since it won't be logged
+        if (options.enableWorkloadValidation && !m_log.HasLogger())
+            return m_log.InvalidArg("[Invalid Argument] - EnableWorkloadValidation is set but not message callback was provided"); // this works more as documentation since it won't be logged
 
         if (TextureImpl* texture = ((TextureImpl*)desc.texture))
         {
@@ -556,7 +556,7 @@ namespace Cpu
             StdAllocator<uint8_t>& allocator, Logger log, const ommCpuBakeInputDesc& desc, const Options& options, vector<OmmWorkItem>& vmWorkItems)
         {
             // Check if the baking will complete in "finite" amount of time...
-            if (!options.enableValidation)
+            if (!options.enableWorkloadValidation)
                 return ommResult_SUCCESS;
 
             const TextureImpl* texture = ((const TextureImpl*)desc.texture);
@@ -577,7 +577,10 @@ namespace Cpu
             const uint64_t kMaxWorkloadSize = 1 << 27; // 128 * 1024x1024 texels. 
             if (workloadSize > kMaxWorkloadSize)
             {
-                log.Warn("Workload consists of (x) work items (number of texels to classify), which unusually large and may result in long bake times. This may or may not be expected.");
+                const uint64_t num1Ktextures = workloadSize >> (20ull); // divide by 1024x1024
+
+                log.PerfWarnf("[Perf Warning] - The workload consists of %lld work items (number of texels to classify), which corresponds to roughly %lld 1024x1024 textures."
+                              " This is unusually large and may result in long bake times.", workloadSize, num1Ktextures);
             }
 
             return ommResult_SUCCESS;

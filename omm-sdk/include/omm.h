@@ -75,13 +75,14 @@ typedef enum ommResult
    ommResult_INVALID_ARGUMENT,
    ommResult_INSUFFICIENT_SCRATCH_MEMORY,
    ommResult_NOT_IMPLEMENTED,
+   ommResult_WORKLOAD_TOO_BIG OMM_DEPRECATED_MSG("ommResult_WORKLOAD_TOO_BIG has been deprecated and will no longer be called. Enable logging to look for perf warnings instead."),
    ommResult_MAX_NUM,
 } ommResult;
 
 typedef enum ommMessageSeverity
 {
     ommMessageSeverity_Info,
-    ommMessageSeverity_Warning,
+    ommMessageSeverity_PerfWarning,
     ommMessageSeverity_Fatal,
     ommMessageSeverity_MAX_NUM,
 } ommMessageSeverity;
@@ -307,7 +308,7 @@ typedef enum ommCpuBakeFlags
 
    // Enable additional validation, when enabled additional processing is performed to validate quality and sanity of input data
    // which may help diagnose longer than expected bake time.
-   ommCpuBakeFlags_EnableValidation             = 1u << 5,
+   ommCpuBakeFlags_EnableWorkloadValidation     = 1u << 5,
 
 } ommCpuBakeFlags;
 OMM_DEFINE_ENUM_FLAG_OPERATORS(ommCpuBakeFlags);

@@ -23,6 +23,7 @@ namespace omm
       INVALID_ARGUMENT,
       INSUFFICIENT_SCRATCH_MEMORY,
       NOT_IMPLEMENTED,
+      WORKLOAD_TOO_BIG OMM_DEPRECATED_MSG("WORKLOAD_TOO_BIG has been deprecated and will no longer be called. Enable logging to look for perf warnings instead."),
       MAX_NUM,
    };
 
@@ -30,6 +31,7 @@ namespace omm
    {
        Info,
        Warning,
+       PerfWarning,
        Fatal,
        MAX_NUM,
    };
@@ -230,7 +232,7 @@ namespace omm
 
          // Enable additional validation, when enabled additional processing is performed to validate quality and sanity of input data
          // which may help diagnose longer than expected bake time.
-         EnableValidation             = 1u << 5,
+          EnableWorkloadValidation    = 1u << 5,
       };
       OMM_DEFINE_ENUM_FLAG_OPERATORS(BakeFlags);
 
