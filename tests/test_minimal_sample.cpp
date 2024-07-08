@@ -66,6 +66,9 @@ namespace {
 
 		omm::BakerCreationDesc desc;
 		desc.type = omm::BakerType::CPU;
+		desc.messageInterface.messageCallback = [](omm::MessageSeverity severity, const char* message, void* userArg) {
+			std::cout << "[omm-sdk]: " << message << std::endl;
+		};
 
 		// desc.memoryAllocatorInterface = ...; // If we prefer to track memory allocations and / or use custom memory allocators we can override these callbacks. But it's not required.
 
