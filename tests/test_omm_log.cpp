@@ -66,7 +66,7 @@ namespace {
 			omm::Cpu::Texture tex = CreateTexture(texture.GetDesc());
 
 			uint32_t seed = 32;
-			std::default_random_engine eng(seed);
+			std::mt19937 eng(seed);
 			std::uniform_real_distribution<float> distr(0.f, 1.f);
 
 			uint32_t numIdx = triangleCount * 3;

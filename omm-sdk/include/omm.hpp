@@ -148,11 +148,11 @@ namespace omm
       };
       union {
           ommFree                                                              free = nullptr;
-          ommFree   OMM_DEPRECATED_MSG("Free is deprecated, use free instead") Free;
+          ommFree         OMM_DEPRECATED_MSG("Free is deprecated, use free instead") Free;
       };
       union {
           void*                                                                   userArg = nullptr;
-          void* OMM_DEPRECATED_MSG("UserArg is deprecated, use userArg instead")  UserArg;
+          void*           OMM_DEPRECATED_MSG("UserArg is deprecated, use userArg instead")  UserArg;
       };
    };
 
