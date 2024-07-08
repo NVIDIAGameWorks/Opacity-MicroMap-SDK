@@ -13,6 +13,8 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include "defines.h"
 #include <omm.h>
 
+#include <cstdio>
+
 namespace omm
 {
 	class Logger
@@ -86,7 +88,7 @@ namespace omm
 			if (m_log.messageCallback)
 			{
 				char buffer[N];
-				int result = sprintf_s(buffer, sizeof(buffer), format, std::forward<Args>(args)...);
+				int result = std::snprintf(buffer, sizeof(buffer), format, std::forward<Args>(args)...);
 				if (result < 0) {
 					return ommResult_FAILURE; // sprintf_s failed for some reason
 				}

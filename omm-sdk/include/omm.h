@@ -45,7 +45,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #endif
 
 #ifndef OMM_DEPRECATED_MSG
-    #if defined(__has_cpp_attribute) && __has_cpp_attribute(deprecated)
+    #if defined(__has_cpp_attribute) && __has_cpp_attribute(deprecated) && !defined(__GNUC__)
         #define OMM_DEPRECATED_MSG(msg) [[deprecated( msg )]]
     #else
         #define OMM_DEPRECATED_MSG(msg)
