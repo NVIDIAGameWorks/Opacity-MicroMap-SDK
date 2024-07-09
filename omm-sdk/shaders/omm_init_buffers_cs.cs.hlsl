@@ -8,7 +8,7 @@ distribution of this software and related documentation without an express
 license agreement from NVIDIA CORPORATION is strictly prohibited.
 */
 
-#include "platform.hlsli"
+#include "omm_platform.hlsli"
 #include "omm_global_cb.hlsli"
 #include "omm_global_samplers.hlsli"
 #include "omm_init_buffers_cs.cs.resources.hlsli"
@@ -28,7 +28,7 @@ void main(uint3 tid : SV_DispatchThreadID)
 
 	const uint subdivisionLevel = tid.x;
 
-	const uint strideInBytes = 12;
+	const uint strideInBytes = g_GlobalConstants.IndirectDispatchEntryStride;
 
 	OMM_SUBRESOURCE_STORE(IEBakeCsBuffer, strideInBytes * tid.x + 0, 0);
 	OMM_SUBRESOURCE_STORE(IEBakeCsBuffer, strideInBytes * tid.x + 4, 1);

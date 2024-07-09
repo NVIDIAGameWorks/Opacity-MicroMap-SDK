@@ -66,7 +66,10 @@ namespace {
 
 		omm::BakerCreationDesc desc;
 		desc.type = omm::BakerType::CPU;
-		desc.enableValidation = true;
+		desc.messageInterface.messageCallback = [](omm::MessageSeverity severity, const char* message, void* userArg) {
+			std::cout << "[omm-sdk]: " << message << std::endl;
+		};
+
 		// desc.memoryAllocatorInterface = ...; // If we prefer to track memory allocations and / or use custom memory allocators we can override these callbacks. But it's not required.
 
 		omm::Baker bakerHandle; // Create the baker instance. This instance can be shared among all baking tasks. Typucally one per application.
@@ -94,7 +97,7 @@ namespace {
 
 		// Setup the baking parameters, setting only required data.
 		omm::Cpu::BakeInputDesc bakeDesc;
-		bakeDesc.bakeFlags = omm::Cpu::BakeFlags::None; // Default bake flags.
+		bakeDesc.bakeFlags = omm::Cpu::BakeFlags::EnableWorkloadValidation;
 		// Texture object
 		bakeDesc.texture = textureHandle;
 		// Alpha test parameters.
@@ -108,7 +111,7 @@ namespace {
 		bakeDesc.texCoords = texCoordBuffer.data();
 		bakeDesc.indexBuffer = indexBuffer.data();
 		bakeDesc.indexCount = (uint32_t)indexBuffer.size();
-		bakeDesc.indexFormat = omm::IndexFormat::I32_UINT;
+		bakeDesc.indexFormat = omm::IndexFormat::UINT_32;
 		bakeDesc.subdivisionLevels = subdivisionLevels.data();
 		// Desired output config
 		bakeDesc.format = omm::Format::OC1_2_State;

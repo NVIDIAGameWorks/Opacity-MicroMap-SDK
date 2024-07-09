@@ -8,7 +8,7 @@ distribution of this software and related documentation without an express
 license agreement from NVIDIA CORPORATION is strictly prohibited.
 */
 
-#include "platform.hlsli"
+#include "omm_platform.hlsli"
 #include "omm_global_cb.hlsli"
 #include "omm_global_samplers.hlsli"
 #include "omm_init_buffers_gfx.cs.resources.hlsli"
@@ -34,7 +34,7 @@ void main(uint3 tid : SV_DispatchThreadID)
 	const uint batchIndex		= tid.x % g_GlobalConstants.MaxBatchCount;
 
 	{
-		const uint strideInBytes = 20;
+		const uint strideInBytes = g_GlobalConstants.IndirectDispatchEntryStride;
 
 		OMM_SUBRESOURCE_STORE(IEBakeBuffer, strideInBytes * tid.x + 0, 3 * GetNumMicroTri(subdivisionLevel)); /*IndexCountPerInstance*/
 		OMM_SUBRESOURCE_STORE(IEBakeBuffer, strideInBytes * tid.x + 4, 0);/*InstanceCount*/
@@ -44,7 +44,7 @@ void main(uint3 tid : SV_DispatchThreadID)
 	}
 
 	{
-		const uint strideInBytes = 12;
+		const uint strideInBytes = g_GlobalConstants.IndirectDispatchEntryStride;
 
 		OMM_SUBRESOURCE_STORE(IECompressCsBuffer, strideInBytes * tid.x + 0, 0);
 		OMM_SUBRESOURCE_STORE(IECompressCsBuffer, strideInBytes * tid.x + 4, 1);

@@ -23,15 +23,17 @@ namespace omm
       INVALID_ARGUMENT,
       INSUFFICIENT_SCRATCH_MEMORY,
       NOT_IMPLEMENTED,
-      WORKLOAD_TOO_BIG,
+      WORKLOAD_TOO_BIG OMM_DEPRECATED_MSG("WORKLOAD_TOO_BIG has been deprecated and will no longer be returned. Enable logging to look for perf warnings instead."),
       MAX_NUM,
    };
 
-   struct LibraryDesc
+   enum class MessageSeverity
    {
-      uint8_t versionMajor;
-      uint8_t versionMinor;
-      uint8_t versionBuild;
+       Info,
+       Warning,
+       PerfWarning,
+       Fatal,
+       MAX_NUM,
    };
 
    enum class OpacityState
@@ -89,8 +91,10 @@ namespace omm
 
    enum class IndexFormat
    {
-      I16_UINT,
-      I32_UINT,
+      UINT_16,
+      UINT_32,
+      I16_UINT OMM_DEPRECATED_MSG("omm::IndexFormat::I16_UINT is deprecated, please use omm::IndexFormat::UINT_16 instead") = UINT_16,
+      I32_UINT OMM_DEPRECATED_MSG("omm::IndexFormat::I32_UINT is deprecated, please use omm::IndexFormat::UINT_32 instead") = UINT_32,
       MAX_NUM,
    };
 
@@ -118,6 +122,13 @@ namespace omm
       MAX_NUM,
    };
 
+   struct LibraryDesc
+   {
+       uint8_t versionMajor;
+       uint8_t versionMinor;
+       uint8_t versionBuild;
+   };
+
    struct SamplerDesc
    {
       TextureAddressMode addressingMode  = TextureAddressMode::MAX_NUM;
@@ -127,17 +138,37 @@ namespace omm
 
    struct MemoryAllocatorInterface
    {
-      ommAllocate   Allocate    = nullptr;
-      ommReallocate Reallocate  = nullptr;
-      ommFree       Free        = nullptr;
-      void*         UserArg     = nullptr;
+      union {
+          ommAllocate                                                                        allocate = nullptr;
+          ommAllocate     OMM_DEPRECATED_MSG("Allocate is deprecated, use allocate instead") Allocate;
+      };
+      union {
+          ommReallocate                                                                          reallocate = nullptr;
+          ommReallocate   OMM_DEPRECATED_MSG("Reallocate is deprecated, use reallocate instead") Reallocate;
+      };
+      union {
+          ommFree                                                              free = nullptr;
+          ommFree         OMM_DEPRECATED_MSG("Free is deprecated, use free instead") Free;
+      };
+      union {
+          void*                                                                   userArg = nullptr;
+          void*           OMM_DEPRECATED_MSG("UserArg is deprecated, use userArg instead")  UserArg;
+      };
+   };
+
+   typedef void(*MessageCallback)(MessageSeverity severity, const char* message, void* userArg);
+
+   struct MessageInterface
+   {
+       MessageCallback    messageCallback  = nullptr;
+       void*              userArg          = nullptr;
    };
 
    struct BakerCreationDesc
    {
       BakerType                type                      = BakerType::MAX_NUM;
-      bool                     enableValidation          = false;
       MemoryAllocatorInterface memoryAllocatorInterface  = {};
+      MessageInterface         messageInterface          = {};
    };
 
    using Handle = uintptr_t;
@@ -199,9 +230,9 @@ namespace omm
          // compute. Note: can not be used if DisableDuplicateDetection is set.
          EnableNearDuplicateDetection = 1u << 4,
 
-         // Workload validation is a safety mechanism that will let the SDK reject workloads that become unreasonably large, which
-         // may lead to long baking times. When this flag is set the bake operation may return error WORKLOAD_TOO_BIG
-         EnableWorkloadValidation     = 1u << 5,
+         // Enable additional validation, when enabled additional processing is performed to validate quality and sanity of input data
+         // which may help diagnose longer than expected bake time.
+          EnableWorkloadValidation    = 1u << 5,
       };
       OMM_DEFINE_ENUM_FLAG_OPERATORS(BakeFlags);
 
@@ -705,6 +736,7 @@ namespace omm
          uint32_t            alphaTextureChannel           = 3;
          TexCoordFormat      texCoordFormat                = TexCoordFormat::MAX_NUM;
          uint32_t            texCoordOffsetInBytes         = 0;
+         // texCoordStrideInBytes: If zero, packed aligment is assumed
          uint32_t            texCoordStrideInBytes         = 0;
          IndexFormat         indexFormat                   = IndexFormat::MAX_NUM;
          // The actual number of indices can be lower.

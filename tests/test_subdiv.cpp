@@ -144,7 +144,7 @@ namespace {
 			desc.alphaMode = omm::AlphaMode::Test;
 			desc.runtimeSamplerDesc.addressingMode = omm::TextureAddressMode::Clamp;
 			desc.runtimeSamplerDesc.filter = omm::TextureFilterMode::Nearest;
-			desc.indexFormat = omm::IndexFormat::I32_UINT;
+			desc.indexFormat = omm::IndexFormat::UINT_32;
 			desc.indexBuffer = indices.data();
 			desc.texCoords = texCoords.data();
 			desc.texCoordFormat = omm::TexCoordFormat::UV32_FLOAT;
