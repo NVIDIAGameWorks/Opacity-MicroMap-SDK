@@ -99,6 +99,22 @@ uint GetHash(TexCoords tex, uint subdivisionLevel)
 		seed);
 }
 
+float2 UnpackUNORM16Pair(uint packed)
+{
+    float2 data;
+	data.x = float(packed & 0x0000FFFF) / float(0xFFFF);
+    data.y = float((packed >> 16u) & 0x0000FFFF) / float(0xFFFF);
+    return data;
+}
+
+float2 UnpackFP16Pair(uint packed)
+{
+    uint2 data;
+	data.x = packed & 0x0000FFFF;
+    data.y = (packed >> 16u) & 0x0000FFFF;
+    return f16tof32(data);
+}
+
 TexCoords FetchTexCoords(Buffer<uint> indexBuffer, ByteAddressBuffer texCoordBuffer, uint primitiveIndex)
 {
 	uint3 indices;
@@ -107,9 +123,25 @@ TexCoords FetchTexCoords(Buffer<uint> indexBuffer, ByteAddressBuffer texCoordBuf
 	indices.z		= indexBuffer[primitiveIndex * 3 + 2];
 
 	float2 vertexUVs[3];
-	vertexUVs[0] = asfloat(texCoordBuffer.Load2(g_GlobalConstants.TexCoord1Offset + indices.x * g_GlobalConstants.TexCoord1Stride));
-	vertexUVs[1] = asfloat(texCoordBuffer.Load2(g_GlobalConstants.TexCoord1Offset + indices.y * g_GlobalConstants.TexCoord1Stride));
-	vertexUVs[2] = asfloat(texCoordBuffer.Load2(g_GlobalConstants.TexCoord1Offset + indices.z * g_GlobalConstants.TexCoord1Stride));
+	
+    if (g_GlobalConstants.TexCoord1Format == 0 /*UV16_UNORM*/)
+    {
+        vertexUVs[0] = UnpackUNORM16Pair(texCoordBuffer.Load(g_GlobalConstants.TexCoord1Offset + indices.x * g_GlobalConstants.TexCoord1Stride));
+        vertexUVs[1] = UnpackUNORM16Pair(texCoordBuffer.Load(g_GlobalConstants.TexCoord1Offset + indices.y * g_GlobalConstants.TexCoord1Stride));
+        vertexUVs[2] = UnpackUNORM16Pair(texCoordBuffer.Load(g_GlobalConstants.TexCoord1Offset + indices.z * g_GlobalConstants.TexCoord1Stride));
+    }
+    else if (g_GlobalConstants.TexCoord1Format == 1 /*UV16_FLOAT*/)
+    {
+        vertexUVs[0] = UnpackFP16Pair(texCoordBuffer.Load(g_GlobalConstants.TexCoord1Offset + indices.x * g_GlobalConstants.TexCoord1Stride));
+        vertexUVs[1] = UnpackFP16Pair(texCoordBuffer.Load(g_GlobalConstants.TexCoord1Offset + indices.y * g_GlobalConstants.TexCoord1Stride));
+        vertexUVs[2] = UnpackFP16Pair(texCoordBuffer.Load(g_GlobalConstants.TexCoord1Offset + indices.z * g_GlobalConstants.TexCoord1Stride));
+    }
+    else // if (g_GlobalConstants.TexCoord1Format == 0 /*UV32_FLOAT*/)
+    {
+        vertexUVs[0] = asfloat(texCoordBuffer.Load2(g_GlobalConstants.TexCoord1Offset + indices.x * g_GlobalConstants.TexCoord1Stride));
+        vertexUVs[1] = asfloat(texCoordBuffer.Load2(g_GlobalConstants.TexCoord1Offset + indices.y * g_GlobalConstants.TexCoord1Stride));
+        vertexUVs[2] = asfloat(texCoordBuffer.Load2(g_GlobalConstants.TexCoord1Offset + indices.z * g_GlobalConstants.TexCoord1Stride));
+    }
 
 	TexCoords tex;
 	tex.Init(vertexUVs[0], vertexUVs[1], vertexUVs[2]);

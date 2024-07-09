@@ -12,7 +12,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include "omm.hlsli"
 #include "omm_global_cb.hlsli"
 #include "omm_global_samplers.hlsli"
-#include "omm_work_setup_common.hlsli"
+#include "omm_common.hlsli"
 
 namespace hashTable
 {

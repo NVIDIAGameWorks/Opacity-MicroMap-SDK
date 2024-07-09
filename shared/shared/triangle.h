@@ -108,46 +108,19 @@ namespace omm
         return *(offset + component);
     }
 
-    template<ommTexCoordFormat texCoordFormat>
-    inline float convertUvToFloat(const void* texCoords, uint32_t texCoordStrideInBytes, uint32_t index, uint32_t component);
-
-    template<> // UV16_UNORM specialisation
-    inline float convertUvToFloat<ommTexCoordFormat_UV16_UNORM>(const void* texCoords, uint32_t texCoordStrideInBytes, uint32_t index, uint32_t component)
-    {
-        return ((float)getUvComponantStorage<uint16_t>(texCoords, texCoordStrideInBytes, index, component)) * (1.f / 65535.f);
-    }
-
-    template<> // UV16_FLOAT specialisation
-    inline float convertUvToFloat<ommTexCoordFormat_UV16_FLOAT>(const void* texCoords, uint32_t texCoordStrideInBytes, uint32_t index, uint32_t component)
-    {
-        return float16ToFloat32(getUvComponantStorage<uint16_t>(texCoords, texCoordStrideInBytes, index, component));
-    }
-
-    template<> // UV32_FLOAT specialisation
-    inline float convertUvToFloat<ommTexCoordFormat_UV32_FLOAT>(const void* texCoords, uint32_t texCoordStrideInBytes, uint32_t index, uint32_t component)
-    {
-        return getUvComponantStorage<float>(texCoords, texCoordStrideInBytes, index, component);
-    }
-
     static float2 FetchUV(const void* texCoords, uint32_t texCoordStrideInBytes, ommTexCoordFormat texCoordFormat, const uint32_t index)
     {
         const uint32_t* texCoords32 = (const uint32_t*)texCoords;
         switch (texCoordFormat)
         {
         case ommTexCoordFormat_UV16_UNORM:
-            return {
-                convertUvToFloat<ommTexCoordFormat_UV16_UNORM>(texCoords, texCoordStrideInBytes, index, 0),
-                convertUvToFloat<ommTexCoordFormat_UV16_UNORM>(texCoords, texCoordStrideInBytes, index, 1)
-            };
+            return glm::unpackUnorm2x16(getUvComponantStorage<uint32_t>(texCoords, texCoordStrideInBytes, index, 0));
         case ommTexCoordFormat_UV16_FLOAT:
-            return {
-                convertUvToFloat<ommTexCoordFormat_UV16_FLOAT>(texCoords, texCoordStrideInBytes, index, 0),
-                convertUvToFloat<ommTexCoordFormat_UV16_FLOAT>(texCoords, texCoordStrideInBytes, index, 1)
-            };
+            return glm::unpackHalf2x16(getUvComponantStorage<uint32_t>(texCoords, texCoordStrideInBytes, index, 0));
         case ommTexCoordFormat_UV32_FLOAT:
             return {
-                convertUvToFloat<ommTexCoordFormat_UV32_FLOAT>(texCoords, texCoordStrideInBytes, index, 0),
-                convertUvToFloat<ommTexCoordFormat_UV32_FLOAT>(texCoords, texCoordStrideInBytes, index, 1)
+                getUvComponantStorage<float>(texCoords, texCoordStrideInBytes, index, 0),
+                getUvComponantStorage<float>(texCoords, texCoordStrideInBytes, index, 1)
             };
         default:
             return { 0,0 };

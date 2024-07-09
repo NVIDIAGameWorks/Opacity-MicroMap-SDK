@@ -20,7 +20,7 @@ OMM_DECLARE_INPUT_RESOURCES
 OMM_DECLARE_OUTPUT_RESOURCES
 OMM_DECLARE_SUBRESOURCES
 
-#include "omm_work_setup_common.hlsli"
+#include "omm_common.hlsli"
 
 uint TryScheduledForBake(uint ommDescIndex, uint primitiveIndex)
 {

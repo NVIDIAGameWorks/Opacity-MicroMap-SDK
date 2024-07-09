@@ -887,6 +887,7 @@ typedef struct ommGpuDispatchConfigDesc
    uint32_t                  alphaTextureChannel;
    ommTexCoordFormat         texCoordFormat;
    uint32_t                  texCoordOffsetInBytes;
+   // texCoordStrideInBytes: If zero, packed aligment is assumed
    uint32_t                  texCoordStrideInBytes;
    ommIndexFormat            indexFormat;
    // The actual number of indices can be lower.

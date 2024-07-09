@@ -736,6 +736,7 @@ namespace omm
          uint32_t            alphaTextureChannel           = 3;
          TexCoordFormat      texCoordFormat                = TexCoordFormat::MAX_NUM;
          uint32_t            texCoordOffsetInBytes         = 0;
+         // texCoordStrideInBytes: If zero, packed aligment is assumed
          uint32_t            texCoordStrideInBytes         = 0;
          IndexFormat         indexFormat                   = IndexFormat::MAX_NUM;
          // The actual number of indices can be lower.

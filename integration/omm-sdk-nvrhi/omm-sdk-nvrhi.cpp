@@ -60,6 +60,28 @@ namespace
 		}
 	}
 
+	static omm::TexCoordFormat GetTexCoordFormat(nvrhi::Format format)
+	{
+		switch (format)
+		{
+		case nvrhi::Format::R16_UNORM:
+		{
+			return omm::TexCoordFormat::UV16_UNORM;
+		}
+		case nvrhi::Format::R16_FLOAT:
+		{
+			return omm::TexCoordFormat::UV16_FLOAT;
+		}
+		case nvrhi::Format::R32_FLOAT:
+		{
+			return omm::TexCoordFormat::UV32_FLOAT;
+		}
+		default:
+			assert(false);
+			return omm::TexCoordFormat::UV32_FLOAT;
+		}
+	}
+
 	/// -- BINDING CACHE FROM DONUT -- 
 
 	/*
@@ -191,6 +213,7 @@ public:
 		const std::vector<uint8_t>& ommIndexHistogramBuffer,
 		const void* indexBuffer,
 		const uint32_t indexCount,
+		nvrhi::Format ommTexCoordBufferFormat,
 		const void* texCoords,
 		const float* imageData,
 		const uint32_t width,
@@ -642,7 +665,7 @@ omm::Gpu::DispatchConfigDesc GpuBakeNvrhiImpl::GetConfig(const GpuBakeNvrhi::Inp
 	config.alphaTextureChannel					= params.alphaTextureChannel;
 	config.alphaMode							= AlphaMode::Test;
 	config.alphaCutoff							= params.alphaCutoff;
-	config.texCoordFormat						= TexCoordFormat::UV32_FLOAT;
+	config.texCoordFormat						= GetTexCoordFormat(params.texCoordFormat);
 	config.texCoordOffsetInBytes				= params.texCoordBufferOffsetInBytes;
 	config.texCoordStrideInBytes				= params.texCoordStrideInBytes;
 	config.indexFormat							= IndexFormat::UINT_32;
@@ -1099,6 +1122,7 @@ void GpuBakeNvrhiImpl::DumpDebug(
 	const std::vector<uint8_t>& ommIndexHistogramBuffer,
 	const void* indexBuffer,
 	const uint32_t indexCount,
+	nvrhi::Format ommTexCoordBufferFormat,
 	const void* texCoords,
 	const float* imageData,
 	const uint32_t width,
@@ -1140,7 +1164,7 @@ void GpuBakeNvrhiImpl::DumpDebug(
 	config.indexFormat = omm::IndexFormat::UINT_32;
 	config.texture = texHandle;
 	config.texCoords = texCoords;
-	config.texCoordFormat = omm::TexCoordFormat::UV32_FLOAT;
+	config.texCoordFormat = GetTexCoordFormat(ommTexCoordBufferFormat);
 	config.alphaCutoff = params.alphaCutoff;
 	config.runtimeSamplerDesc.addressingMode	= GetTextureAddressMode(params.sampleMode);
 	config.runtimeSamplerDesc.filter = params.bilinearFilter ? omm::TextureFilterMode::Linear : omm::TextureFilterMode::Nearest;
@@ -1235,6 +1259,7 @@ void GpuBakeNvrhi::DumpDebug(
 	const std::vector<uint8_t>& ommIndexHistogramBuffer,
 	const void* indexBuffer,
 	const uint32_t indexCount,
+	nvrhi::Format ommTexCoordBufferFormat,
 	const void* texCoords,
 	const float* imageData,
 	const uint32_t width,
@@ -1253,6 +1278,7 @@ void GpuBakeNvrhi::DumpDebug(
 		ommIndexHistogramBuffer,
 		indexBuffer,
 		indexCount,
+		ommTexCoordBufferFormat,
 		texCoords,
 		imageData,
 		width,

@@ -72,6 +72,33 @@ namespace {
 			return 3;
 		}
 
+		std::vector<uint32_t> ConvertTexCoords(nvrhi::Format format, float* texCoords, uint32_t texCoordsSize)
+		{
+			if (format == nvrhi::Format::R16_FLOAT || format == nvrhi::Format::R16_UNORM)
+			{
+				uint32_t numTexCoordPairs = texCoordsSize / sizeof(float2);
+				std::vector<uint32_t> texCoordData(numTexCoordPairs);
+				for (uint i = 0; i < numTexCoordPairs; ++i)
+				{
+					glm::vec2 v;
+					v.x = ((float*)texCoords)[2 * i + 0];
+					v.y = ((float*)texCoords)[2 * i + 1];
+
+					if (format == nvrhi::Format::R16_UNORM)
+						texCoordData[i] = glm::packUnorm2x16(v);
+					else if (format == nvrhi::Format::R16_FLOAT)
+						texCoordData[i] = glm::packHalf2x16(v);
+					else
+						assert(false);
+				}
+				return texCoordData;
+			}
+			else {
+				assert(false);
+				return {};
+			}
+		}
+
 		struct OmmBakeParams
 		{
 			float alphaCutoff = 0.5f;
@@ -79,7 +106,8 @@ namespace {
 			int2 texSize = { 1024, 1024 };
 			uint32_t indexBufferSize = 0;
 			uint32_t* triangleIndices = nullptr;
-			float* texCoords = nullptr;
+			nvrhi::Format texCoordFormat = nvrhi::Format::R32_FLOAT;
+			void* texCoords = nullptr;
 			uint32_t texCoordBufferSize = 0;
 			uint32_t maxOutOmmArraySize = 0xFFFFFFFF;
 			std::function<float(int i, int j)> texCb;
@@ -163,8 +191,9 @@ namespace {
 			input.alphaTexture = alphaTexture;
 			input.alphaTextureChannel = alphaTextureChannel;
 			input.alphaCutoff = 0.5f;
+			input.texCoordFormat = p.texCoordFormat;
 			input.texCoordBuffer = vb;
-			input.texCoordStrideInBytes = sizeof(float2);
+			input.texCoordStrideInBytes = 0;
 			input.indexBuffer = ib;
 			input.numIndices = p.indexBufferSize / sizeof(uint32_t);
 			input.maxSubdivisionLevel = p.subdivisionLevel;
@@ -362,6 +391,7 @@ namespace {
 					ommIndexHistogramData,
 					p.triangleIndices,
 					p.indexBufferSize / sizeof(uint32_t),
+					p.texCoordFormat,
 					p.texCoords,
 					imageData.data(),
 					p.texSize.x,
@@ -427,10 +457,11 @@ namespace {
 			int2 texSize,
 			uint32_t indexBufferSize,
 			uint32_t* triangleIndices,
-			float* texCoords,
+			void* texCoords,
 			uint32_t texCoordBufferSize,
 			std::function<float(int i, int j)> texCb,
-			omm::Format format = omm::Format::OC1_4_State)
+			omm::Format format = omm::Format::OC1_4_State,
+			nvrhi::Format texCoordFormat = nvrhi::Format::R32_FLOAT)
 		{
 			OmmBakeParams p;
 			p.alphaCutoff = alphaCutoff;
@@ -440,6 +471,7 @@ namespace {
 			p.format = format;
 			p.triangleIndices = triangleIndices;
 			p.indexBufferSize = indexBufferSize;
+			p.texCoordFormat = texCoordFormat;
 			p.texCoords = texCoords;
 			p.texCoordBufferSize = texCoordBufferSize;
 			return RunOmmBake(p);
@@ -1120,6 +1152,130 @@ namespace {
 		}
 	}
 
+	TEST_P(OMMBakeTestGPU, Julia_UV_FP16) {
+
+		uint32_t subdivisionLevel = 9;
+		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
+
+		uint32_t triangleIndices[] = { 0, 1, 2, };
+		float texCoords[] = { 0.2f, 0.f,  0.1f, 0.8f,  0.9f, 0.1f };
+
+		const nvrhi::Format texCoordFormat = nvrhi::Format::R16_FLOAT;
+		const std::vector<uint32_t> texCoordFP16 = ConvertTexCoords(texCoordFormat, texCoords, sizeof(texCoords));
+		const uint32_t texCoordSize = (uint32_t)(sizeof(uint32_t) * texCoordFP16.size());
+
+		omm::Debug::Stats stats = RunOmmBake(0.5f, subdivisionLevel, { 1024, 1024 }, sizeof(triangleIndices), triangleIndices, (void*)texCoordFP16.data(), texCoordSize, [](int i, int j)->float {
+
+			auto multiply = [](float2 x, float2 y)->float2 {
+				return float2(x.x * y.x - x.y * y.y, x.x * y.y + x.y * y.x);
+				};
+
+			float2 uv = 1.2f * float2(i, j) / float2(1024, 1024) - 0.1f;
+
+			float2 z0 = 5.f * (uv - float2(.5, .27));
+			float2 col;
+			float time = 3.1f;
+			float2 c = cos(time) * float2(cos(time / 2.), sin(time / 2.));
+			for (int i = 0; i < 500; i++) {
+				float2 z = multiply(z0, z0) + c;
+				float mq = dot(z, z);
+				if (mq > 4.) {
+					col = float2(float(i) / 20., 0.);
+					break;
+				}
+				else {
+					z0 = z;
+				}
+				col = float2(mq / 2., mq / 2.);
+			}
+
+			float alpha = std::clamp(col.x, 0.f, 1.f);
+			return 1.f - alpha;
+
+			}, omm::Format::OC1_4_State, texCoordFormat);
+
+		if (ComputeOnly())
+		{
+			ExpectEqual(stats, {
+				.totalOpaque = 254747,
+				.totalTransparent = 4304,
+				.totalUnknownTransparent = 0,
+				.totalUnknownOpaque = 3093,
+				});
+		}
+		else
+		{
+			ExpectEqual(stats, {
+				.totalOpaque = 254746,
+				.totalTransparent = 4306,
+				.totalUnknownTransparent = 0,
+				.totalUnknownOpaque = 3092,
+				});
+		}
+	}
+
+	TEST_P(OMMBakeTestGPU, Julia_UV_UNORM16) {
+
+		uint32_t subdivisionLevel = 9;
+		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
+
+		uint32_t triangleIndices[] = { 0, 1, 2, };
+		float texCoords[] = { 0.2f, 0.f,  0.1f, 0.8f,  0.9f, 0.1f };
+
+		const nvrhi::Format texCoordFormat = nvrhi::Format::R16_UNORM;
+		const std::vector<uint32_t> texCoordUNORM16 = ConvertTexCoords(texCoordFormat, texCoords, sizeof(texCoords));
+		const uint32_t texCoordSize = (uint32_t)(sizeof(uint32_t) * texCoordUNORM16.size());
+
+		omm::Debug::Stats stats = RunOmmBake(0.5f, subdivisionLevel, { 1024, 1024 }, sizeof(triangleIndices), triangleIndices, (void*)texCoordUNORM16.data(), texCoordSize, [](int i, int j)->float {
+
+			auto multiply = [](float2 x, float2 y)->float2 {
+				return float2(x.x * y.x - x.y * y.y, x.x * y.y + x.y * y.x);
+				};
+
+			float2 uv = 1.2f * float2(i, j) / float2(1024, 1024) - 0.1f;
+
+			float2 z0 = 5.f * (uv - float2(.5, .27));
+			float2 col;
+			float time = 3.1f;
+			float2 c = cos(time) * float2(cos(time / 2.), sin(time / 2.));
+			for (int i = 0; i < 500; i++) {
+				float2 z = multiply(z0, z0) + c;
+				float mq = dot(z, z);
+				if (mq > 4.) {
+					col = float2(float(i) / 20., 0.);
+					break;
+				}
+				else {
+					z0 = z;
+				}
+				col = float2(mq / 2., mq / 2.);
+			}
+
+			float alpha = std::clamp(col.x, 0.f, 1.f);
+			return 1.f - alpha;
+
+			}, omm::Format::OC1_4_State, texCoordFormat);
+
+		if (ComputeOnly())
+		{
+			ExpectEqual(stats, {
+				.totalOpaque = 254741,
+				.totalTransparent = 4312,
+				.totalUnknownTransparent = 0,
+				.totalUnknownOpaque = 3091,
+				});
+		}
+		else
+		{
+			ExpectEqual(stats, {
+				.totalOpaque = 254737,
+				.totalTransparent = 4314,
+				.totalUnknownTransparent = 0,
+				.totalUnknownOpaque = 3093,
+				});
+		}
+	}
+
 	TEST_P(OMMBakeTestGPU, Julia2x) {
 
 		uint32_t subdivisionLevel = 9;
@@ -1222,6 +1378,36 @@ namespace {
 		}
 	}
 
+	std::string CustomParamName(const ::testing::TestParamInfo<TestSuiteConfig>& info) {
+
+		std::string str = "";
+		if ((info.param & TestSuiteConfig::ComputeOnly) == TestSuiteConfig::ComputeOnly)
+			str += "ComputeOnly_";
+		if ((info.param & TestSuiteConfig::DisableSpecialIndices) == TestSuiteConfig::DisableSpecialIndices)
+			str += "DisableSpecialIndices_";
+		if ((info.param & TestSuiteConfig::Force32BitIndices) == TestSuiteConfig::Force32BitIndices)
+			str += "Force32BitIndices_";
+		if ((info.param & TestSuiteConfig::DisableTexCoordDeduplication) == TestSuiteConfig::DisableTexCoordDeduplication)
+			str += "DisableTexCoordDeduplication_";
+		if ((info.param & TestSuiteConfig::RedChannel) == TestSuiteConfig::RedChannel)
+			str += "RedChannel_";
+		if ((info.param & TestSuiteConfig::GreenChannel) == TestSuiteConfig::GreenChannel)
+			str += "GreenChannel_";
+		if ((info.param & TestSuiteConfig::BlueChannel) == TestSuiteConfig::BlueChannel)
+			str += "BlueChannel_";
+		if ((info.param & TestSuiteConfig::SetupBeforeBuild) == TestSuiteConfig::SetupBeforeBuild)
+			str += "SetupBeforeBuild_";
+		if ((info.param & TestSuiteConfig::EnablePostDispatchInfoStats) == TestSuiteConfig::EnablePostDispatchInfoStats)
+			str += "PostDispatchInfoStats_";
+		if (str.length() > 0)
+			str.pop_back();
+
+		if (str == "")
+			str = "Default";
+
+		return str;
+	}
+
 	INSTANTIATE_TEST_SUITE_P(OMMTestGPU, OMMBakeTestGPU, 
 		::testing::Values(	
 							    TestSuiteConfig::None,
@@ -1263,6 +1449,6 @@ namespace {
 							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::RedChannel,
 							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::BlueChannel,
 							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::GreenChannel
-						));
+						), CustomParamName);
 
 }  // namespace
