@@ -947,11 +947,11 @@ namespace Gpu
 
         struct Pipelines
         {
-            clear_buffer_cs_bindings clearBufferBindings;
-            uint32_t clearBufferIdx = -1;
+            omm_clear_buffer_cs_bindings ommClearBufferBindings;
+            uint32_t ommClearBufferIdx = -1;
 
-            render_target_clear_bindings renderTargetClearDebugBindings;
-            uint32_t renderTargetClearDebugIdx = -1;
+            omm_render_target_clear_bindings ommRenderTargetClearDebugBindings;
+            uint32_t ommRenderTargetClearDebugIdx = -1;
 
             omm_init_buffers_cs_cs_bindings ommInitBuffersCsBindings;
             uint32_t ommInitBuffersCsIdx = -1;
@@ -999,8 +999,8 @@ namespace Gpu
             uint32_t ommRasterizeDebugIdx = -1;
 
             Pipelines(const StdAllocator<uint8_t>& stdAllocator)
-            : clearBufferBindings(stdAllocator)
-            , renderTargetClearDebugBindings(stdAllocator)
+            : ommClearBufferBindings(stdAllocator)
+            , ommRenderTargetClearDebugBindings(stdAllocator)
             , ommInitBuffersCsBindings(stdAllocator)
             , ommInitBuffersGfxBindings(stdAllocator)
             , ommPostBuildInfoBindings(stdAllocator)

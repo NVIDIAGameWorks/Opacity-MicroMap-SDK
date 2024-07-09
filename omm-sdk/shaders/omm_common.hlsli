@@ -11,7 +11,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #ifndef WORK_SETUP_COMMON_HLSLI
 #define WORK_SETUP_COMMON_HLSLI
 
-#include "platform.hlsli"
+#include "omm_platform.hlsli"
 #include "omm.hlsli"
 #include "omm_global_cb.hlsli"
 #include "omm_global_samplers.hlsli"

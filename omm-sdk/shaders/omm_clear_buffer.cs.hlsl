@@ -8,10 +8,18 @@ distribution of this software and related documentation without an express
 license agreement from NVIDIA CORPORATION is strictly prohibited.
 */
 
-#include "platform.hlsli"
-#include "render_target_clear.ps.resources.hlsli"
+#include "omm_platform.hlsli"
+#include "omm_clear_buffer.cs.resources.hlsli"
 
-void main(out float4 o_color : SV_Target0)
+OMM_DECLARE_LOCAL_CONSTANT_BUFFER
+OMM_DECLARE_OUTPUT_RESOURCES
+OMM_DECLARE_INPUT_RESOURCES
+
+[numthreads(128, 1, 1)]
+void main(uint3 tid : SV_DispatchThreadID)
 {
-	o_color = float4(0, 0, 0, 0);
+	if (tid.x >= g_LocalConstants.NumElements)
+		return;
+
+	u_targetBuffer.Store(g_LocalConstants.BufferOffset + 4 * tid.x, g_LocalConstants.ClearValue);
 }

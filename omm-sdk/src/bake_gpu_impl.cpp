@@ -303,9 +303,9 @@ ommResult  PipelineImpl::Create(const ommGpuPipelineConfigDesc& config)
     m_pipelineBuilder.AddStaticSamplerDesc({ {ommSamplerDesc{ommTextureAddressMode_Clamp, ommTextureFilterMode_Nearest} , 6} });
     m_pipelineBuilder.AddStaticSamplerDesc({ {ommSamplerDesc{ommTextureAddressMode_Border, ommTextureFilterMode_Nearest} , 7} });
 
-    m_pipelines.clearBufferIdx = m_pipelineBuilder.AddComputePipeline(
-        ByteCodeFromName("clear_buffer.cs", clear_buffer_cs),
-        m_pipelines.clearBufferBindings.GetRanges(), m_pipelines.clearBufferBindings.GetNumRanges());
+    m_pipelines.ommClearBufferIdx = m_pipelineBuilder.AddComputePipeline(
+        ByteCodeFromName("omm_clear_buffer.cs", clear_buffer_cs),
+        m_pipelines.ommClearBufferBindings.GetRanges(), m_pipelines.ommClearBufferBindings.GetNumRanges());
 
     m_pipelines.ommInitBuffersCsIdx = m_pipelineBuilder.AddComputePipeline(
         ByteCodeFromName("omm_init_buffers_cs.cs", omm_init_buffers_cs_cs),
@@ -395,13 +395,13 @@ ommResult  PipelineImpl::Create(const ommGpuPipelineConfigDesc& config)
         ByteCodeFromName("omm_index_write.cs", omm_index_write_cs),
         m_pipelines.ommIndexWriteBindings.GetRanges(), m_pipelines.ommIndexWriteBindings.GetNumRanges());
 
-    m_pipelines.renderTargetClearDebugIdx = m_pipelineBuilder.AddGraphicsPipeline(
+    m_pipelines.ommRenderTargetClearDebugIdx = m_pipelineBuilder.AddGraphicsPipeline(
         ByteCodeFromName("omm_rasterize_debug.vs", omm_rasterize_debug_vs),
         PipelineBuilder::ByteCode(),
-        ByteCodeFromName("render_target_clear.ps", render_target_clear_ps),
+        ByteCodeFromName("omm_render_target_clear.ps", render_target_clear_ps),
         false /*ConservativeRasterization*/,
         1 /*NumRenderTargets*/,
-        m_pipelines.renderTargetClearDebugBindings.GetRanges(), m_pipelines.renderTargetClearDebugBindings.GetNumRanges());
+        m_pipelines.ommRenderTargetClearDebugBindings.GetRanges(), m_pipelines.ommRenderTargetClearDebugBindings.GetNumRanges());
 
     m_pipelines.ommRasterizeDebugIdx = m_pipelineBuilder.AddGraphicsPipeline(
         ByteCodeFromName("omm_rasterize_debug.vs", omm_rasterize_debug_vs),
@@ -798,7 +798,7 @@ ommResult PipelineImpl::GetDispatchDesc(const ommGpuDispatchConfigDesc& config, 
         auto ClearBuffer = [&](const char* name, const BufferResource* resource) {
             SCOPED_LABEL(name);
 
-            BEGIN_PASS(name,  ommGpuDispatchType_Compute, m_pipelines.clearBufferBindings);
+            BEGIN_PASS(name,  ommGpuDispatchType_Compute, m_pipelines.ommClearBufferBindings);
                 p.UseGlobalCbuffer();
                 p.BindResource("u_targetBuffer", resource->type, resource->indexInPool);
 
@@ -806,7 +806,7 @@ ommResult PipelineImpl::GetDispatchDesc(const ommGpuDispatchConfigDesc& config, 
                 OMM_ASSERT(byteSize % 4 == 0);
                 const uint32_t numElements = resource->allocator.GetCurrentReservation() / 4;
 
-                CBufferWriter& lCb = p.AddComputeDispatch(m_pipelines.clearBufferIdx, math::DivUp<uint32_t>(numElements, 128u), 1);
+                CBufferWriter& lCb = p.AddComputeDispatch(m_pipelines.ommClearBufferIdx, math::DivUp<uint32_t>(numElements, 128u), 1);
                 lCb.WriteDW(0 /*ClearValue*/);
                 lCb.WriteDW(numElements /*NumElements*/);
                 lCb.WriteDW(0 /*BufferOffset*/);
@@ -818,7 +818,7 @@ ommResult PipelineImpl::GetDispatchDesc(const ommGpuDispatchConfigDesc& config, 
         auto ClearResource = [&](const char* name, const ommGpuResourceType resourceType, uint32_t byteSize) {
             SCOPED_LABEL(name);
 
-            BEGIN_PASS(name,  ommGpuDispatchType_Compute, m_pipelines.clearBufferBindings);
+            BEGIN_PASS(name,  ommGpuDispatchType_Compute, m_pipelines.ommClearBufferBindings);
             p.UseGlobalCbuffer();
             p.BindResource("u_targetBuffer", resourceType);
 
@@ -828,7 +828,7 @@ ommResult PipelineImpl::GetDispatchDesc(const ommGpuDispatchConfigDesc& config, 
             const uint32_t threadGroupCountX = math::DivUp<uint32_t>(numElements, 128u);
             OMM_ASSERT(threadGroupCountX != 0);
 
-            CBufferWriter& lCb = p.AddComputeDispatch(m_pipelines.clearBufferIdx, threadGroupCountX, 1);
+            CBufferWriter& lCb = p.AddComputeDispatch(m_pipelines.ommClearBufferIdx, threadGroupCountX, 1);
             lCb.WriteDW(0 /*ClearValue*/);
             lCb.WriteDW(numElements /*NumElements*/);
             lCb.WriteDW(0 /*BufferOffset*/);
@@ -1163,7 +1163,7 @@ ommResult PipelineImpl::GetDispatchDesc(const ommGpuDispatchConfigDesc& config, 
                             }
                             {
                                 SCOPED_LABEL("ClearRenderTarget");
-                                PushBakeRasterize("ClearRenderTarget", m_pipelines.renderTargetClearDebugIdx, m_pipelines.renderTargetClearDebugBindings);
+                                PushBakeRasterize("ClearRenderTarget", m_pipelines.ommRenderTargetClearDebugIdx, m_pipelines.ommRenderTargetClearDebugBindings);
                             }
                         }
 

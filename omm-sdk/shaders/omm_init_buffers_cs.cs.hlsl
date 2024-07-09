@@ -8,7 +8,7 @@ distribution of this software and related documentation without an express
 license agreement from NVIDIA CORPORATION is strictly prohibited.
 */
 
-#include "platform.hlsli"
+#include "omm_platform.hlsli"
 #include "omm_global_cb.hlsli"
 #include "omm_global_samplers.hlsli"
 #include "omm_init_buffers_cs.cs.resources.hlsli"
