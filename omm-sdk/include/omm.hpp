@@ -23,7 +23,7 @@ namespace omm
       INVALID_ARGUMENT,
       INSUFFICIENT_SCRATCH_MEMORY,
       NOT_IMPLEMENTED,
-      WORKLOAD_TOO_BIG OMM_DEPRECATED_MSG("WORKLOAD_TOO_BIG has been deprecated and will no longer be called. Enable logging to look for perf warnings instead."),
+      WORKLOAD_TOO_BIG OMM_DEPRECATED_MSG("WORKLOAD_TOO_BIG has been deprecated and will no longer be returned. Enable logging to look for perf warnings instead."),
       MAX_NUM,
    };
 

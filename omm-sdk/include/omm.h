@@ -75,7 +75,7 @@ typedef enum ommResult
    ommResult_INVALID_ARGUMENT,
    ommResult_INSUFFICIENT_SCRATCH_MEMORY,
    ommResult_NOT_IMPLEMENTED,
-   ommResult_WORKLOAD_TOO_BIG OMM_DEPRECATED_MSG("ommResult_WORKLOAD_TOO_BIG has been deprecated and will no longer be called. Enable logging to look for perf warnings instead."),
+   ommResult_WORKLOAD_TOO_BIG OMM_DEPRECATED_MSG("ommResult_WORKLOAD_TOO_BIG has been deprecated and will no longer be returned. Enable logging to look for perf warnings instead."),
    ommResult_MAX_NUM,
 } ommResult;
 
