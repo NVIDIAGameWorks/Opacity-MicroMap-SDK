@@ -7,9 +7,6 @@
 [submodule "benchmark/thirdparty/gbenchmark"]
 	path = benchmark/thirdparty/gbenchmark
 	url = https://github.com/google/benchmark.git
-[submodule "vm_bench/thirdparty/gbenchmark"]
-	path = thirdparty/gbenchmark
-	url = https://github.com/google/benchmark.git
 [submodule "thirdparty/xxHash"]
 	path = thirdparty/xxHash
 	url = https://github.com/Cyan4973/xxHash.git
