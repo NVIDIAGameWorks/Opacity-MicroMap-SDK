@@ -11,8 +11,8 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 // SHADERS =================================================================================
 
 #ifdef OMM_ENABLE_PRECOMPILED_SHADERS_DXIL
-	#include "clear_buffer.cs.dxil.h"
-	#include "render_target_clear.ps.dxil.h"
+	#include "omm_clear_buffer.cs.dxil.h"
+	#include "omm_render_target_clear.ps.dxil.h"
 
 	#include "omm_init_buffers_cs.cs.dxil.h"
 	#include "omm_init_buffers_gfx.cs.dxil.h"
@@ -41,8 +41,8 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #endif
 
 #ifdef OMM_ENABLE_PRECOMPILED_SHADERS_SPIRV
-	#include "clear_buffer.cs.spirv.h"
-	#include "render_target_clear.ps.spirv.h"
+	#include "omm_clear_buffer.cs.spirv.h"
+	#include "omm_render_target_clear.ps.spirv.h"
 
 	#include "omm_init_buffers_cs.cs.spirv.h"
 	#include "omm_init_buffers_gfx.cs.spirv.h"
