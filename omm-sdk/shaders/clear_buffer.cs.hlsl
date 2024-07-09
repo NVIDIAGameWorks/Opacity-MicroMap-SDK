@@ -15,10 +15,6 @@ OMM_DECLARE_LOCAL_CONSTANT_BUFFER
 OMM_DECLARE_OUTPUT_RESOURCES
 OMM_DECLARE_INPUT_RESOURCES
 
-uint GetNumMicroTri(uint subdivisionLevel) {
-	return (1u << (subdivisionLevel << 1u));
-}
-
 [numthreads(128, 1, 1)]
 void main(uint3 tid : SV_DispatchThreadID)
 {
