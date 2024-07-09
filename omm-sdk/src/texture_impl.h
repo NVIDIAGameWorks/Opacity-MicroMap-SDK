@@ -13,6 +13,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include "omm.h"
 
 #include "std_containers.h"
+#include "log.h"
 
 #include <shared/math.h>
 #include <shared/assert.h>
@@ -30,7 +31,7 @@ namespace omm
     class TextureImpl
     {
     public:
-        TextureImpl(const StdAllocator<uint8_t>& stdAllocator);
+        TextureImpl(const StdAllocator<uint8_t>& stdAllocator, const Logger& log);
         ~TextureImpl();
 
         ommResult Create(const ommCpuTextureDesc& desc);
@@ -115,7 +116,7 @@ namespace omm
         }
 
     private:
-        static ommResult Validate(const ommCpuTextureDesc& desc);
+        ommResult Validate(const ommCpuTextureDesc& desc) const;
         void Deallocate();
         template<TilingMode eTilingMode>
         static uint64_t From2Dto1D(const int2& idx, const int2& size) {
@@ -127,6 +128,7 @@ namespace omm
         static constexpr size_t kAlignment = 64;
 
         StdAllocator<uint8_t> m_stdAllocator;
+        const Logger& m_log;
 
         struct Mips
         {
@@ -144,7 +146,6 @@ namespace omm
         float m_alphaCutoff;
         uint8_t* m_data;
         uint8_t* m_dataSAT;
-        size_t m_dataSize;
     };
 
     template<ommCpuTextureFormat eFormat, TilingMode eTilingMode>

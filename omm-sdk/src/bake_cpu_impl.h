@@ -14,6 +14,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include "defines.h"
 #include "std_containers.h"
 #include "texture_impl.h"
+#include "log.h"
 
 #include <shared/math.h>
 #include <shared/texture.h>
@@ -40,6 +41,9 @@ namespace Cpu
         inline StdAllocator<uint8_t>& GetStdAllocator()
         { return m_stdAllocator; }
 
+        inline const Logger& GetLog() const
+        { return m_log; }
+
         ommResult Create(const ommBakerCreationDesc& bakeCreationDesc);
         ommResult BakeOpacityMicromap(const ommCpuBakeInputDesc& bakeInputDesc, ommCpuBakeResult* bakeOutput);
 
@@ -47,6 +51,7 @@ namespace Cpu
         ommResult Validate(const ommCpuBakeInputDesc& desc);
     private:
         StdAllocator<uint8_t> m_stdAllocator;
+        Logger m_log;
     };
 
     struct BakeResultImpl
@@ -86,7 +91,7 @@ namespace Cpu
     class BakeOutputImpl
     {
     public:
-        BakeOutputImpl(const StdAllocator<uint8_t>& stdAllocator);
+        BakeOutputImpl(const StdAllocator<uint8_t>& stdAllocator, const Logger& log);
         ~BakeOutputImpl();
 
         inline StdAllocator<uint8_t>& GetStdAllocator()
@@ -102,7 +107,7 @@ namespace Cpu
         inline ommResult GetBakeResultDesc(const ommCpuBakeResultDesc** desc)
         {
             if (desc == nullptr)
-                return ommResult_INVALID_ARGUMENT;
+                return m_log.InvalidArg("[Invalid Arg] - No BakeResultDesc provided");
 
             *desc = &m_bakeResult.bakeOutputDesc;
             return ommResult_SUCCESS;
@@ -111,7 +116,7 @@ namespace Cpu
         ommResult Bake(const ommCpuBakeInputDesc& desc);
 
     private:
-        static ommResult ValidateDesc(const ommCpuBakeInputDesc& desc);
+        ommResult ValidateDesc(const ommCpuBakeInputDesc& desc) const;
 
         template<ommCpuTextureFormat format, TilingMode eTextureFormat, ommTextureAddressMode eTextureAddressMode, ommTextureFilterMode eFilterMode>
         ommResult BakeImpl(const ommCpuBakeInputDesc& desc);
@@ -122,6 +127,7 @@ namespace Cpu
         ommResult InvokeDispatch(const ommCpuBakeInputDesc& desc);
     private:
         StdAllocator<uint8_t> m_stdAllocator;
+        const Logger& m_log;
         ommCpuBakeInputDesc m_bakeInputDesc;
         BakeResultImpl m_bakeResult;
     };

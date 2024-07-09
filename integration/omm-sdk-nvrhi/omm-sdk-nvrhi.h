@@ -52,6 +52,7 @@ namespace omm
 			bool								enableLevelLineIntersection = true;
 			nvrhi::SamplerAddressMode			sampleMode = nvrhi::SamplerAddressMode::Clamp;
 
+			nvrhi::Format						texCoordFormat = nvrhi::Format::R32_FLOAT;
 			nvrhi::BufferHandle					texCoordBuffer;
 			uint32_t							texCoordBufferOffsetInBytes = 0;
 			uint32_t							texCoordStrideInBytes = 0;
@@ -154,6 +155,7 @@ namespace omm
 			const std::vector<uint8_t>& ommIndexHistogramBuffer,
 			const void* indexBuffer,
 			const uint32_t indexCount,
+			nvrhi::Format ommTexCoordBufferFormat,
 			const void* texCoords,
 			const float* imageData,
 			const uint32_t width,

@@ -8,7 +8,7 @@ distribution of this software and related documentation without an express
 license agreement from NVIDIA CORPORATION is strictly prohibited.
 */
 
-#include "platform.hlsli"
+#include "omm_platform.hlsli"
 #include "omm.hlsli"
 #include "omm_global_cb.hlsli"
 #include "omm_global_samplers.hlsli"
@@ -20,7 +20,7 @@ OMM_DECLARE_INPUT_RESOURCES
 OMM_DECLARE_OUTPUT_RESOURCES
 OMM_DECLARE_SUBRESOURCES
 
-#include "omm_work_setup_common.hlsli"
+#include "omm_common.hlsli"
 #include "omm_hash_table.hlsli"
 
 [numthreads(128, 1, 1)]
@@ -133,7 +133,7 @@ void main(uint3 tid : SV_DispatchThreadID)
 
 				// Increment the drawcall count for the current batch & subdivisiolevel.
 				{
-					const uint strideInBytes = 12; // arg count of Dispatch
+					const uint strideInBytes = g_GlobalConstants.IndirectDispatchEntryStride; // arg count of Dispatch
 					const uint ThreadCountXOffsetInBytes = 0;	 // offset of ThreadCountX in Dispatch
 					const uint offset = ThreadCountXOffsetInBytes + strideInBytes * subdivisionLevel;
 

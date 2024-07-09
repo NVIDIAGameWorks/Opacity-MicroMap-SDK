@@ -8,16 +8,12 @@ distribution of this software and related documentation without an express
 license agreement from NVIDIA CORPORATION is strictly prohibited.
 */
 
-#include "platform.hlsli"
-#include "clear_buffer.cs.resources.hlsli"
+#include "omm_platform.hlsli"
+#include "omm_clear_buffer.cs.resources.hlsli"
 
 OMM_DECLARE_LOCAL_CONSTANT_BUFFER
 OMM_DECLARE_OUTPUT_RESOURCES
 OMM_DECLARE_INPUT_RESOURCES
-
-uint GetNumMicroTri(uint subdivisionLevel) {
-	return (1u << (subdivisionLevel << 1u));
-}
 
 [numthreads(128, 1, 1)]
 void main(uint3 tid : SV_DispatchThreadID)

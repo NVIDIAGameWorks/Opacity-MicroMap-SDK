@@ -18,8 +18,8 @@ namespace omm
 namespace parse
 {
 	static int32_t GetOmmIndexForTriangleIndex(const ommCpuBakeResultDesc& resDesc, uint32_t i) {
-		OMM_ASSERT(resDesc.indexFormat == ommIndexFormat_I16_UINT || resDesc.indexFormat == ommIndexFormat_I32_UINT);
-		if (resDesc.indexFormat == ommIndexFormat_I16_UINT)
+		OMM_ASSERT(resDesc.indexFormat == ommIndexFormat_UINT_16 || resDesc.indexFormat == ommIndexFormat_UINT_32);
+		if (resDesc.indexFormat == ommIndexFormat_UINT_16)
 			return reinterpret_cast<const int16_t*>(resDesc.indexBuffer)[i];
 		else
 			return reinterpret_cast<const int32_t*>(resDesc.indexBuffer)[i];

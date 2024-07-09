@@ -87,21 +87,25 @@ namespace Cpu
     BakerImpl::~BakerImpl()
     {}
 
-    ommResult BakerImpl::Create(const ommBakerCreationDesc& vmBakeCreationDesc)
+    ommResult BakerImpl::Create(const ommBakerCreationDesc& desc)
     {
+        m_log = Logger(desc.messageInterface);
+
         return ommResult_SUCCESS;
     }
 
     ommResult BakerImpl::Validate(const ommCpuBakeInputDesc& desc) {
         if (desc.texture == 0)
-            return ommResult_INVALID_ARGUMENT;
+        {
+            return m_log.InvalidArg("[Invalid Argument] - ommCpuBakeInputDesc has no texture set");
+        }
         return ommResult_SUCCESS;
     }
 
     ommResult BakerImpl::BakeOpacityMicromap(const ommCpuBakeInputDesc& bakeInputDesc, ommCpuBakeResult* outBakeommResult)
     {
         RETURN_STATUS_IF_FAILED(Validate(bakeInputDesc));
-        BakeOutputImpl* implementation = Allocate<BakeOutputImpl>(m_stdAllocator, m_stdAllocator);
+        BakeOutputImpl* implementation = Allocate<BakeOutputImpl>(m_stdAllocator, m_stdAllocator, m_log);
         ommResult result = implementation->Bake(bakeInputDesc);
 
         if (result == ommResult_SUCCESS)
@@ -114,8 +118,9 @@ namespace Cpu
         return result;
     }
 
-    BakeOutputImpl::BakeOutputImpl(const StdAllocator<uint8_t>& stdAllocator) :
+    BakeOutputImpl::BakeOutputImpl(const StdAllocator<uint8_t>& stdAllocator, const Logger& log) :
         m_stdAllocator(stdAllocator),
+        m_log(log),
         m_bakeInputDesc({}),
         m_bakeResult(stdAllocator),
         bakeDispatchTable(stdAllocator.GetInterface())
@@ -178,37 +183,45 @@ namespace Cpu
     {
     }
 
-    ommResult BakeOutputImpl::ValidateDesc(const ommCpuBakeInputDesc& desc) {
+    ommResult BakeOutputImpl::ValidateDesc(const ommCpuBakeInputDesc& desc) const {
         const Options options(desc.bakeFlags);
 
         if (desc.texture == 0)
-            return ommResult_INVALID_ARGUMENT;
+            return m_log.InvalidArg("[Invalid Argument] - texture is not set");
         if (desc.alphaMode == ommAlphaMode_MAX_NUM)
-            return ommResult_INVALID_ARGUMENT;
+            return m_log.InvalidArg("[Invalid Argument] - alphaMode is not set");
         if (desc.runtimeSamplerDesc.addressingMode == ommTextureAddressMode_MAX_NUM)
-            return ommResult_INVALID_ARGUMENT;
+            return m_log.InvalidArg("[Invalid Argument] - runtimeSamplerDesc.addressingMode is not set");
         if (desc.runtimeSamplerDesc.filter == ommTextureFilterMode_MAX_NUM)
-            return ommResult_INVALID_ARGUMENT;
+            return m_log.InvalidArg("[Invalid Argument] - runtimeSamplerDesc.filter is not set");
         if (desc.texCoordFormat == ommTexCoordFormat_MAX_NUM)
-            return ommResult_INVALID_ARGUMENT;
+            return m_log.InvalidArg("[Invalid Argument] - texCoordFormat is not set");
         if (desc.texCoords == nullptr)
-            return ommResult_INVALID_ARGUMENT;
+            return m_log.InvalidArg("[Invalid Argument] - texCoords is not set");
         if (desc.indexFormat == ommIndexFormat_MAX_NUM)
-            return ommResult_INVALID_ARGUMENT;
+            return m_log.InvalidArg("[Invalid Argument] - indexFormat is not set");
         if (desc.indexBuffer == nullptr)
-            return ommResult_INVALID_ARGUMENT;
+            return m_log.InvalidArg("[Invalid Argument] - indexBuffer is not set");
         if (desc.indexCount == 0)
-            return ommResult_INVALID_ARGUMENT;
+            return m_log.InvalidArg("[Invalid Argument] - indexCount is not set");
         if (desc.maxSubdivisionLevel > kMaxSubdivLevel)
-            return ommResult_INVALID_ARGUMENT;
+        {
+            static_assert(kMaxSubdivLevel == 12, "");
+            if (desc.maxSubdivisionLevel > kMaxSubdivLevel)
+                return m_log.InvalidArgf("[Invalid Argument] - maxSubdivisionLevel (%d) is greater than maximum supported (%d)", desc.maxSubdivisionLevel, kMaxSubdivLevel);
+        }
         if ((options.enableNearDuplicateDetection || options.enableNearDuplicateDetectionBruteForce) && options.disableDuplicateDetection)
-            return ommResult_INVALID_ARGUMENT;
+        {
+            return m_log.InvalidArg("[Invalid Argument] - EnableNearDuplicateDetection or EnableNearDuplicateDetectionBruteForce is used together with DisableDuplicateDetection");
+        }
+        if (options.enableWorkloadValidation && !m_log.HasLogger())
+            return m_log.InvalidArg("[Invalid Argument] - EnableWorkloadValidation is set but not message callback was provided"); // this works more as documentation since it won't be logged
 
         if (TextureImpl* texture = ((TextureImpl*)desc.texture))
         {
             if (texture->HasAlphaCutoff() && texture->GetAlphaCutoff() != desc.alphaCutoff)
             {
-                return ommResult_INVALID_ARGUMENT;
+                return m_log.InvalidArgf("[Invalid Argument] - Texture object alpha cutoff threshold (%.6f) is different from alpha cutoff threshold in bake input (%.6f)", texture->GetAlphaCutoff(), desc.alphaCutoff);
             }
         }
 
@@ -471,7 +484,7 @@ namespace Cpu
     namespace impl
     {
         static ommResult SetupWorkItems(
-            StdAllocator<uint8_t>& allocator, const ommCpuBakeInputDesc& desc, const Options& options, 
+            StdAllocator<uint8_t>& allocator, const Logger& log, const ommCpuBakeInputDesc& desc, const Options& options, 
             vector<OmmWorkItem>& vmWorkItems)
         {
             const TextureImpl* texture = ((const TextureImpl*)desc.texture);
@@ -523,8 +536,9 @@ namespace Cpu
                     if ((it == triangleIDToWorkItem.end() || options.disableDuplicateDetection))
                     {
                         if (kMaxSubdivLevel < subdivisionLevel)
-                            return ommResult_INVALID_ARGUMENT;
-
+                        {
+                            return log.InvalidArg("[Invalid Argument] - subdivisionLevel for primitive (i) is (d) which exceeds kMaxSubdivLevel(12)");
+                        }
                         uint32_t workItemIdx = (uint32_t)vmWorkItems.size();
                         // Temporarily set the triangle->vm desc mapping like this.
                         triangleIDToWorkItem.insert(std::make_pair(vmId, workItemIdx));
@@ -539,7 +553,7 @@ namespace Cpu
         }
 
         static ommResult ValidateWorkloadSize(
-            StdAllocator<uint8_t>& allocator, const ommCpuBakeInputDesc& desc, const Options& options, vector<OmmWorkItem>& vmWorkItems)
+            StdAllocator<uint8_t>& allocator, Logger log, const ommCpuBakeInputDesc& desc, const Options& options, vector<OmmWorkItem>& vmWorkItems)
         {
             // Check if the baking will complete in "finite" amount of time...
             if (!options.enableWorkloadValidation)
@@ -563,17 +577,20 @@ namespace Cpu
             const uint64_t kMaxWorkloadSize = 1 << 27; // 128 * 1024x1024 texels. 
             if (workloadSize > kMaxWorkloadSize)
             {
-                return ommResult_WORKLOAD_TOO_BIG;
+                const uint64_t num1Ktextures = workloadSize >> (20ull); // divide by 1024x1024
+
+                log.PerfWarnf("[Perf Warning] - The workload consists of %lld work items (number of texels to classify), which corresponds to roughly %lld 1024x1024 textures."
+                              " This is unusually large and may result in long bake times.", workloadSize, num1Ktextures);
             }
 
             return ommResult_SUCCESS;
         }
 
         template<ommCpuTextureFormat eFormat, TilingMode eTilingMode, ommTextureAddressMode eTextureAddressMode, ommTextureFilterMode eFilterMode>
-        static ommResult ResampleCoarse(const ommCpuBakeInputDesc& desc, const Options& options, vector<OmmWorkItem>& vmWorkItems)
+        static ommResult ResampleCoarse(const ommCpuBakeInputDesc& desc, const Logger& log, const Options& options, vector<OmmWorkItem>& vmWorkItems)
         {
             if (options.enableAABBTesting && !options.disableLevelLineIntersection)
-                return ommResult_INVALID_ARGUMENT;
+                return log.InvalidArg("[Invalid Arg] - EnableAABBTesting can't be used without also setting DisableLevelLineIntersection");
 
             const TextureImpl* texture = ((const TextureImpl*)desc.texture);
 
@@ -665,10 +682,10 @@ namespace Cpu
         }
 
         template<ommCpuTextureFormat eFormat, TilingMode eTilingMode, ommTextureAddressMode eTextureAddressMode, ommTextureFilterMode eFilterMode>
-        static ommResult ResampleFine(const ommCpuBakeInputDesc& desc, const Options& options, vector<OmmWorkItem>& vmWorkItems)
+        static ommResult ResampleFine(const ommCpuBakeInputDesc& desc, const Logger& log, const Options& options, vector<OmmWorkItem>& vmWorkItems)
         {
             if (options.enableAABBTesting && !options.disableLevelLineIntersection)
-                return ommResult_INVALID_ARGUMENT;
+                return log.InvalidArg("[Invalid Arg] - EnableAABBTesting can't be used without also setting DisableLevelLineIntersection");
 
             if (options.disableFineClassification)
                 return ommResult_SUCCESS;
@@ -1477,7 +1494,7 @@ namespace Cpu
             }
 
             // Compress to 16 bit indices if possible & allowed.
-            ommIndexFormat ommIndexFormat = ommIndexFormat_I32_UINT;
+            ommIndexFormat ommIndexFormat = ommIndexFormat_UINT_32;
             {
                 const bool force32bit = ((int32_t)desc.bakeFlags & (int32_t)ommCpuBakeFlags_Force32BitIndices) == (int32_t)ommCpuBakeFlags_Force32BitIndices;
                 const bool canCompressTo16Bit = triangleCount <= std::numeric_limits<int16_t>::max();
@@ -1491,7 +1508,7 @@ namespace Cpu
                         ommIndexBuffer16[i] = idx16;
                     }
 
-                    ommIndexFormat = ommIndexFormat_I16_UINT;
+                    ommIndexFormat = ommIndexFormat_UINT_16;
                 }
             }
 
@@ -1510,24 +1527,24 @@ namespace Cpu
 
         m_bakeInputDesc = desc;
 
-        auto impl__ResampleCoarse = [](const ommCpuBakeInputDesc& desc, const Options& options, vector<OmmWorkItem>& vmWorkItems) {
-            return impl::ResampleCoarse<eFormat, eTilingMode, eTextureAddressMode, eFilterMode>(desc, options, vmWorkItems);
+        auto impl__ResampleCoarse = [](const ommCpuBakeInputDesc& desc, const Logger& log, const Options& options, vector<OmmWorkItem>& vmWorkItems) {
+            return impl::ResampleCoarse<eFormat, eTilingMode, eTextureAddressMode, eFilterMode>(desc, log, options, vmWorkItems);
         };
 
-        auto impl__ResampleFine = [](const ommCpuBakeInputDesc& desc, const Options& options, vector<OmmWorkItem>& vmWorkItems) {
-            return impl::ResampleFine<eFormat, eTilingMode, eTextureAddressMode, eFilterMode>(desc, options, vmWorkItems);
+        auto impl__ResampleFine = [](const ommCpuBakeInputDesc& desc, const Logger& log, const Options& options, vector<OmmWorkItem>& vmWorkItems) {
+            return impl::ResampleFine<eFormat, eTilingMode, eTextureAddressMode, eFilterMode>(desc, log, options, vmWorkItems);
         };
 
         {
             vector<OmmWorkItem> vmWorkItems(m_stdAllocator.GetInterface());
 
-            RETURN_STATUS_IF_FAILED(impl::SetupWorkItems(m_stdAllocator, desc, options, vmWorkItems));
+            RETURN_STATUS_IF_FAILED(impl::SetupWorkItems(m_stdAllocator, m_log, desc, options, vmWorkItems));
 
-            RETURN_STATUS_IF_FAILED(impl::ValidateWorkloadSize(m_stdAllocator, desc, options, vmWorkItems));
+            RETURN_STATUS_IF_FAILED(impl::ValidateWorkloadSize(m_stdAllocator, m_log, desc, options, vmWorkItems));
 
-            RETURN_STATUS_IF_FAILED(impl__ResampleCoarse(desc, options, vmWorkItems));
+            RETURN_STATUS_IF_FAILED(impl__ResampleCoarse(desc, m_log, options, vmWorkItems));
 
-            RETURN_STATUS_IF_FAILED(impl__ResampleFine(desc, options, vmWorkItems));
+            RETURN_STATUS_IF_FAILED(impl__ResampleFine(desc, m_log, options, vmWorkItems));
 
             RETURN_STATUS_IF_FAILED(impl::PromoteToSpecialIndices(desc, options, vmWorkItems));
 
