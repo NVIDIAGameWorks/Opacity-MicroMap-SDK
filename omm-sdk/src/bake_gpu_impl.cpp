@@ -502,9 +502,8 @@ ommResult PipelineImpl::GetPreDispatchInfo(const ommGpuDispatchConfigDesc& confi
         }
 
         {
-            const uint32_t indirectDispatchEntrySize = m_config.renderAPI == ommGpuRenderAPI_DX12 ? 12 : 12;
             const uint32_t IEBakeCountCs = (config.maxSubdivisionLevel + 1);
-            const uint32_t IEBakeCountCsSize = IEBakeCountCs * indirectDispatchEntrySize;
+            const uint32_t IEBakeCountCsSize = IEBakeCountCs * kIndirectDispatchEntryStride;
             RETURN_STATUS_IF_FAILED(outInfo.indArgBuffer.Allocate(IEBakeCountCsSize, defaultAlignment, outInfo.IEBakeCsBuffer));
         }
     }
@@ -565,16 +564,14 @@ ommResult PipelineImpl::GetPreDispatchInfo(const ommGpuDispatchConfigDesc& confi
         }
 
         {
-            const uint32_t indirectDrawEntrySize = m_config.renderAPI == ommGpuRenderAPI_DX12 ? 20 : 20;
             const uint32_t indirectDrawCount = (config.maxSubdivisionLevel + 1) * outInfo.MaxBatchCount;
-            const uint32_t indirectDrawSize = indirectDrawEntrySize * indirectDrawCount;
+            const uint32_t indirectDrawSize = indirectDrawCount * kIndirectDispatchEntryStride;
             RETURN_STATUS_IF_FAILED(outInfo.indArgBuffer.Allocate(indirectDrawSize, defaultAlignment, outInfo.IEBakeBuffer));
         }
 
         {
-            const uint32_t indirectDispatchEntrySize = m_config.renderAPI == ommGpuRenderAPI_DX12 ? 12 : 12;
             const uint32_t indirectPostCsCount = (config.maxSubdivisionLevel + 1) * outInfo.MaxBatchCount;
-            const uint32_t indirectPostCsSize = indirectPostCsCount * indirectDispatchEntrySize;
+            const uint32_t indirectPostCsSize = indirectPostCsCount * kIndirectDispatchEntryStride;
             RETURN_STATUS_IF_FAILED(outInfo.indArgBuffer.Allocate(indirectPostCsSize, defaultAlignment, outInfo.IECompressCsBuffer));
         }
     }
@@ -716,6 +713,7 @@ ommResult PipelineImpl::InitGlobalConstants(const ommGpuDispatchConfigDesc& conf
     cbuffer.IsOmmIndexFormat16bit                      = IsOmmIndexFormat16bit;
     cbuffer.DoSetup                                    = doSetup;
     cbuffer.EnablePostDispatchInfoStats                = enablePostDispatchInfoStats && doBake;
+    cbuffer.IndirectDispatchEntryStride                = kIndirectDispatchEntryStride;
     cbuffer.SamplerIndex                               = m_pipelineBuilder.GetStaticSamplerIndex(config.runtimeSamplerDesc);
     cbuffer.BakeResultBufferSize                       = info.bakeResultBuffer.GetSize();
     cbuffer.ViewportSize                               = viewportSize;
@@ -964,7 +962,7 @@ ommResult PipelineImpl::GetDispatchDesc(const ommGpuDispatchConfigDesc& config, 
                     return m_pipelines.ommRasterizeACsIdx;
                 };
 
-                CBufferWriter& lCb = p.AddComputeIndirect(GetPipelineIndex(config.alphaTextureChannel), info.IEBakeCsBuffer, 12 * subdivisionLevel);
+                CBufferWriter& lCb = p.AddComputeIndirect(GetPipelineIndex(config.alphaTextureChannel), info.IEBakeCsBuffer, kIndirectDispatchEntryStride * subdivisionLevel);
                 lCb.WriteDW(subdivisionLevel /*levelIt*/);
                 for (uint32_t i = 0; i < 7u; ++i)
                     lCb.WriteDW(0u /*dummy*/);
@@ -1135,7 +1133,7 @@ ommResult PipelineImpl::GetDispatchDesc(const ommGpuDispatchConfigDesc& config, 
                                 0, 0,
                                 cbuffer.ViewportSize.x, cbuffer.ViewportSize.y);
 
-                            const uint32_t indirectDrawStrideInBytes = 20; // DX12
+                            const uint32_t indirectDrawStrideInBytes = kIndirectDispatchEntryStride;
                             const uint32_t offset = levelIt * info.MaxBatchCount + batchIt;
 
                             const uint32_t PrimitiveIdOffset = batchIt * maxItemsPerBatch;
@@ -1182,7 +1180,7 @@ ommResult PipelineImpl::GetDispatchDesc(const ommGpuDispatchConfigDesc& config, 
 
                                     p.BindResource("u_vmArrayBuffer", ommGpuResourceType_OUT_OMM_ARRAY_DATA);
 
-                                    const uint32_t indirectDispatchStrideInBytes = 12; // DX12
+                                    const uint32_t indirectDispatchStrideInBytes = kIndirectDispatchEntryStride;
                                     const uint32_t offset = levelIt * info.MaxBatchCount + batchIt;
 
                                     const uint32_t PrimitiveIdOffset = batchIt * maxItemsPerBatch;

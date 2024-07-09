@@ -42,7 +42,7 @@ OMM_CONSTANTS_START(GlobalConstants)							\
 	OMM_CONSTANT(uint, EnableLevelLine)							\
 																\
 	OMM_CONSTANT(uint, EnablePostDispatchInfoStats)				\
-	OMM_CONSTANT(uint, Pad0)									\
+	OMM_CONSTANT(uint, IndirectDispatchEntryStride)				\
 	OMM_CONSTANT(uint, Pad1)									\
 	OMM_CONSTANT(uint, Pad2)									\
 																\

@@ -28,7 +28,7 @@ void main(uint3 tid : SV_DispatchThreadID)
 
 	const uint subdivisionLevel = tid.x;
 
-	const uint strideInBytes = 12;
+	const uint strideInBytes = g_GlobalConstants.IndirectDispatchEntryStride;
 
 	OMM_SUBRESOURCE_STORE(IEBakeCsBuffer, strideInBytes * tid.x + 0, 0);
 	OMM_SUBRESOURCE_STORE(IEBakeCsBuffer, strideInBytes * tid.x + 4, 1);

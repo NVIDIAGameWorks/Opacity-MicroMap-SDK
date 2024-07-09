@@ -936,6 +936,7 @@ namespace Gpu
 
         static constexpr uint32_t kHashTableEntrySize = sizeof(uint32_t) * 2;
         static constexpr int32_t kViewportScale = 5; // Increasing this to 6 fails... TODO: investigate why!
+        static constexpr int32_t kIndirectDispatchEntryStride = 64; // The stride of consecutive dispatch indirect buffer entries
 
         ommGpuPipelineConfigDesc m_config;
         StdAllocator<uint8_t> m_stdAllocator;

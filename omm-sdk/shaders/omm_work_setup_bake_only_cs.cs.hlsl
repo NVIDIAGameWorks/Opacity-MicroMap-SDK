@@ -121,7 +121,7 @@ void main(uint3 tid : SV_DispatchThreadID)
 
 				// Increment the drawcall count for the current batch & subdivisiolevel.
 				{
-					const uint strideInBytes = 12; // arg count of Dispatch
+					const uint strideInBytes = g_GlobalConstants.IndirectDispatchEntryStride; // arg count of Dispatch
 					const uint ThreadCountXOffsetInBytes = 0;	 // offset of ThreadCountX in Dispatch
 					const uint offset = ThreadCountXOffsetInBytes + strideInBytes * subdivisionLevel;
 

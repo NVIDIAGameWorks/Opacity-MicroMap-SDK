@@ -34,7 +34,7 @@ void main(uint3 tid : SV_DispatchThreadID)
 	const uint batchIndex		= tid.x % g_GlobalConstants.MaxBatchCount;
 
 	{
-		const uint strideInBytes = 20;
+		const uint strideInBytes = g_GlobalConstants.IndirectDispatchEntryStride;
 
 		OMM_SUBRESOURCE_STORE(IEBakeBuffer, strideInBytes * tid.x + 0, 3 * GetNumMicroTri(subdivisionLevel)); /*IndexCountPerInstance*/
 		OMM_SUBRESOURCE_STORE(IEBakeBuffer, strideInBytes * tid.x + 4, 0);/*InstanceCount*/
@@ -44,7 +44,7 @@ void main(uint3 tid : SV_DispatchThreadID)
 	}
 
 	{
-		const uint strideInBytes = 12;
+		const uint strideInBytes = g_GlobalConstants.IndirectDispatchEntryStride;
 
 		OMM_SUBRESOURCE_STORE(IECompressCsBuffer, strideInBytes * tid.x + 0, 0);
 		OMM_SUBRESOURCE_STORE(IECompressCsBuffer, strideInBytes * tid.x + 4, 1);
