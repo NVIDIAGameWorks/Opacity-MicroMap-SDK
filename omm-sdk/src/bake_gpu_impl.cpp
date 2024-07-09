@@ -304,7 +304,7 @@ ommResult  PipelineImpl::Create(const ommGpuPipelineConfigDesc& config)
     m_pipelineBuilder.AddStaticSamplerDesc({ {ommSamplerDesc{ommTextureAddressMode_Border, ommTextureFilterMode_Nearest} , 7} });
 
     m_pipelines.ommClearBufferIdx = m_pipelineBuilder.AddComputePipeline(
-        ByteCodeFromName("omm_clear_buffer.cs", clear_buffer_cs),
+        ByteCodeFromName("omm_clear_buffer.cs", omm_clear_buffer_cs),
         m_pipelines.ommClearBufferBindings.GetRanges(), m_pipelines.ommClearBufferBindings.GetNumRanges());
 
     m_pipelines.ommInitBuffersCsIdx = m_pipelineBuilder.AddComputePipeline(
@@ -398,7 +398,7 @@ ommResult  PipelineImpl::Create(const ommGpuPipelineConfigDesc& config)
     m_pipelines.ommRenderTargetClearDebugIdx = m_pipelineBuilder.AddGraphicsPipeline(
         ByteCodeFromName("omm_rasterize_debug.vs", omm_rasterize_debug_vs),
         PipelineBuilder::ByteCode(),
-        ByteCodeFromName("omm_render_target_clear.ps", render_target_clear_ps),
+        ByteCodeFromName("omm_render_target_clear.ps", omm_render_target_clear_ps),
         false /*ConservativeRasterization*/,
         1 /*NumRenderTargets*/,
         m_pipelines.ommRenderTargetClearDebugBindings.GetRanges(), m_pipelines.ommRenderTargetClearDebugBindings.GetNumRanges());
