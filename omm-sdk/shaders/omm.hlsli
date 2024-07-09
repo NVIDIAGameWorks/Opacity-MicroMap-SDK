@@ -38,6 +38,14 @@ enum class SpecialIndex : int {
 	FullyUnknownOpaque       = -4,
 };
 
+enum class TexCoordFormat : int {
+   UV16_UNORM,
+   UV16_FLOAT,
+   UV32_FLOAT,
+	
+   MAX_NUM
+};
+
 OpacityState _getOpacityStateInternal(uint numOpaque, uint numTransparent)
 {
 	if (numOpaque == 0)

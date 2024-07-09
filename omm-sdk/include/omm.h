@@ -15,8 +15,8 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include <stddef.h>
 
 #define OMM_VERSION_MAJOR 1
-#define OMM_VERSION_MINOR 1
-#define OMM_VERSION_BUILD 1
+#define OMM_VERSION_MINOR 2
+#define OMM_VERSION_BUILD 0
 
 #define OMM_MAX_TRANSIENT_POOL_BUFFERS 8
 
@@ -39,16 +39,34 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #endif
 
 #ifdef DEFINE_ENUM_FLAG_OPERATORS
-#define OMM_DEFINE_ENUM_FLAG_OPERATORS(x) DEFINE_ENUM_FLAG_OPERATORS(x)
+    #define OMM_DEFINE_ENUM_FLAG_OPERATORS(x) DEFINE_ENUM_FLAG_OPERATORS(x)
 #else
-#define OMM_DEFINE_ENUM_FLAG_OPERATORS(x)
+    #define OMM_DEFINE_ENUM_FLAG_OPERATORS(x)
 #endif
 
-typedef void* (*ommAllocate)(void* userArg, size_t size, size_t alignment);
-typedef void* (*ommReallocate)(void* userArg, void* memory, size_t size, size_t alignment);
-typedef void (*ommFree)(void* userArg, void* memory);
+#ifndef OMM_DEPRECATED_MSG
+    #if defined(__has_cpp_attribute) && __has_cpp_attribute(deprecated) && !defined(__GNUC__)
+        #define OMM_DEPRECATED_MSG(msg) [[deprecated( msg )]]
+    #else
+        #define OMM_DEPRECATED_MSG(msg)
+    #endif
+#endif
 
 typedef uint8_t ommBool;
+
+typedef uintptr_t ommHandle;
+
+typedef ommHandle ommBaker;
+
+typedef ommHandle ommCpuBakeResult;
+
+typedef ommHandle ommCpuTexture;
+
+typedef void* (*ommAllocate)(void* userArg, size_t size, size_t alignment);
+
+typedef void* (*ommReallocate)(void* userArg, void* memory, size_t size, size_t alignment);
+
+typedef void (*ommFree)(void* userArg, void* memory);
 
 typedef enum ommResult
 {
@@ -57,16 +75,17 @@ typedef enum ommResult
    ommResult_INVALID_ARGUMENT,
    ommResult_INSUFFICIENT_SCRATCH_MEMORY,
    ommResult_NOT_IMPLEMENTED,
-   ommResult_WORKLOAD_TOO_BIG,
+   ommResult_WORKLOAD_TOO_BIG OMM_DEPRECATED_MSG("ommResult_WORKLOAD_TOO_BIG has been deprecated and will no longer be returned. Enable logging to look for perf warnings instead."),
    ommResult_MAX_NUM,
 } ommResult;
 
-typedef struct ommLibraryDesc
+typedef enum ommMessageSeverity
 {
-   uint8_t versionMajor;
-   uint8_t versionMinor;
-   uint8_t versionBuild;
-} ommLibraryDesc;
+    ommMessageSeverity_Info,
+    ommMessageSeverity_PerfWarning,
+    ommMessageSeverity_Fatal,
+    ommMessageSeverity_MAX_NUM,
+} ommMessageSeverity;
 
 typedef enum ommOpacityState
 {
@@ -123,8 +142,10 @@ typedef enum ommTexCoordFormat
 
 typedef enum ommIndexFormat
 {
-   ommIndexFormat_I16_UINT,
-   ommIndexFormat_I32_UINT,
+   ommIndexFormat_UINT_16,
+   ommIndexFormat_UINT_32,
+   ommIndexFormat_I16_UINT OMM_DEPRECATED_MSG("ommIndexFormat_I16_UINT is deprecated, please use ommIndexFormat_UINT_16 instead") = ommIndexFormat_UINT_16,
+   ommIndexFormat_I32_UINT OMM_DEPRECATED_MSG("ommIndexFormat_I32_UINT is deprecated, please use ommIndexFormat_UINT_32 instead") = ommIndexFormat_UINT_32,
    ommIndexFormat_MAX_NUM,
 } ommIndexFormat;
 
@@ -152,6 +173,13 @@ typedef enum ommAlphaMode
    ommAlphaMode_MAX_NUM,
 } ommAlphaMode;
 
+typedef struct ommLibraryDesc
+{
+    uint8_t versionMajor;
+    uint8_t versionMinor;
+    uint8_t versionBuild;
+} ommLibraryDesc;
+
 typedef struct ommSamplerDesc
 {
    ommTextureAddressMode addressingMode;
@@ -170,51 +198,71 @@ inline ommSamplerDesc ommSamplerDescDefault()
 
 typedef struct ommMemoryAllocatorInterface
 {
-   ommAllocate   Allocate;
-   ommReallocate Reallocate;
-   ommFree       Free;
-   void*         UserArg;
+   union {
+       ommAllocate                                                                              allocate;
+       ommAllocate      OMM_DEPRECATED_MSG("Allocate is deprecated, use allocate instead")      Allocate;
+   };
+   union {
+       ommReallocate                                                                            reallocate;
+       ommReallocate    OMM_DEPRECATED_MSG("Reallocate is deprecated, use reallocate instead")  Reallocate;
+   };
+   union {
+       ommFree                                                                                  free;
+       ommFree          OMM_DEPRECATED_MSG("Free is deprecated, use free instead")              Free;
+   };
+   union {
+       void*                                                                                    userArg;
+       void*            OMM_DEPRECATED_MSG("UserArg is deprecated, use userArg instead")        UserArg;
+   };
 } ommMemoryAllocatorInterface;
 
 inline ommMemoryAllocatorInterface ommMemoryAllocatorInterfaceDefault()
 {
    ommMemoryAllocatorInterface v;
-   v.Allocate    = NULL;
-   v.Reallocate  = NULL;
-   v.Free        = NULL;
-   v.UserArg     = NULL;
+   v.allocate    = NULL;
+   v.reallocate  = NULL;
+   v.free        = NULL;
+   v.userArg     = NULL;
    return v;
+}
+
+typedef void(*ommMessageCallback)(ommMessageSeverity severity, const char* message, void* userArg);
+
+typedef struct ommMessageInterface
+{
+    ommMessageCallback   messageCallback;
+    void*                userArg;
+} ommMessageInterface;
+
+inline ommMessageInterface ommMessageInterfaceDefault()
+{
+    ommMessageInterface v;
+    v.messageCallback   = NULL;
+    v.userArg           = NULL;
+    return v;
 }
 
 typedef struct ommBakerCreationDesc
 {
    ommBakerType                type;
-   ommBool                     enableValidation;
    ommMemoryAllocatorInterface memoryAllocatorInterface;
+   ommMessageInterface         messageInterface;
 } ommBakerCreationDesc;
 
 inline ommBakerCreationDesc ommBakerCreationDescDefault()
 {
    ommBakerCreationDesc v;
    v.type                      = ommBakerType_MAX_NUM;
-   v.enableValidation          = 0;
    v.memoryAllocatorInterface  = ommMemoryAllocatorInterfaceDefault();
+   v.messageInterface          = ommMessageInterfaceDefault();
    return v;
 }
-
-typedef uintptr_t ommHandle;
-
-typedef ommHandle ommBaker;
 
 OMM_API ommLibraryDesc ommGetLibraryDesc();
 
 OMM_API ommResult ommCreateBaker(const ommBakerCreationDesc* bakeCreationDesc, ommBaker* outBaker);
 
 OMM_API ommResult ommDestroyBaker(ommBaker baker);
-
-typedef ommHandle ommCpuBakeResult;
-
-typedef ommHandle ommCpuTexture;
 
 typedef enum ommCpuTextureFormat
 {
@@ -258,9 +306,10 @@ typedef enum ommCpuBakeFlags
    // compute. Note: can not be used if DisableDuplicateDetection is set.
    ommCpuBakeFlags_EnableNearDuplicateDetection = 1u << 4,
 
-   // Workload validation is a safety mechanism that will let the SDK reject workloads that become unreasonably large, which
-   // may lead to long baking times. When this flag is set the bake operation may return error WORKLOAD_TOO_BIG
+   // Enable additional validation, when enabled additional processing is performed to validate quality and sanity of input data
+   // which may help diagnose longer than expected bake time.
    ommCpuBakeFlags_EnableWorkloadValidation     = 1u << 5,
+
 } ommCpuBakeFlags;
 OMM_DEFINE_ENUM_FLAG_OPERATORS(ommCpuBakeFlags);
 
@@ -838,6 +887,7 @@ typedef struct ommGpuDispatchConfigDesc
    uint32_t                  alphaTextureChannel;
    ommTexCoordFormat         texCoordFormat;
    uint32_t                  texCoordOffsetInBytes;
+   // texCoordStrideInBytes: If zero, packed aligment is assumed
    uint32_t                  texCoordStrideInBytes;
    ommIndexFormat            indexFormat;
    // The actual number of indices can be lower.

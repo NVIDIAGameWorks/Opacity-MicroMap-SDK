@@ -20,7 +20,7 @@
 * DEALINGS IN THE SOFTWARE.
 */
 
-#include "platform.hlsli"
+#include "omm_platform.hlsli"
 #include "omm.hlsli"
 #include "omm_global_cb.hlsli"
 #include "omm_global_samplers.hlsli"
@@ -33,6 +33,7 @@ OMM_DECLARE_INPUT_RESOURCES
 OMM_DECLARE_OUTPUT_RESOURCES
 OMM_DECLARE_SUBRESOURCES
 
+#include "omm_common.hlsli"
 #include "omm_resample_common.hlsli"
 
 namespace bird
@@ -168,10 +169,6 @@ PRECISE float2 InterpolateTriangleUV(float3 bc, Triangle triangleUVs)
     return triangleUVs.p[0] * bc.x + triangleUVs.p[1] * bc.y + triangleUVs.p[2] * bc.z;
 }
 
-uint GetNumMicroTriangles(uint numSubdivisionLevels) {
-    return 1u << (numSubdivisionLevels << 1u);
-}
-
 Triangle GetMicroTriangle(const Triangle t, uint index, uint subdivisionLevel)
 {
     float2 uv0;
@@ -197,18 +194,10 @@ Triangle GetMacroTriangle(uint iPrimitiveIndex, out uint vmArrayOffset, out uint
     vmFormat = (OMMFormat)(vmFormatAndPrimitiveIndex >> 30);
     vmPrimitiveIndex = vmFormatAndPrimitiveIndex & 0x3FFFFFFF;
 
-    uint3 indices;
-    indices.x = t_indexBuffer[vmPrimitiveIndex * 3 + 0];
-    indices.y = t_indexBuffer[vmPrimitiveIndex * 3 + 1];
-    indices.z = t_indexBuffer[vmPrimitiveIndex * 3 + 2];
-
-    PRECISE float2 vertexUVs[3];
-    vertexUVs[0] = asfloat(t_texCoordBuffer.Load2(g_GlobalConstants.TexCoord1Offset + indices.x * g_GlobalConstants.TexCoord1Stride));
-    vertexUVs[1] = asfloat(t_texCoordBuffer.Load2(g_GlobalConstants.TexCoord1Offset + indices.y * g_GlobalConstants.TexCoord1Stride));
-    vertexUVs[2] = asfloat(t_texCoordBuffer.Load2(g_GlobalConstants.TexCoord1Offset + indices.z * g_GlobalConstants.TexCoord1Stride));
+    const TexCoords texCoords = FetchTexCoords(t_indexBuffer, t_texCoordBuffer, vmPrimitiveIndex);
 
     Triangle retT;
-    retT.Init(vertexUVs[0], vertexUVs[1], vertexUVs[2]);
+    retT.Init(texCoords.p0, texCoords.p1, texCoords.p2);
     return retT;
 }
 

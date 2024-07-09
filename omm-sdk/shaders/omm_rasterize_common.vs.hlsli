@@ -13,6 +13,8 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 // each i_pos is the discrete 2D barycentric coordinate packed.
 // The resulting texture coord is then mapped to a raster position in the vertex shader.
 
+#include "omm_common.hlsli"
+
 float2 GetTexCoordForVertex(
 	uint		i_pos,				// : POSITION
 	uint		i_primitiveIndex	// : SV_InstanceID
@@ -24,19 +26,11 @@ float2 GetTexCoordForVertex(
 	const OMMFormat vmFormat				= (OMMFormat)(vmFormatAndPrimitiveIndex >> 30);
 	const uint primitiveIndex				= vmFormatAndPrimitiveIndex & 0x3FFFFFFF;
 
-	uint3 indices;
-	indices.x = t_indexBuffer[primitiveIndex * 3 + 0];
-	indices.y = t_indexBuffer[primitiveIndex * 3 + 1];
-	indices.z = t_indexBuffer[primitiveIndex * 3 + 2];
+    const TexCoords texCoords = FetchTexCoords(t_indexBuffer, t_texCoordBuffer, primitiveIndex);
 
-	float2 vertexUVs[3];
-	vertexUVs[0] = asfloat(t_texCoordBuffer.Load2(g_GlobalConstants.TexCoord1Offset + indices.x * g_GlobalConstants.TexCoord1Stride));
-	vertexUVs[1] = asfloat(t_texCoordBuffer.Load2(g_GlobalConstants.TexCoord1Offset + indices.y * g_GlobalConstants.TexCoord1Stride));
-	vertexUVs[2] = asfloat(t_texCoordBuffer.Load2(g_GlobalConstants.TexCoord1Offset + indices.z * g_GlobalConstants.TexCoord1Stride));
-
-	const float2 p0 =   vertexUVs[0];
-	const float2 v0 =  (vertexUVs[1] - p0);
-	const float2 v1 =   vertexUVs[2] - p0;
+	const float2 p0 =   texCoords.p0;
+	const float2 v0 =   texCoords.p1 - p0;
+	const float2 v1 =   texCoords.p2 - p0;
 
 	const uint N		= 1u << g_LocalConstants.SubdivisionLevel;
 	const uint i		= (i_pos & 0xFFFF);

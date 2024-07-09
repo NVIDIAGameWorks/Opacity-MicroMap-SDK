@@ -51,11 +51,3 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/gtest)
 	add_subdirectory("gtest")
 	set_target_properties("gmock" "gmock_main" "gtest_main" "gtest" PROPERTIES FOLDER "${OMM_PROJECT_FOLDER}/Thirdparty")
 endif()
-
-# gbenchmark
-if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/gbenchmark)
-	set(BENCHMARK_ENABLE_INSTALL OFF)
-	set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
-	add_subdirectory("gbenchmark")
-	set_target_properties("benchmark" "benchmark_main" PROPERTIES FOLDER "${OMM_PROJECT_FOLDER}/Thirdparty")
-endif()

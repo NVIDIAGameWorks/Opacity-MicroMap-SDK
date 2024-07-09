@@ -21,8 +21,9 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 namespace omm
 {
-    TextureImpl::TextureImpl(const StdAllocator<uint8_t>& stdAllocator) :
+    TextureImpl::TextureImpl(const StdAllocator<uint8_t>& stdAllocator, const Logger& log) :
         m_stdAllocator(stdAllocator),
+        m_log(log),
         m_mips(stdAllocator),
         m_textureFormat(ommCpuTextureFormat_MAX_NUM),
         m_tilingMode(TilingMode::MAX_NUM),
@@ -37,24 +38,24 @@ namespace omm
         Deallocate();
     }
 
-    ommResult TextureImpl::Validate(const ommCpuTextureDesc& desc) {
+    ommResult TextureImpl::Validate(const ommCpuTextureDesc& desc) const {
         if (desc.mipCount == 0)
-            return ommResult_INVALID_ARGUMENT;
+            return m_log.InvalidArg("[Invalid Arg] - mipCount must be non-zero");
         if (desc.format == ommCpuTextureFormat_MAX_NUM)
-            return ommResult_INVALID_ARGUMENT;
+            return m_log.InvalidArg("[Invalid Arg] - format is not set");
 
         for (uint32_t i = 0; i < desc.mipCount; ++i)
         {
             if (!desc.mips[i].textureData)
-                return ommResult_INVALID_ARGUMENT;
+                return m_log.InvalidArg("[Invalid Arg] - mips.textureData is not set");
             if (desc.mips[i].width == 0)
-                return ommResult_INVALID_ARGUMENT;
+                return m_log.InvalidArg("[Invalid Arg] - mips.width must be non-zero");
             if (desc.mips[i].height == 0)
-                return ommResult_INVALID_ARGUMENT;
+                return m_log.InvalidArg("[Invalid Arg] - mips.height must be non-zero");
             if (desc.mips[i].width > kMaxDim.x)
-                return ommResult_INVALID_ARGUMENT;
+                return m_log.InvalidArg("[Invalid Arg] - mips.width must be less than kMaxDim.x (65536)");
             if (desc.mips[i].height > kMaxDim.y)
-                return ommResult_INVALID_ARGUMENT;
+                return m_log.InvalidArg("[Invalid Arg] - mips.height must be less than kMaxDim.y (65536)");
         }
 
         return ommResult_SUCCESS;
@@ -107,7 +108,7 @@ namespace omm
             else
             {
                 OMM_ASSERT(false);
-                return ommResult_INVALID_ARGUMENT;
+                return ommResult_FAILURE;
             }
 
             totalSize += sizePerPixel * m_mips[mipIt].numElements;
@@ -177,7 +178,7 @@ namespace omm
             else
             {
                 OMM_ASSERT(false);
-                return ommResult_INVALID_ARGUMENT;
+                return ommResult_FAILURE;
             }
 
             if (enableSAT)

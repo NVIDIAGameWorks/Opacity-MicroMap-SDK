@@ -11,8 +11,8 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 // SHADERS =================================================================================
 
 #ifdef OMM_ENABLE_PRECOMPILED_SHADERS_DXIL
-	#include "clear_buffer.cs.dxil.h"
-	#include "render_target_clear.ps.dxil.h"
+	#include "omm_clear_buffer.cs.dxil.h"
+	#include "omm_render_target_clear.ps.dxil.h"
 
 	#include "omm_init_buffers_cs.cs.dxil.h"
 	#include "omm_init_buffers_gfx.cs.dxil.h"
@@ -41,8 +41,8 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #endif
 
 #ifdef OMM_ENABLE_PRECOMPILED_SHADERS_SPIRV
-	#include "clear_buffer.cs.spirv.h"
-	#include "render_target_clear.ps.spirv.h"
+	#include "omm_clear_buffer.cs.spirv.h"
+	#include "omm_render_target_clear.ps.spirv.h"
 
 	#include "omm_init_buffers_cs.cs.spirv.h"
 	#include "omm_init_buffers_gfx.cs.spirv.h"
@@ -82,8 +82,8 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 OMM_DECLARE_GLOBAL_CONSTANT_BUFFER
 
 // SHADER BINDINGS =========================================================================
-BEGIN_DECLARE_SHADER_BINDINGS(clear_buffer_cs_bindings)
-#include "clear_buffer.cs.resources.hlsli"
+BEGIN_DECLARE_SHADER_BINDINGS(omm_clear_buffer_cs_bindings)
+#include "omm_clear_buffer.cs.resources.hlsli"
 #include "shader_bindings_expand.h"
 END_DECLARE_SHADER_BINDINGS
 /// **********************************************************************************
@@ -147,8 +147,8 @@ BEGIN_DECLARE_SHADER_BINDINGS(omm_index_write_cs_bindings)
 #include "shader_bindings_expand.h"
 END_DECLARE_SHADER_BINDINGS
 /// **********************************************************************************
-BEGIN_DECLARE_SHADER_BINDINGS(render_target_clear_bindings)
-#include "render_target_clear.ps.resources.hlsli"
+BEGIN_DECLARE_SHADER_BINDINGS(omm_render_target_clear_bindings)
+#include "omm_render_target_clear.ps.resources.hlsli"
 #include "shader_bindings_expand.h"
 END_DECLARE_SHADER_BINDINGS
 /// **********************************************************************************

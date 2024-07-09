@@ -57,15 +57,17 @@ OMM_API ommResult OMM_CALL ommCpuCreateTexture(ommBaker baker, const ommCpuTextu
 {
     if (baker == 0)
         return ommResult_INVALID_ARGUMENT;
-    if (desc == 0)
-        return ommResult_INVALID_ARGUMENT;
-    if (GetBakerType(baker) != ommBakerType_CPU)
-        return ommResult_INVALID_ARGUMENT;
 
     Cpu::BakerImpl* impl = GetBakerImpl<Cpu::BakerImpl>(baker);
+
+    if (desc == 0)
+        return impl->GetLog().InvalidArg("texture desc was not set");
+    if (GetBakerType(baker) != ommBakerType_CPU)
+        return impl->GetLog().InvalidArg("Baker was not created as the right type");
+
     StdAllocator<uint8_t>& memoryAllocator = (*impl).GetStdAllocator();
 
-    TextureImpl* implementation = Allocate<TextureImpl>(memoryAllocator, memoryAllocator);
+    TextureImpl* implementation = Allocate<TextureImpl>(memoryAllocator, memoryAllocator, impl->GetLog());
     const ommResult result = implementation->Create(*desc);
 
     if (result == ommResult_SUCCESS)
@@ -82,10 +84,12 @@ OMM_API ommResult OMM_CALL ommCpuDestroyTexture(ommBaker baker, ommCpuTexture te
 {
     if (texture == 0)
         return ommResult_INVALID_ARGUMENT;
-    if (GetBakerType(baker) != ommBakerType_CPU)
-        return ommResult_INVALID_ARGUMENT;
 
     Cpu::BakerImpl* impl = GetBakerImpl<Cpu::BakerImpl>(baker);
+
+    if (GetBakerType(baker) != ommBakerType_CPU)
+        return impl->GetLog().InvalidArg("Baker was not created as the right type");
+
     StdAllocator<uint8_t>& memoryAllocator = (*impl).GetStdAllocator();
 
     Deallocate(memoryAllocator, (TextureImpl*)texture);
@@ -97,12 +101,14 @@ OMM_API ommResult OMM_CALL ommCpuBake(ommBaker baker, const ommCpuBakeInputDesc*
 {
     if (baker == 0)
         return ommResult_INVALID_ARGUMENT;
-    if (bakeInputDesc == 0)
-        return ommResult_INVALID_ARGUMENT;
-    if (GetBakerType(baker) != ommBakerType_CPU)
-        return ommResult_INVALID_ARGUMENT;
 
     Cpu::BakerImpl* impl = GetBakerImpl<Cpu::BakerImpl>(baker);
+
+    if (bakeInputDesc == 0)
+        return impl->GetLog().InvalidArg("input desc was not set");
+    if (GetBakerType(baker) != ommBakerType_CPU)
+        return impl->GetLog().InvalidArg("Baker was not created as the right type");
+
     return (*impl).BakeOpacityMicromap(*bakeInputDesc, bakeResult);
 }
 
@@ -135,11 +141,13 @@ OMM_API ommResult OMM_CALL ommGpuCreatePipeline(ommBaker baker, const ommGpuPipe
 {
     if (baker == 0)
         return ommResult_INVALID_ARGUMENT;
-    if (config == 0)
-        return ommResult_INVALID_ARGUMENT;
-    if (GetBakerType(baker) != ommBakerType_GPU)
-        return ommResult_INVALID_ARGUMENT;
+
     Gpu::BakerImpl* bakePtr = GetBakerImpl<Gpu::BakerImpl>(baker);
+
+    if (config == 0)
+        return bakePtr->GetLog().InvalidArg("[Invalid Arg] - pipeline config desc must be provided");
+    if (GetBakerType(baker) != ommBakerType_GPU)
+        return bakePtr->GetLog().InvalidArg("[Invalid Arg] - invalid baker type");
     return bakePtr->CreatePipeline(*config, outPipeline);
 }
 
@@ -235,10 +243,10 @@ OMM_API ommResult OMM_CALL ommCreateBaker(const ommBakerCreationDesc* desc, ommB
 
     StdMemoryAllocatorInterface o = 
     {
-        .Allocate = desc->memoryAllocatorInterface.Allocate,
-        .Reallocate = desc->memoryAllocatorInterface.Reallocate,
-        .Free = desc->memoryAllocatorInterface.Free,
-        .UserArg = desc->memoryAllocatorInterface.UserArg
+        .Allocate = desc->memoryAllocatorInterface.allocate,
+        .Reallocate = desc->memoryAllocatorInterface.reallocate,
+        .Free = desc->memoryAllocatorInterface.free,
+        .UserArg = desc->memoryAllocatorInterface.userArg
     };
 
     CheckAndSetDefaultAllocator(o);

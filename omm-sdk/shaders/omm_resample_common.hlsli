@@ -242,19 +242,18 @@ namespace raster
                     const bool IsOpaque2 = g_GlobalConstants.AlphaCutoff < gatherAlphaSwizzled.z;
                     const bool IsOpaque3 = g_GlobalConstants.AlphaCutoff < gatherAlphaSwizzled.w;
 
-                    {
-                        IsOpaque |= IsInside0 && IsOpaque0;
-                        IsTransparent |= IsInside0 && !IsOpaque0;
-
-                        IsOpaque |= IsInside1 && IsOpaque1;
-                        IsTransparent |= IsInside1 && !IsOpaque1;
-
-                        IsOpaque |= IsInside2 && IsOpaque2;
-                        IsTransparent |= IsInside2 && !IsOpaque2;
-
-                        IsOpaque |= IsInside3 && IsOpaque3;
-                        IsTransparent |= IsInside3 && !IsOpaque3;
-                    }
+                    IsOpaque =  IsOpaque ||
+                                (IsInside0 && IsOpaque0) ||
+                                (IsInside1 && IsOpaque1) || 
+                                (IsInside2 && IsOpaque2) || 
+                                (IsInside3 && IsOpaque3);
+                        
+                    IsTransparent =  IsTransparent ||
+                                    (IsInside0 && !IsOpaque0) ||
+                                    (IsInside1 && !IsOpaque1) || 
+                                    (IsInside2 && !IsOpaque2) || 
+                                    (IsInside3 && !IsOpaque3);
+                    
 
                     // We've already concluded it's unknown -> return!
                     if (IsOpaque && IsTransparent)
