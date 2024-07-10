@@ -751,7 +751,7 @@ namespace Cpu
                                             auto kernel = &LevelLineIntersectionKernel::run<eFormat, eTextureAddressMode, eTilingMode>;
                                             RasterizeConservativeSerialWithOffsetCoverage(subTri, rasterSize, pixelOffset, kernel, &params);
 
-                                            OMM_ASSERT(vmCoverage.opaque != 0 || vmCoverage.trans != 0);
+                                            OMM_ASSERT(vmCoverage.numAboveAlpha != 0 || vmCoverage.numBelowAlpha != 0);
                                             const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGT, desc.alphaCutoffLE, vmCoverage);
 
                                             if (IsUnknown(state))
@@ -781,7 +781,7 @@ namespace Cpu
                                         RasterizeConservativeSerialWithOffsetCoverage(subTri0, rasterSize, pixelOffset, kernel, &params);
                                         RasterizeConservativeSerialWithOffsetCoverage(subTri1, rasterSize, pixelOffset, kernel, &params);
 
-                                        OMM_ASSERT(vmCoverage.opaque != 0 || vmCoverage.trans != 0);
+                                        OMM_ASSERT(vmCoverage.numAboveAlpha != 0 || vmCoverage.numBelowAlpha != 0);
 
                                         const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGT, desc.alphaCutoffLE, vmCoverage);
                                         workItem.vmStates.SetState(uTriIt, state);
@@ -805,7 +805,7 @@ namespace Cpu
                                         auto kernel = &ConservativeBilinearKernel::run<eFormat, eTextureAddressMode, eTilingMode>;
                                         RasterizeConservativeSerialWithOffsetCoverage(subTri, rasterSize, pixelOffset, kernel, &params);
 
-                                        OMM_ASSERT(vmCoverage.opaque != 0 || vmCoverage.trans != 0);
+                                        OMM_ASSERT(vmCoverage.numBelowAlpha != 0 || vmCoverage.numAboveAlpha != 0);
 
                                         const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGT, desc.alphaCutoffLE, vmCoverage);
 
@@ -856,7 +856,7 @@ namespace Cpu
                                         const Triangle subTri = omm::bird::GetMicroTriangle(workItem.uvTri, uTriIt, workItem.subdivisionLevel);
 
                                         RasterizeConservativeSerial(subTri, rasterSize, kernel, &params);
-                                        OMM_ASSERT(vmCoverage.opaque != 0 || vmCoverage.trans != 0);
+                                        OMM_ASSERT(vmCoverage.numAboveAlpha != 0 || vmCoverage.numBelowAlpha != 0);
 
                                         const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGT, desc.alphaCutoffLE, vmCoverage);
                                         if (IsUnknown(state))
