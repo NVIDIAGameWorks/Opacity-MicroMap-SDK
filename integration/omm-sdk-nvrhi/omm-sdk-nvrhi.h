@@ -16,6 +16,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include <functional>
 #include <vector>
 #include <memory>
+#include <optional>
 
 #include <omm.hpp>
 
@@ -33,6 +34,8 @@ namespace omm
 			nvrhi::VulkanBindingOffsets bindingOffsets;
 			std::function<nvrhi::ShaderHandle(nvrhi::ShaderType type, const char* shaderName, const char* shaderEntryName)> shaders;
 		};
+
+		using MessageCallback = std::function<void(omm::MessageSeverity severity, const char* message)>;
 
 		enum class Operation
 		{
@@ -128,7 +131,7 @@ namespace omm
 			uint32_t totalFullyUnknownTransparent = 0;
 		};
 
-		GpuBakeNvrhi(nvrhi::DeviceHandle device, nvrhi::CommandListHandle commandList, bool enableDebug, ShaderProvider* shaderProvider = nullptr);
+		GpuBakeNvrhi(nvrhi::DeviceHandle device, nvrhi::CommandListHandle commandList, bool enableDebug, ShaderProvider* shaderProvider = nullptr, std::optional<MessageCallback> callback = nullptr);
 		~GpuBakeNvrhi();
 
 		// CPU side pre-build info.

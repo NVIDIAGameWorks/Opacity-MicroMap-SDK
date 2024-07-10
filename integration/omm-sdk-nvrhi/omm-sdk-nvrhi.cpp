@@ -184,7 +184,7 @@ class GpuBakeNvrhiImpl
 {
 public:
 
-	GpuBakeNvrhiImpl(nvrhi::DeviceHandle device, nvrhi::CommandListHandle commandList, bool enableDebug, GpuBakeNvrhi::ShaderProvider* shaderProvider);
+	GpuBakeNvrhiImpl(nvrhi::DeviceHandle device, nvrhi::CommandListHandle commandList, bool enableDebug, GpuBakeNvrhi::ShaderProvider* shaderProvider, std::optional<GpuBakeNvrhi::MessageCallback> messageCallback);
 	~GpuBakeNvrhiImpl();
 
 	// CPU side pre-build info.
@@ -263,12 +263,14 @@ private:
 	omm::Baker m_cpuBaker;
 	omm::Gpu::Pipeline m_pipeline;
 	bool m_enableDebug = false;
+	std::optional<GpuBakeNvrhi::MessageCallback> m_messageCallback;
 };
 
-GpuBakeNvrhiImpl::GpuBakeNvrhiImpl(nvrhi::DeviceHandle device, nvrhi::CommandListHandle commandList, bool enableDebug, GpuBakeNvrhi::ShaderProvider* shaderProvider)
+GpuBakeNvrhiImpl::GpuBakeNvrhiImpl(nvrhi::DeviceHandle device, nvrhi::CommandListHandle commandList, bool enableDebug, GpuBakeNvrhi::ShaderProvider* shaderProvider, std::optional<GpuBakeNvrhi::MessageCallback> messageCallback)
 	: m_device(device)
 	, m_bindingCache(new BindingCache(device))
 	, m_enableDebug(enableDebug)
+	, m_messageCallback(messageCallback)
 {
 	InitStaticBuffers(commandList);
 	InitBaker(shaderProvider);
@@ -369,6 +371,14 @@ void GpuBakeNvrhiImpl::InitBaker(GpuBakeNvrhi::ShaderProvider* shaderProvider)
 	{
 		omm::BakerCreationDesc desc;
 		desc.type = omm::BakerType::GPU;
+		if (m_messageCallback.has_value())
+		{
+			desc.messageInterface.userArg = this;
+			desc.messageInterface.messageCallback = [](omm::MessageSeverity severity, const char* message, void* userArg) {
+				GpuBakeNvrhiImpl* _this = (GpuBakeNvrhiImpl*)userArg;
+				_this->m_messageCallback.value()(severity, message);
+			};
+		}
 
 		omm::Result res = omm::CreateBaker(desc, &m_baker);
 		assert(res == omm::Result::SUCCESS);
@@ -1207,8 +1217,8 @@ GpuBakeNvrhi::Stats GpuBakeNvrhiImpl::GetStats(const omm::Cpu::BakeResultDesc& d
 }
 
 
-GpuBakeNvrhi::GpuBakeNvrhi(nvrhi::DeviceHandle device, nvrhi::CommandListHandle commandList, bool enableDebug, ShaderProvider* shaderProvider)
-	:m_impl(std::make_unique<GpuBakeNvrhiImpl>(device, commandList, enableDebug, shaderProvider))
+GpuBakeNvrhi::GpuBakeNvrhi(nvrhi::DeviceHandle device, nvrhi::CommandListHandle commandList, bool enableDebug, ShaderProvider* shaderProvider, std::optional<MessageCallback> callback)
+	:m_impl(std::make_unique<GpuBakeNvrhiImpl>(device, commandList, enableDebug, shaderProvider, callback))
 {
 
 }
