@@ -41,11 +41,10 @@ void main(
 	const float4 color			= t_alphaTexture.SampleLevel(s_samplers[g_GlobalConstants.SamplerIndex], texCoord.xy, 0);
 	const float alpha			= color[g_GlobalConstants.AlphaTextureChannel];
 
-	const uint isOpaque			= g_GlobalConstants.AlphaCutoff < alpha;
-	const OpacityState vmState	= GetOpacityState(isOpaque, !isOpaque, OMMFormat::OC1_4);
+    const OpacityState vertexState = (OpacityState) (g_GlobalConstants.AlphaCutoff < alpha ? (uint) OpacityState::Opaque : (uint) OpacityState::Transparent);
 
 	o_primitiveIndex		= i_primitiveIndex;
 	o_texCoord				= texCoord;
-	o_vmStateAtVertex		= (uint)vmState;
+	o_vmStateAtVertex		= (uint)vertexState;
 	o_posClip				= raster::TexCoord_to_VS_SV_Position(texCoord);
 }

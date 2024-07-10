@@ -225,6 +225,16 @@ namespace Cpu
             }
         }
 
+        if (!IsCompatible(desc.alphaCutoffGT, desc.format))
+        {
+            return m_log.InvalidArgf("[Invalid Argument] - alphaCutoffGT=%s is not compatible with %s", GetOpacityStateAsString(desc.alphaCutoffGT), GetFormatAsString(desc.format));
+        }
+
+        if (!IsCompatible(desc.alphaCutoffLE, desc.format))
+        {
+            return m_log.InvalidArgf("[Invalid Argument] - alphaCutoffLE=%s is not compatible with %s", GetOpacityStateAsString(desc.alphaCutoffLE), GetFormatAsString(desc.format));
+        }
+
         return ommResult_SUCCESS;
     }
 
@@ -387,14 +397,6 @@ namespace Cpu
         uint32_t vmDescOffset = 0xFFFFFFFF;
         uint32_t vmSpecialIndex = kNoSpecialIndex;
         OmmArrayDataVector vmStates;
-    };
-
-    static bool IsUnknown(ommOpacityState state) {
-        return state == ommOpacityState_UnknownOpaque || state == ommOpacityState_UnknownTransparent;
-    };
-
-    static bool IsKnown(ommOpacityState state) {
-        return state == ommOpacityState_Opaque || state == ommOpacityState_Transparent;
     };
 
     static float GetArea2D(const float2& p0, const float2& p1, const float2& p2) {
@@ -664,13 +666,13 @@ namespace Cpu
 
                                     if (sa == 0)
                                     {
-                                        // transparent
-                                        workItem.vmStates.SetState(uTriIt, ommOpacityState_Transparent);
+                                        // (Less than or equal to alpha threshold)
+                                        workItem.vmStates.SetState(uTriIt, desc.alphaCutoffLE);
                                     }
                                     else if (sa == area)
                                     {
-                                        // opaque
-                                        workItem.vmStates.SetState(uTriIt, ommOpacityState_Opaque);
+                                        // (Greater than alpha threshold)
+                                        workItem.vmStates.SetState(uTriIt, desc.alphaCutoffGT);
                                     }
                                 }
                             }
@@ -742,20 +744,20 @@ namespace Cpu
                                             float2 pixelOffset = -float2(0.5, 0.5);
 
                                             if (desc.alphaCutoff < texture->Bilinear(eTextureAddressMode, subTri.p0, mipIt))
-                                                vmCoverage.opaque++;
+                                                vmCoverage.numAboveAlpha++;
                                             else
-                                                vmCoverage.trans++;
+                                                vmCoverage.numBelowAlpha++;
 
                                             auto kernel = &LevelLineIntersectionKernel::run<eFormat, eTextureAddressMode, eTilingMode>;
                                             RasterizeConservativeSerialWithOffsetCoverage(subTri, rasterSize, pixelOffset, kernel, &params);
 
                                             OMM_ASSERT(vmCoverage.opaque != 0 || vmCoverage.trans != 0);
-                                            const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, vmCoverage);
+                                            const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGT, desc.alphaCutoffLE, vmCoverage);
 
                                             if (IsUnknown(state))
                                                 break;
                                         }
-                                        const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, vmCoverage);
+                                        const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGT, desc.alphaCutoffLE, vmCoverage);
                                         workItem.vmStates.SetState(uTriIt, state);
                                     }
                                     else if (options.enableAABBTesting)
@@ -781,7 +783,7 @@ namespace Cpu
 
                                         OMM_ASSERT(vmCoverage.opaque != 0 || vmCoverage.trans != 0);
 
-                                        const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, vmCoverage);
+                                        const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGT, desc.alphaCutoffLE, vmCoverage);
                                         workItem.vmStates.SetState(uTriIt, state);
                                     }
                                     else
@@ -805,7 +807,7 @@ namespace Cpu
 
                                         OMM_ASSERT(vmCoverage.opaque != 0 || vmCoverage.trans != 0);
 
-                                        const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, vmCoverage);
+                                        const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGT, desc.alphaCutoffLE, vmCoverage);
 
                                         workItem.vmStates.SetState(uTriIt, state);
                                     }
@@ -844,10 +846,10 @@ namespace Cpu
                                             const float alpha = isBorder ? p->borderAlpha : p->texture->template Load<eFormat, eTilingMode>(coord, p->mipIt);
 
                                             if (p->alphaCutoff < alpha) {
-                                                p->vmState->opaque++;
+                                                p->vmState->numAboveAlpha++;
                                             }
                                             else {
-                                                p->vmState->trans++;
+                                                p->vmState->numBelowAlpha++;
                                             }
                                         };
 
@@ -856,11 +858,11 @@ namespace Cpu
                                         RasterizeConservativeSerial(subTri, rasterSize, kernel, &params);
                                         OMM_ASSERT(vmCoverage.opaque != 0 || vmCoverage.trans != 0);
 
-                                        const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, vmCoverage);
+                                        const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGT, desc.alphaCutoffLE, vmCoverage);
                                         if (IsUnknown(state))
                                             break;
                                     }
-                                    const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, vmCoverage);
+                                    const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGT, desc.alphaCutoffLE, vmCoverage);
                                     workItem.vmStates.SetState(uTriIt, state);
                                 }
                             }

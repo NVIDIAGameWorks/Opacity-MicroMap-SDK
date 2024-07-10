@@ -48,6 +48,8 @@ namespace omm
 			nvrhi::TextureHandle				alphaTexture;
 			uint32_t							alphaTextureChannel = 3;
 			float								alphaCutoff = 0.5f;
+			omm::OpacityState					alphaCutoffGT = omm::OpacityState::Opaque;
+			omm::OpacityState					alphaCutoffLE = omm::OpacityState::Transparent;
 			bool								bilinearFilter = true;
 			bool								enableLevelLineIntersection = true;
 			nvrhi::SamplerAddressMode			sampleMode = nvrhi::SamplerAddressMode::Clamp;

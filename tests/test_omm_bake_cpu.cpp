@@ -42,6 +42,8 @@ namespace {
 		bool oneFile = true;
 		bool detailedCutout = false;
 		bool monochromeUnknowns = false;
+		omm::OpacityState alphaCutoffLE = omm::OpacityState::Transparent;
+		omm::OpacityState alphaCutoffGT = omm::OpacityState::Opaque;
 	};
 
 	class OMMBakeTestCPU : public ::testing::TestWithParam<TestSuiteConfig> {
@@ -132,6 +134,8 @@ namespace {
 			desc.indexCount = indexCount;
 			desc.maxSubdivisionLevel = subdivisionLevel;
 			desc.alphaCutoff = alphaCutoff;
+			desc.alphaCutoffLE = opt.alphaCutoffLE;
+			desc.alphaCutoffGT = opt.alphaCutoffGT;
 			desc.unknownStatePromotion = opt.unknownStatePromotion;
 			desc.bakeFlags = (omm::Cpu::BakeFlags)((uint32_t)omm::Cpu::BakeFlags::EnableInternalThreads);
 
@@ -931,6 +935,58 @@ namespace {
 			.totalTransparent = 5176,
 			.totalUnknownTransparent = 1215,
 			.totalUnknownOpaque = 1502,
+			});
+	}
+
+	TEST_P(OMMBakeTestCPU, Julia_T_AND_UO) {
+
+		uint32_t subdivisionLevel = 9;
+		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
+
+		uint32_t indexCount = 3;
+		uint32_t triangleIndices[6] = { 0, 1, 2, };
+		float texCoords[8] = { 0.2f, 0.f,  0.1f, 0.8f,  0.9f, 0.1f };
+
+		Options ops;
+		ops.alphaCutoffLE = omm::OpacityState::Transparent;
+		ops.alphaCutoffGT = omm::OpacityState::UnknownOpaque;
+
+		omm::Debug::Stats stats = RunOmmBakeUNORM8(0.5f, subdivisionLevel, { 1024, 1024 }, indexCount, triangleIndices, texCoords, [](int i, int j, int w, int h, int mip)->uint8_t {
+			const float val = GetJulia(i, j, w, h, mip);
+			return (uint8_t)std::clamp(val * 255.f, 0.f, 255.f);
+			}, ops);
+
+		ExpectEqual(stats, {
+		    .totalOpaque = 0,
+		    .totalTransparent = 5176,
+		    .totalUnknownTransparent = 1215,
+		    .totalUnknownOpaque = 1502 + 254251,
+		});
+	}
+
+	TEST_P(OMMBakeTestCPU, Julia_FLIP_T_AND_O) {
+
+		uint32_t subdivisionLevel = 9;
+		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
+
+		uint32_t indexCount = 3;
+		uint32_t triangleIndices[6] = { 0, 1, 2, };
+		float texCoords[8] = { 0.2f, 0.f,  0.1f, 0.8f,  0.9f, 0.1f };
+
+		Options ops;
+		ops.alphaCutoffLE = omm::OpacityState::Opaque;
+		ops.alphaCutoffGT = omm::OpacityState::Transparent;
+
+		omm::Debug::Stats stats = RunOmmBakeUNORM8(0.5f, subdivisionLevel, { 1024, 1024 }, indexCount, triangleIndices, texCoords, [](int i, int j, int w, int h, int mip)->uint8_t {
+			const float val = GetJulia(i, j, w, h, mip);
+			return (uint8_t)std::clamp(val * 255.f, 0.f, 255.f);
+			}, ops);
+
+		ExpectEqual(stats, {
+					.totalOpaque = 5176,
+					.totalTransparent = 254251,
+					.totalUnknownTransparent = 1502,
+					.totalUnknownOpaque = 1215,
 			});
 	}
 

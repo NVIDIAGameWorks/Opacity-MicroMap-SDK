@@ -102,6 +102,8 @@ namespace {
 		struct OmmBakeParams
 		{
 			float alphaCutoff = 0.5f;
+			omm::OpacityState alphaCutoffGT = omm::OpacityState::Opaque;
+			omm::OpacityState alphaCutoffLE = omm::OpacityState::Transparent;
 			uint32_t subdivisionLevel = 5;
 			int2 texSize = { 1024, 1024 };
 			uint32_t indexBufferSize = 0;
@@ -190,7 +192,9 @@ namespace {
 			omm::GpuBakeNvrhi::Input input;
 			input.alphaTexture = alphaTexture;
 			input.alphaTextureChannel = alphaTextureChannel;
-			input.alphaCutoff = 0.5f;
+			input.alphaCutoff = p.alphaCutoff;
+			input.alphaCutoffLE = p.alphaCutoffLE;
+			input.alphaCutoffGT = p.alphaCutoffGT;
 			input.texCoordFormat = p.texCoordFormat;
 			input.texCoordBuffer = vb;
 			input.texCoordStrideInBytes = 0;
@@ -532,6 +536,41 @@ namespace {
 		else
 		{
 			ExpectEqual(stats, { .totalOpaque = 512 });
+		}
+	}
+
+	TEST_P(OMMBakeTestGPU, AllOpaque4_FLIP_T_AND_O) {
+
+		uint32_t subdivisionLevel = 4;
+		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
+
+		uint32_t triangleIndices[] = { 0, 1, 2, 3, 1, 2 };
+		float texCoords[] = { 0.f, 0.f,	0.f, 1.f,	1.f, 0.f,	 1.f, 1.f };
+
+		OmmBakeParams p;
+		p.alphaCutoff = 0.5f;
+		p.alphaCutoffGT = omm::OpacityState::Transparent;
+		p.alphaCutoffLE = omm::OpacityState::Opaque;
+		p.subdivisionLevel = subdivisionLevel;
+		p.texSize = { 1024, 1024 };
+		p.texCb = [](int i, int j)->float {
+			return 0.6f;
+			};
+		p.format = omm::Format::OC1_4_State;
+		p.triangleIndices = triangleIndices;
+		p.indexBufferSize = sizeof(triangleIndices);
+		p.texCoords = texCoords;
+		p.texCoordBufferSize = sizeof(texCoords);
+
+		omm::Debug::Stats stats = RunOmmBake(p);
+
+		if (EnableSpecialIndices())
+		{
+			ExpectEqual(stats, { .totalFullyTransparent = 2 });
+		}
+		else
+		{
+			ExpectEqual(stats, { .totalTransparent = 512 });
 		}
 	}
 
@@ -1094,6 +1133,35 @@ namespace {
 		}
 	}
 
+	float GetJulia(int i, int j)
+	{
+		auto multiply = [](float2 x, float2 y)->float2 {
+			return float2(x.x * y.x - x.y * y.y, x.x * y.y + x.y * y.x);
+			};
+
+		float2 uv = 1.2f * float2(i, j) / float2(1024, 1024) - 0.1f;
+
+		float2 z0 = 5.f * (uv - float2(.5, .27));
+		float2 col;
+		float time = 3.1f;
+		float2 c = cos(time) * float2(cos(time / 2.), sin(time / 2.));
+		for (int i = 0; i < 500; i++) {
+			float2 z = multiply(z0, z0) + c;
+			float mq = dot(z, z);
+			if (mq > 4.) {
+				col = float2(float(i) / 20., 0.);
+				break;
+			}
+			else {
+				z0 = z;
+			}
+			col = float2(mq / 2., mq / 2.);
+		}
+
+		float alpha = std::clamp(col.x, 0.f, 1.f);
+		return 1.f - alpha;
+	}
+
 	TEST_P(OMMBakeTestGPU, Julia) {
 
 		uint32_t subdivisionLevel = 9;
@@ -1102,35 +1170,7 @@ namespace {
 		uint32_t triangleIndices[] = { 0, 1, 2, };
 		float texCoords[] = { 0.2f, 0.f,  0.1f, 0.8f,  0.9f, 0.1f };
 
-		omm::Debug::Stats stats = RunOmmBake(0.5f, subdivisionLevel, { 1024, 1024 }, sizeof(triangleIndices), triangleIndices, texCoords, sizeof(texCoords), [](int i, int j)->float {
-
-			auto multiply = [](float2 x, float2 y)->float2 {
-				return float2(x.x * y.x - x.y * y.y, x.x * y.y + x.y * y.x);
-			};
-
-			float2 uv = 1.2f * float2(i, j) / float2(1024, 1024) - 0.1f;
-
-			float2 z0 = 5.f * (uv - float2(.5, .27));
-			float2 col;
-			float time = 3.1f;
-			float2 c = cos(time) * float2(cos(time / 2.), sin(time / 2.));
-			for (int i = 0; i < 500; i++) {
-				float2 z = multiply(z0, z0) + c;
-				float mq = dot(z, z);
-				if (mq > 4.) {
-					col = float2(float(i) / 20., 0.);
-					break;
-				}
-				else {
-					z0 = z;
-				}
-				col = float2(mq / 2., mq / 2.);
-			}
-
-			float alpha = std::clamp(col.x, 0.f, 1.f);
-			return 1.f - alpha;
-
-			}, omm::Format::OC1_4_State);
+		omm::Debug::Stats stats = RunOmmBake(0.5f, subdivisionLevel, { 1024, 1024 }, sizeof(triangleIndices), triangleIndices, texCoords, sizeof(texCoords), &GetJulia, omm::Format::OC1_4_State);
 
 		if (ComputeOnly())
 		{
@@ -1152,6 +1192,92 @@ namespace {
 		}
 	}
 
+	TEST_P(OMMBakeTestGPU, Julia_T_AND_UO) {
+
+		uint32_t subdivisionLevel = 9;
+		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
+
+		uint32_t triangleIndices[] = { 0, 1, 2, };
+		float texCoords[] = { 0.2f, 0.f,  0.1f, 0.8f,  0.9f, 0.1f };
+
+		OmmBakeParams p;
+		p.alphaCutoff = 0.5f;
+		p.alphaCutoffGT = omm::OpacityState::UnknownOpaque;
+		p.alphaCutoffLE = omm::OpacityState::Transparent;
+		p.subdivisionLevel = subdivisionLevel;
+		p.texSize = { 1024, 1024 };
+		p.texCb = &GetJulia;
+		p.format = omm::Format::OC1_4_State;
+		p.triangleIndices = triangleIndices;
+		p.indexBufferSize = sizeof(triangleIndices);
+		p.texCoordFormat = nvrhi::Format::R32_FLOAT;
+		p.texCoords = texCoords;
+		p.texCoordBufferSize = sizeof(texCoords);
+		omm::Debug::Stats stats = RunOmmBake(p);
+
+		if (ComputeOnly())
+		{
+			ExpectEqual(stats, {
+				.totalOpaque = 0,
+				.totalTransparent = 4300,
+				.totalUnknownTransparent = 0,
+				.totalUnknownOpaque = 3116 + 254728,
+				});
+		}
+		else
+		{
+			ExpectEqual(stats, {
+				.totalOpaque = 0,
+				.totalTransparent = 4300,
+				.totalUnknownTransparent = 0,
+				.totalUnknownOpaque = 3121 + 254723,
+				});
+		}
+	}
+
+	TEST_P(OMMBakeTestGPU, Julia_FLIP_T_AND_O) {
+
+		uint32_t subdivisionLevel = 9;
+		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
+
+		uint32_t triangleIndices[] = { 0, 1, 2, };
+		float texCoords[] = { 0.2f, 0.f,  0.1f, 0.8f,  0.9f, 0.1f };
+
+		OmmBakeParams p;
+		p.alphaCutoff = 0.5f;
+		p.alphaCutoffGT = omm::OpacityState::Transparent;
+		p.alphaCutoffLE = omm::OpacityState::Opaque;
+		p.subdivisionLevel = subdivisionLevel;
+		p.texSize = { 1024, 1024 };
+		p.texCb = &GetJulia;
+		p.format = omm::Format::OC1_4_State;
+		p.triangleIndices = triangleIndices;
+		p.indexBufferSize = sizeof(triangleIndices);
+		p.texCoordFormat = nvrhi::Format::R32_FLOAT;
+		p.texCoords = texCoords;
+		p.texCoordBufferSize = sizeof(texCoords);
+		omm::Debug::Stats stats = RunOmmBake(p);
+
+		if (ComputeOnly())
+		{
+			ExpectEqual(stats, {
+				.totalOpaque = 4300,
+				.totalTransparent = 254728,
+				.totalUnknownTransparent = 3116,
+				.totalUnknownOpaque = 0,
+				});
+		}
+		else
+		{
+			ExpectEqual(stats, {
+				.totalOpaque =  4300,
+				.totalTransparent = 254723,
+				.totalUnknownTransparent = 3121,
+				.totalUnknownOpaque = 0,
+				});
+		}
+	}
+
 	TEST_P(OMMBakeTestGPU, Julia_UV_FP16) {
 
 		uint32_t subdivisionLevel = 9;
@@ -1164,35 +1290,7 @@ namespace {
 		const std::vector<uint32_t> texCoordFP16 = ConvertTexCoords(texCoordFormat, texCoords, sizeof(texCoords));
 		const uint32_t texCoordSize = (uint32_t)(sizeof(uint32_t) * texCoordFP16.size());
 
-		omm::Debug::Stats stats = RunOmmBake(0.5f, subdivisionLevel, { 1024, 1024 }, sizeof(triangleIndices), triangleIndices, (void*)texCoordFP16.data(), texCoordSize, [](int i, int j)->float {
-
-			auto multiply = [](float2 x, float2 y)->float2 {
-				return float2(x.x * y.x - x.y * y.y, x.x * y.y + x.y * y.x);
-				};
-
-			float2 uv = 1.2f * float2(i, j) / float2(1024, 1024) - 0.1f;
-
-			float2 z0 = 5.f * (uv - float2(.5, .27));
-			float2 col;
-			float time = 3.1f;
-			float2 c = cos(time) * float2(cos(time / 2.), sin(time / 2.));
-			for (int i = 0; i < 500; i++) {
-				float2 z = multiply(z0, z0) + c;
-				float mq = dot(z, z);
-				if (mq > 4.) {
-					col = float2(float(i) / 20., 0.);
-					break;
-				}
-				else {
-					z0 = z;
-				}
-				col = float2(mq / 2., mq / 2.);
-			}
-
-			float alpha = std::clamp(col.x, 0.f, 1.f);
-			return 1.f - alpha;
-
-			}, omm::Format::OC1_4_State, texCoordFormat);
+		omm::Debug::Stats stats = RunOmmBake(0.5f, subdivisionLevel, { 1024, 1024 }, sizeof(triangleIndices), triangleIndices, (void*)texCoordFP16.data(), texCoordSize, &GetJulia, omm::Format::OC1_4_State, texCoordFormat);
 
 		if (ComputeOnly())
 		{
@@ -1226,35 +1324,7 @@ namespace {
 		const std::vector<uint32_t> texCoordUNORM16 = ConvertTexCoords(texCoordFormat, texCoords, sizeof(texCoords));
 		const uint32_t texCoordSize = (uint32_t)(sizeof(uint32_t) * texCoordUNORM16.size());
 
-		omm::Debug::Stats stats = RunOmmBake(0.5f, subdivisionLevel, { 1024, 1024 }, sizeof(triangleIndices), triangleIndices, (void*)texCoordUNORM16.data(), texCoordSize, [](int i, int j)->float {
-
-			auto multiply = [](float2 x, float2 y)->float2 {
-				return float2(x.x * y.x - x.y * y.y, x.x * y.y + x.y * y.x);
-				};
-
-			float2 uv = 1.2f * float2(i, j) / float2(1024, 1024) - 0.1f;
-
-			float2 z0 = 5.f * (uv - float2(.5, .27));
-			float2 col;
-			float time = 3.1f;
-			float2 c = cos(time) * float2(cos(time / 2.), sin(time / 2.));
-			for (int i = 0; i < 500; i++) {
-				float2 z = multiply(z0, z0) + c;
-				float mq = dot(z, z);
-				if (mq > 4.) {
-					col = float2(float(i) / 20., 0.);
-					break;
-				}
-				else {
-					z0 = z;
-				}
-				col = float2(mq / 2., mq / 2.);
-			}
-
-			float alpha = std::clamp(col.x, 0.f, 1.f);
-			return 1.f - alpha;
-
-			}, omm::Format::OC1_4_State, texCoordFormat);
+		omm::Debug::Stats stats = RunOmmBake(0.5f, subdivisionLevel, { 1024, 1024 }, sizeof(triangleIndices), triangleIndices, (void*)texCoordUNORM16.data(), texCoordSize, &GetJulia, omm::Format::OC1_4_State, texCoordFormat);
 
 		if (ComputeOnly())
 		{
@@ -1284,35 +1354,7 @@ namespace {
 		uint32_t triangleIndices[] = { 0, 1, 2, 3, 4, 5, };
 		float texCoords[] = { 0.2f, 0.f,  0.1f, 0.8f,  0.9f, 0.1f, 0.2f, 0.f,  0.1f, 0.8f,  0.9f, 0.1f };
 
-		omm::Debug::Stats stats = RunOmmBake(0.5f, subdivisionLevel, { 1024, 1024 }, sizeof(triangleIndices), triangleIndices, texCoords, sizeof(texCoords), [](int i, int j)->float {
-
-			auto multiply = [](float2 x, float2 y)->float2 {
-				return float2(x.x * y.x - x.y * y.y, x.x * y.y + x.y * y.x);
-			};
-
-			float2 uv = 1.2f * float2(i, j) / float2(1024, 1024) - 0.1f;
-
-			float2 z0 = 5.f * (uv - float2(.5, .27));
-			float2 col;
-			float time = 3.1f;
-			float2 c = cos(time) * float2(cos(time / 2.), sin(time / 2.));
-			for (int i = 0; i < 500; i++) {
-				float2 z = multiply(z0, z0) + c;
-				float mq = dot(z, z);
-				if (mq > 4.) {
-					col = float2(float(i) / 20., 0.);
-					break;
-				}
-				else {
-					z0 = z;
-				}
-				col = float2(mq / 2., mq / 2.);
-			}
-
-			float alpha = std::clamp(col.x, 0.f, 1.f);
-			return 1.f - alpha;
-
-			}, omm::Format::OC1_4_State);
+		omm::Debug::Stats stats = RunOmmBake(0.5f, subdivisionLevel, { 1024, 1024 }, sizeof(triangleIndices), triangleIndices, texCoords, sizeof(texCoords), &GetJulia, omm::Format::OC1_4_State);
 
 		if (ComputeOnly())
 		{

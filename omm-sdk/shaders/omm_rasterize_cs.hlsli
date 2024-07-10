@@ -444,7 +444,7 @@ void main(uint3 tid : SV_DispatchThreadID)
         }
     }
 
-    const OpacityState opacityState = GetOpacityState(isOpaque, isTransparent, ommFormat);
+    const OpacityState opacityState = GetOpacityState(isOpaque, isTransparent, g_GlobalConstants.AlphaCutoffGT, g_GlobalConstants.AlphaCutoffLE, ommFormat);
 
     StoreMacroTriangleState(opacityState, vmPrimitiveIndex);
 

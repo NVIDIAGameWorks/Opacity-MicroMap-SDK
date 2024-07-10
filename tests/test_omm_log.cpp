@@ -173,6 +173,16 @@ namespace {
 		Bake(desc, { "[Invalid Argument] - Texture object alpha cutoff threshold (0.300000) is different from alpha cutoff threshold in bake input (0.400000)" }, omm::Result::INVALID_ARGUMENT);
 	}
 
+	TEST_F(LogTest, InvalidParameter_AlphaCutoffInvalid)
+	{
+		InitBaker(true /*set callback*/);
+		omm::Cpu::BakeInputDesc desc = CreateDefaultBakeInputDesc();
+		desc.alphaCutoffGT = omm::OpacityState::Opaque;
+		desc.alphaCutoffLE = omm::OpacityState::UnknownOpaque;
+		desc.format = omm::Format::OC1_2_State;
+		Bake(desc, { "[Invalid Argument] - alphaCutoffLE=UnknownOpaque is not compatible with OC1_2_State" }, omm::Result::INVALID_ARGUMENT);
+	}
+
 	TEST_F(LogTest, PerfWarning_HugeWorkload)
 	{
 		InitBaker(true /*set callback*/);
