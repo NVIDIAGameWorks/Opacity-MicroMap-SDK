@@ -12,6 +12,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 #include "defines.h"
 #include <omm.h>
+#include <shared/assert.h>
 
 #include <cstdio>
 

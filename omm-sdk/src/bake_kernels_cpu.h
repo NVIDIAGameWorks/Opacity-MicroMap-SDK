@@ -11,19 +11,20 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include <shared/math.h>
 #include <shared/cpu_raster.h>
 #include <shared/texture.h>
+#include <shared/util.h>
 
 namespace omm
 {
 
 struct OmmCoverage 
 {
-    uint32_t opaque = 0;
-    uint32_t trans = 0;
+    uint32_t numAboveAlpha = 0;
+    uint32_t numBelowAlpha = 0;
 };
 
-static ommOpacityState GetStateFromCoverage(ommFormat vmFormat, ommUnknownStatePromotion mode, const OmmCoverage& coverage)
+static ommOpacityState GetStateFromCoverage(ommFormat vmFormat, ommUnknownStatePromotion mode, ommOpacityState alphaCutoffGT, ommOpacityState alphaCutoffLE, const OmmCoverage& coverage)
 {
-    const bool isUnknown = coverage.opaque != 0 && coverage.trans != 0;
+    const bool isUnknown = coverage.numAboveAlpha != 0 && coverage.numBelowAlpha != 0;
     if (isUnknown)
     {
         if (vmFormat == ommFormat_OC1_4_State)
@@ -33,7 +34,8 @@ static ommOpacityState GetStateFromCoverage(ommFormat vmFormat, ommUnknownStateP
             else if (mode == ommUnknownStatePromotion_ForceTransparent)
                 return ommOpacityState_UnknownTransparent;
             OMM_ASSERT(mode == ommUnknownStatePromotion_Nearest);
-            return coverage.opaque >= coverage.trans ? ommOpacityState_UnknownOpaque : ommOpacityState_UnknownTransparent;
+
+            return coverage.numAboveAlpha >= coverage.numBelowAlpha ? GetUnknownVersionOf(alphaCutoffGT) : GetUnknownVersionOf(alphaCutoffLE);
         }
         else // if (vmFormat == ommFormat_OC1_2_State)
         {
@@ -44,18 +46,17 @@ static ommOpacityState GetStateFromCoverage(ommFormat vmFormat, ommUnknownStateP
             else if (mode == ommUnknownStatePromotion_ForceTransparent)
                 return ommOpacityState_Transparent;
             OMM_ASSERT(mode == ommUnknownStatePromotion_Nearest);
-            return coverage.opaque >= coverage.trans ? ommOpacityState_Opaque : ommOpacityState_Transparent;
+            return coverage.numAboveAlpha >= coverage.numBelowAlpha ? alphaCutoffGT : alphaCutoffLE;
         }
-            return coverage.opaque >= coverage.trans ? ommOpacityState_UnknownOpaque : ommOpacityState_UnknownTransparent;
     }
-    else if (coverage.opaque == 0) 
+    else if (coverage.numAboveAlpha == 0)
     {
-        return ommOpacityState_Transparent;
+        return alphaCutoffLE;
     }
-    else // if (coverage.trans == 0) 
+    else // if (coverage.numBelowAlpha == 0) 
     {
-        OMM_ASSERT(coverage.trans == 0);
-        return ommOpacityState_Opaque;
+        OMM_ASSERT(coverage.numBelowAlpha == 0);
+        return alphaCutoffGT;
     }
 };
 
@@ -292,12 +293,12 @@ public:
             IsTransparent |= IsInside3 && !IsOpaque3;
 
             if (IsOpaque) {
-                p->vmCoverage->opaque += 1;
+                p->vmCoverage->numAboveAlpha += 1;
             }
 
             if (IsTransparent)
             {
-                p->vmCoverage->trans += 1;
+                p->vmCoverage->numBelowAlpha += 1;
             }
 
             // We've already concluded it's unknown -> return!
@@ -323,11 +324,11 @@ public:
             {
                 ///< All points on the same level. Alpha cutoff is either entierly above, or entierly below.
                 if (p->alphaCutoff < a) {
-                    p->vmCoverage->opaque += 1;
+                    p->vmCoverage->numAboveAlpha += 1;
                 }
                 else
                 {
-                    p->vmCoverage->trans += 1;
+                    p->vmCoverage->numBelowAlpha += 1;
                 }
             }
             else
@@ -345,8 +346,8 @@ public:
 
                     if (TestEdgeHyperbolaIntersection(p0, p1, h))
                     {
-                        p->vmCoverage->opaque += 1;
-                        p->vmCoverage->trans += 1;
+                        p->vmCoverage->numAboveAlpha += 1;
+                        p->vmCoverage->numBelowAlpha += 1;
                         break;
                     }
                 }
@@ -396,12 +397,12 @@ struct ConservativeBilinearKernel
         const bool IsTransparent    = p->alphaCutoff > min;
 
         if (IsOpaque) {
-            p->vmCoverage->opaque += 1;
+            p->vmCoverage->numAboveAlpha += 1;
         }
 
         if (IsTransparent)
         {
-            p->vmCoverage->trans += 1;
+            p->vmCoverage->numBelowAlpha += 1;
         }
     }
 };
