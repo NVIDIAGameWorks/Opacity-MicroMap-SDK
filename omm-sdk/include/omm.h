@@ -15,7 +15,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include <stddef.h>
 
 #define OMM_VERSION_MAJOR 1
-#define OMM_VERSION_MINOR 2
+#define OMM_VERSION_MINOR 3
 #define OMM_VERSION_BUILD 0
 
 #define OMM_MAX_TRANSIENT_POOL_BUFFERS 8
@@ -378,8 +378,14 @@ typedef struct ommCpuBakeInputDesc
    // Rejection threshold [0,1]. Unless OMMs achive a rate of at least rejectionThreshold known states OMMs will be discarded
    // for the primitive. Use this to weed out "poor" OMMs.
    float                    rejectionThreshold;
-   // The alpha cutoff value. texture > alphaCutoff ? Opaque : Transparent
+   // The alpha cutoff value. By default it's Texel Opacity = texture > alphaCutoff ? Opaque : Transparent
    float                    alphaCutoff;
+   // alphaCutoffGT and alphaCutoffLE allows dynamic configuring of the alpha values in the texture in the following way:
+   // Texel opacity = texture > alphaCutoff ? alphaCutoffGT : alphaCutoffLE
+   // This can be used to construct different pairings such as transparent and unknown opaque which is useful 
+   // for applications requiring partial accumulated opacity, like smoke and particle effects
+   ommOpacityState          alphaCutoffLE;
+   ommOpacityState          alphaCutoffGT;
    // The global Format. May be overriden by the per-triangle subdivision level setting.
    ommFormat                format;
    // Use Formats to control format on a per triangle granularity. If Format is set to Format::INVALID the global setting will
@@ -417,6 +423,8 @@ inline ommCpuBakeInputDesc ommCpuBakeInputDescDefault()
    v.dynamicSubdivisionScale       = 2;
    v.rejectionThreshold            = 0;
    v.alphaCutoff                   = 0.5f;
+   v.alphaCutoffLE                 = ommOpacityState_Transparent;
+   v.alphaCutoffGT                 = ommOpacityState_Opaque;
    v.format                        = ommFormat_OC1_4_State;
    v.formats                       = NULL;
    v.unknownStatePromotion         = ommUnknownStatePromotion_ForceOpaque;
@@ -894,8 +902,14 @@ typedef struct ommGpuDispatchConfigDesc
    uint32_t                  indexCount;
    // If zero packed aligment is assumed.
    uint32_t                  indexStrideInBytes;
-   // The alpha cutoff value. texture > alphaCutoff ? Opaque : Transparent.
+   // The alpha cutoff value. By default it's Texel Opacity = texture > alphaCutoff ? Opaque : Transparent
    float                     alphaCutoff;
+   // alphaCutoffGT and alphaCutoffLE allows dynamic configuring of the alpha values in the texture in the following way:
+   // Texel opacity = texture > alphaCutoff ? alphaCutoffGT : alphaCutoffLE
+   // This can be used to construct different pairings such as transparent and unknown opaque which is useful 
+   // for applications requiring partial accumulated opacity, like smoke and particle effects
+   ommOpacityState           alphaCutoffLE;
+   ommOpacityState           alphaCutoffGT;
    // Configure the target resolution when running dynamic subdivision level. <= 0: disabled. > 0: The subdivision level be
    // chosen such that a single micro-triangle covers approximatley a dynamicSubdivisionScale * dynamicSubdivisionScale texel
    // area.
@@ -932,6 +946,8 @@ inline ommGpuDispatchConfigDesc ommGpuDispatchConfigDescDefault()
    v.indexCount                    = 0;
    v.indexStrideInBytes            = 0;
    v.alphaCutoff                   = 0.5f;
+   v.alphaCutoffLE                 = ommOpacityState_Transparent;
+   v.alphaCutoffGT                 = ommOpacityState_Opaque;
    v.dynamicSubdivisionScale       = 2;
    v.globalFormat                  = ommFormat_OC1_4_State;
    v.maxSubdivisionLevel           = 8;

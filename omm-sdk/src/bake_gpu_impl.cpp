@@ -15,6 +15,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include <shared/math.h>
 #include <shared/bird.h>
 #include <shared/cpu_raster.h>
+#include <shared/util.h>
 
 #include <array>
 #include <algorithm>
@@ -270,6 +271,12 @@ ommResult  PipelineImpl::Validate(const ommGpuDispatchConfigDesc& config) const
         return m_log.InvalidArg("[Invalid Arg] - alphaTextureChannel must be greater than 3");
     if (!doBake && !doSetup)
         return m_log.InvalidArg("[Invalid Arg] - Either ommGpuBakeFlags_PerformBake or ommGpuBakeFlags_PerformSetup must be set");
+
+    if (!IsCompatible(config.alphaCutoffGT, config.globalFormat))
+        return m_log.InvalidArgf("[Invalid Argument] - alphaCutoffGT=%s is not compatible with %s", GetOpacityStateAsString(config.alphaCutoffGT), GetFormatAsString(config.globalFormat));
+    if (!IsCompatible(config.alphaCutoffLE, config.globalFormat))
+        return m_log.InvalidArgf("[Invalid Argument] - alphaCutoffLE=%s is not compatible with %s", GetOpacityStateAsString(config.alphaCutoffLE), GetFormatAsString(config.globalFormat));
+
     return ommResult_SUCCESS;
 }
 
@@ -731,6 +738,8 @@ ommResult PipelineImpl::InitGlobalConstants(const ommGpuDispatchConfigDesc& conf
     cbuffer.TexCoord1Offset                            = config.texCoordOffsetInBytes;
     cbuffer.TexCoord1Stride                            = config.texCoordStrideInBytes == 0 ? GetTexCoordFormatSize(config.texCoordFormat) : config.texCoordStrideInBytes;
     cbuffer.AlphaCutoff                                = config.alphaCutoff;
+    cbuffer.AlphaCutoffGT                              = (uint32_t)config.alphaCutoffGT;
+    cbuffer.AlphaCutoffLE                              = (uint32_t)config.alphaCutoffLE;
     cbuffer.AlphaTextureChannel                        = config.alphaTextureChannel;
     cbuffer.FilterType                                 = (uint32_t)config.runtimeSamplerDesc.filter;
     cbuffer.EnableLevelLine                            = (uint32_t)enableLevelLine;

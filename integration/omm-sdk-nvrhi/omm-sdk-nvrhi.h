@@ -16,6 +16,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include <functional>
 #include <vector>
 #include <memory>
+#include <optional>
 
 #include <omm.hpp>
 
@@ -34,6 +35,8 @@ namespace omm
 			std::function<nvrhi::ShaderHandle(nvrhi::ShaderType type, const char* shaderName, const char* shaderEntryName)> shaders;
 		};
 
+		using MessageCallback = std::function<void(omm::MessageSeverity severity, const char* message)>;
+
 		enum class Operation
 		{
 			Invalid			= 0,
@@ -48,6 +51,8 @@ namespace omm
 			nvrhi::TextureHandle				alphaTexture;
 			uint32_t							alphaTextureChannel = 3;
 			float								alphaCutoff = 0.5f;
+			omm::OpacityState					alphaCutoffGT = omm::OpacityState::Opaque;
+			omm::OpacityState					alphaCutoffLE = omm::OpacityState::Transparent;
 			bool								bilinearFilter = true;
 			bool								enableLevelLineIntersection = true;
 			nvrhi::SamplerAddressMode			sampleMode = nvrhi::SamplerAddressMode::Clamp;
@@ -126,7 +131,7 @@ namespace omm
 			uint32_t totalFullyUnknownTransparent = 0;
 		};
 
-		GpuBakeNvrhi(nvrhi::DeviceHandle device, nvrhi::CommandListHandle commandList, bool enableDebug, ShaderProvider* shaderProvider = nullptr);
+		GpuBakeNvrhi(nvrhi::DeviceHandle device, nvrhi::CommandListHandle commandList, bool enableDebug, ShaderProvider* shaderProvider = nullptr, std::optional<MessageCallback> callback = nullptr);
 		~GpuBakeNvrhi();
 
 		// CPU side pre-build info.
