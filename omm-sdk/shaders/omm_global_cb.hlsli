@@ -37,14 +37,13 @@ OMM_CONSTANTS_START(GlobalConstants)							\
 	OMM_CONSTANT(uint, TexCoord1Stride)							\
 																\
 	OMM_CONSTANT(float, AlphaCutoff)							\
+	OMM_CONSTANT(uint, AlphaCutoffLE)							\
+	OMM_CONSTANT(uint, AlphaCutoffGT)							\
 	OMM_CONSTANT(uint, AlphaTextureChannel)						\
 	OMM_CONSTANT(uint, FilterType) /* TextureFilterMode */ 		\
 	OMM_CONSTANT(uint, EnableLevelLine)							\
-																\
 	OMM_CONSTANT(uint, EnablePostDispatchInfoStats)				\
 	OMM_CONSTANT(uint, IndirectDispatchEntryStride)				\
-	OMM_CONSTANT(uint, Pad1)									\
-	OMM_CONSTANT(uint, Pad2)									\
 																\
 	OMM_CONSTANT(float2, TexSize)								\
 	OMM_CONSTANT(float2, InvTexSize)							\

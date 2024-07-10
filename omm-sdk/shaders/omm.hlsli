@@ -46,29 +46,44 @@ enum class TexCoordFormat : int {
    MAX_NUM
 };
 
-OpacityState _getOpacityStateInternal(uint numOpaque, uint numTransparent)
+bool IsKnown(OpacityState state)
 {
-	if (numOpaque == 0)
-	{
-		return OpacityState::Transparent;
-	}
-	else if (numTransparent == 0)
-	{
-		return OpacityState::Opaque;
-	}
-	else if (numTransparent > numOpaque)
-	{
-		return OpacityState::UnknownTransparent;
-	}
-	else // if (numTransparent <= numOpaque)
-	{
-		return OpacityState::UnknownOpaque;
-	}
+    return ((uint) state & 1u) == (uint) state;
 }
 
-OpacityState GetOpacityState(uint numOpaque, uint numTransparent, OMMFormat ommFormat)
+bool IsUnknown(OpacityState state)
 {
-	OpacityState opacityState = _getOpacityStateInternal(numOpaque, numTransparent);
+    return !IsKnown(state);
+}
+
+OpacityState GetUnknownVersionOf(OpacityState state)
+{
+    return (OpacityState)((uint)state | 2u);
+}
+
+OpacityState _getOpacityStateInternal(uint numAboveAlpha, uint numBelowAlpha, OpacityState alphaCutoffGT, OpacityState alphaCutoffLE)
+{
+    if (numAboveAlpha == 0)
+	{
+        return alphaCutoffLE;
+    }
+    else if (numBelowAlpha == 0)
+	{
+        return alphaCutoffGT;
+    }
+    else if (numBelowAlpha > numAboveAlpha)
+	{
+        return GetUnknownVersionOf(alphaCutoffLE);
+    }
+    else // if (numBelowAlpha <= numAboveAlpha)
+	{
+        return GetUnknownVersionOf(alphaCutoffGT);
+    }
+}
+
+OpacityState GetOpacityState(uint numAboveAlpha, uint numBelowAlpha, uint /*OpacityState*/ alphaCutoffGT, uint /*OpacityState*/ alphaCutoffLE, OMMFormat ommFormat)
+{
+    OpacityState opacityState = _getOpacityStateInternal(numAboveAlpha, numBelowAlpha, (OpacityState) alphaCutoffGT, (OpacityState) alphaCutoffLE);
 	if (ommFormat == OMMFormat::OC1_2)
 		return (OpacityState)((uint)opacityState & 1u);
 	return opacityState;
