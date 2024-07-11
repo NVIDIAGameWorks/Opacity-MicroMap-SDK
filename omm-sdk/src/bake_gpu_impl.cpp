@@ -734,9 +734,9 @@ ommResult PipelineImpl::InitGlobalConstants(const ommGpuDispatchConfigDesc& conf
     cbuffer.TexSize                                    = float2(config.alphaTextureWidth, config.alphaTextureHeight);
     static_assert(sizeof(float2) == sizeof(float) * 2);
     cbuffer.InvTexSize                                 = 1.f / cbuffer.TexSize;
-    cbuffer.TexCoord1Format                            = (uint32_t)config.texCoordFormat;
-    cbuffer.TexCoord1Offset                            = config.texCoordOffsetInBytes;
-    cbuffer.TexCoord1Stride                            = config.texCoordStrideInBytes == 0 ? GetTexCoordFormatSize(config.texCoordFormat) : config.texCoordStrideInBytes;
+    cbuffer.TexCoordFormat                             = (uint32_t)config.texCoordFormat;
+    cbuffer.TexCoordOffset                             = config.texCoordOffsetInBytes;
+    cbuffer.TexCoordStride                             = config.texCoordStrideInBytes == 0 ? GetTexCoordFormatSize(config.texCoordFormat) : config.texCoordStrideInBytes;
     cbuffer.AlphaCutoff                                = config.alphaCutoff;
     cbuffer.AlphaCutoffGT                              = (uint32_t)config.alphaCutoffGT;
     cbuffer.AlphaCutoffLE                              = (uint32_t)config.alphaCutoffLE;
