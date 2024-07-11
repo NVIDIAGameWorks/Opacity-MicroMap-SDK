@@ -134,8 +134,8 @@ namespace {
 			desc.indexCount = indexCount;
 			desc.maxSubdivisionLevel = subdivisionLevel;
 			desc.alphaCutoff = alphaCutoff;
-			desc.alphaCutoffLE = opt.alphaCutoffLE;
-			desc.alphaCutoffGT = opt.alphaCutoffGT;
+			desc.alphaCutoffLessEqual = opt.alphaCutoffLE;
+			desc.alphaCutoffGreater = opt.alphaCutoffGT;
 			desc.unknownStatePromotion = opt.unknownStatePromotion;
 			desc.bakeFlags = (omm::Cpu::BakeFlags)((uint32_t)omm::Cpu::BakeFlags::EnableInternalThreads);
 

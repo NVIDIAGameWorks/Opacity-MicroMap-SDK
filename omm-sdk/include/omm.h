@@ -384,8 +384,18 @@ typedef struct ommCpuBakeInputDesc
    // Texel opacity = texture > alphaCutoff ? alphaCutoffGT : alphaCutoffLE
    // This can be used to construct different pairings such as transparent and unknown opaque which is useful 
    // for applications requiring partial accumulated opacity, like smoke and particle effects
-   ommOpacityState          alphaCutoffLE;
-   ommOpacityState          alphaCutoffGT;
+   union
+   {
+       OMM_DEPRECATED_MSG("alphaCutoffLE has been deprecated, please use alphaCutoffLessEqual")
+       ommOpacityState      alphaCutoffLE;
+       ommOpacityState      alphaCutoffLessEqual;
+   };
+   union
+   {
+       OMM_DEPRECATED_MSG("alphaCutoffGT has been deprecated, please use alphaCutoffGreater instead")
+       ommOpacityState      alphaCutoffGT;
+       ommOpacityState      alphaCutoffGreater;
+   };
    // The global Format. May be overriden by the per-triangle subdivision level setting.
    ommFormat                format;
    // Use Formats to control format on a per triangle granularity. If Format is set to Format::INVALID the global setting will
@@ -423,8 +433,8 @@ inline ommCpuBakeInputDesc ommCpuBakeInputDescDefault()
    v.dynamicSubdivisionScale       = 2;
    v.rejectionThreshold            = 0;
    v.alphaCutoff                   = 0.5f;
-   v.alphaCutoffLE                 = ommOpacityState_Transparent;
-   v.alphaCutoffGT                 = ommOpacityState_Opaque;
+   v.alphaCutoffLessEqual          = ommOpacityState_Transparent;
+   v.alphaCutoffGreater            = ommOpacityState_Opaque;
    v.format                        = ommFormat_OC1_4_State;
    v.formats                       = NULL;
    v.unknownStatePromotion         = ommUnknownStatePromotion_ForceOpaque;
@@ -908,8 +918,18 @@ typedef struct ommGpuDispatchConfigDesc
    // Texel opacity = texture > alphaCutoff ? alphaCutoffGT : alphaCutoffLE
    // This can be used to construct different pairings such as transparent and unknown opaque which is useful 
    // for applications requiring partial accumulated opacity, like smoke and particle effects
-   ommOpacityState           alphaCutoffLE;
-   ommOpacityState           alphaCutoffGT;
+   union
+   {
+       OMM_DEPRECATED_MSG("alphaCutoffLE has been deprecated, please use alphaCutoffLessEqual")
+       ommOpacityState      alphaCutoffLE;
+       ommOpacityState      alphaCutoffLessEqual;
+   };
+   union
+   {
+       OMM_DEPRECATED_MSG("alphaCutoffGT has been deprecated, please use alphaCutoffGreater instead")
+       ommOpacityState      alphaCutoffGT;
+       ommOpacityState      alphaCutoffGreater;
+   };
    // Configure the target resolution when running dynamic subdivision level. <= 0: disabled. > 0: The subdivision level be
    // chosen such that a single micro-triangle covers approximatley a dynamicSubdivisionScale * dynamicSubdivisionScale texel
    // area.
@@ -946,8 +966,8 @@ inline ommGpuDispatchConfigDesc ommGpuDispatchConfigDescDefault()
    v.indexCount                    = 0;
    v.indexStrideInBytes            = 0;
    v.alphaCutoff                   = 0.5f;
-   v.alphaCutoffLE                 = ommOpacityState_Transparent;
-   v.alphaCutoffGT                 = ommOpacityState_Opaque;
+   v.alphaCutoffLessEqual          = ommOpacityState_Transparent;
+   v.alphaCutoffGreater            = ommOpacityState_Opaque;
    v.dynamicSubdivisionScale       = 2;
    v.globalFormat                  = ommFormat_OC1_4_State;
    v.maxSubdivisionLevel           = 8;

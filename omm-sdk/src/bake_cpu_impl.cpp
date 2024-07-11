@@ -225,14 +225,14 @@ namespace Cpu
             }
         }
 
-        if (!IsCompatible(desc.alphaCutoffGT, desc.format))
+        if (!IsCompatible(desc.alphaCutoffGreater, desc.format))
         {
-            return m_log.InvalidArgf("[Invalid Argument] - alphaCutoffGT=%s is not compatible with %s", GetOpacityStateAsString(desc.alphaCutoffGT), GetFormatAsString(desc.format));
+            return m_log.InvalidArgf("[Invalid Argument] - alphaCutoffGreater=%s is not compatible with %s", GetOpacityStateAsString(desc.alphaCutoffGreater), GetFormatAsString(desc.format));
         }
 
-        if (!IsCompatible(desc.alphaCutoffLE, desc.format))
+        if (!IsCompatible(desc.alphaCutoffLessEqual, desc.format))
         {
-            return m_log.InvalidArgf("[Invalid Argument] - alphaCutoffLE=%s is not compatible with %s", GetOpacityStateAsString(desc.alphaCutoffLE), GetFormatAsString(desc.format));
+            return m_log.InvalidArgf("[Invalid Argument] - alphaCutoffLessEqual=%s is not compatible with %s", GetOpacityStateAsString(desc.alphaCutoffLessEqual), GetFormatAsString(desc.format));
         }
 
         return ommResult_SUCCESS;
@@ -667,12 +667,12 @@ namespace Cpu
                                     if (sa == 0)
                                     {
                                         // (Less than or equal to alpha threshold)
-                                        workItem.vmStates.SetState(uTriIt, desc.alphaCutoffLE);
+                                        workItem.vmStates.SetState(uTriIt, desc.alphaCutoffLessEqual);
                                     }
                                     else if (sa == area)
                                     {
                                         // (Greater than alpha threshold)
-                                        workItem.vmStates.SetState(uTriIt, desc.alphaCutoffGT);
+                                        workItem.vmStates.SetState(uTriIt, desc.alphaCutoffGreater);
                                     }
                                 }
                             }
@@ -752,12 +752,12 @@ namespace Cpu
                                             RasterizeConservativeSerialWithOffsetCoverage(subTri, rasterSize, pixelOffset, kernel, &params);
 
                                             OMM_ASSERT(vmCoverage.numAboveAlpha != 0 || vmCoverage.numBelowAlpha != 0);
-                                            const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGT, desc.alphaCutoffLE, vmCoverage);
+                                            const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGreater, desc.alphaCutoffLessEqual, vmCoverage);
 
                                             if (IsUnknown(state))
                                                 break;
                                         }
-                                        const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGT, desc.alphaCutoffLE, vmCoverage);
+                                        const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGreater, desc.alphaCutoffLessEqual, vmCoverage);
                                         workItem.vmStates.SetState(uTriIt, state);
                                     }
                                     else if (options.enableAABBTesting)
@@ -783,7 +783,7 @@ namespace Cpu
 
                                         OMM_ASSERT(vmCoverage.numAboveAlpha != 0 || vmCoverage.numBelowAlpha != 0);
 
-                                        const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGT, desc.alphaCutoffLE, vmCoverage);
+                                        const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGreater, desc.alphaCutoffLessEqual, vmCoverage);
                                         workItem.vmStates.SetState(uTriIt, state);
                                     }
                                     else
@@ -807,7 +807,7 @@ namespace Cpu
 
                                         OMM_ASSERT(vmCoverage.numBelowAlpha != 0 || vmCoverage.numAboveAlpha != 0);
 
-                                        const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGT, desc.alphaCutoffLE, vmCoverage);
+                                        const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGreater, desc.alphaCutoffLessEqual, vmCoverage);
 
                                         workItem.vmStates.SetState(uTriIt, state);
                                     }
@@ -858,11 +858,11 @@ namespace Cpu
                                         RasterizeConservativeSerial(subTri, rasterSize, kernel, &params);
                                         OMM_ASSERT(vmCoverage.numAboveAlpha != 0 || vmCoverage.numBelowAlpha != 0);
 
-                                        const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGT, desc.alphaCutoffLE, vmCoverage);
+                                        const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGreater, desc.alphaCutoffLessEqual, vmCoverage);
                                         if (IsUnknown(state))
                                             break;
                                     }
-                                    const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGT, desc.alphaCutoffLE, vmCoverage);
+                                    const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGreater, desc.alphaCutoffLessEqual, vmCoverage);
                                     workItem.vmStates.SetState(uTriIt, state);
                                 }
                             }

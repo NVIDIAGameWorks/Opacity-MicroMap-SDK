@@ -283,11 +283,21 @@ namespace omm
          // The alpha cutoff value. By default it's Texel Opacity = texture > alphaCutoff ? Opaque : Transparent
          float                 alphaCutoff                   = 0.5f;
          // alphaCutoffGT and alphaCutoffLE allows dynamic configuring of the alpha values in the texture in the following way:
-         // Texel opacity = texture > alphaCutoff ? alphaCutoffGT : alphaCutoffLE
+         // Texel Opacity = texture > alphaCutoff ? alphaCutoffGreater : alphaCutoffLessEqual
          // This can be used to construct different pairings such as transparent and unknown opaque which is useful 
          // for applications requiring partial accumulated opacity, like smoke and particle effects
-         omm::OpacityState     alphaCutoffLE                 = omm::OpacityState::Transparent;
-         omm::OpacityState     alphaCutoffGT                 = omm::OpacityState::Opaque;
+         union
+         {
+             OMM_DEPRECATED_MSG("alphaCutoffLE has been deprecated, please use alphaCutoffLessEqual")
+             omm::OpacityState     alphaCutoffLE;
+             omm::OpacityState     alphaCutoffLessEqual;
+         };
+         union
+         {
+             OMM_DEPRECATED_MSG("alphaCutoffGT has been deprecated, please use alphaCutoffGreater instead")
+             omm::OpacityState     alphaCutoffGT;
+             omm::OpacityState     alphaCutoffGreater;
+         };
          // The global Format. May be overriden by the per-triangle subdivision level setting.
          Format                format                        = Format::OC1_4_State;
          // Use Formats to control format on a per triangle granularity. If Format is set to Format::INVALID the global setting will
@@ -752,11 +762,21 @@ namespace omm
          // The alpha cutoff value. By default it's Texel Opacity = texture > alphaCutoff ? Opaque : Transparent
          float               alphaCutoff                   = 0.5f;
          // alphaCutoffGT and alphaCutoffLE allows dynamic configuring of the alpha values in the texture in the following way:
-         // Texel Opacity = texture > alphaCutoff ? alphaCutoffGT : alphaCutoffLE
+         // Texel Opacity = texture > alphaCutoff ? alphaCutoffGreater : alphaCutoffLessEqual
          // This can be used to construct different pairings such as transparent and unknown opaque which is useful 
          // for applications requiring partial accumulated opacity, like smoke and particle effects
-         omm::OpacityState   alphaCutoffLE                 = omm::OpacityState::Transparent;
-         omm::OpacityState   alphaCutoffGT                 = omm::OpacityState::Opaque;
+         union
+         {
+             OMM_DEPRECATED_MSG("alphaCutoffLE has been deprecated, please use alphaCutoffLessEqual")
+             omm::OpacityState     alphaCutoffLE;
+             omm::OpacityState     alphaCutoffLessEqual;
+         };
+         union
+         {
+             OMM_DEPRECATED_MSG("alphaCutoffGT has been deprecated, please use alphaCutoffGreater instead")
+             omm::OpacityState     alphaCutoffGT;
+             omm::OpacityState     alphaCutoffGreater;
+         };
          // Configure the target resolution when running dynamic subdivision level. <= 0: disabled. > 0: The subdivision level be
          // chosen such that a single micro-triangle covers approximatley a dynamicSubdivisionScale * dynamicSubdivisionScale texel
          // area.

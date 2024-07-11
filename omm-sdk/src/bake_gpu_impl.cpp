@@ -272,10 +272,10 @@ ommResult  PipelineImpl::Validate(const ommGpuDispatchConfigDesc& config) const
     if (!doBake && !doSetup)
         return m_log.InvalidArg("[Invalid Arg] - Either ommGpuBakeFlags_PerformBake or ommGpuBakeFlags_PerformSetup must be set");
 
-    if (!IsCompatible(config.alphaCutoffGT, config.globalFormat))
-        return m_log.InvalidArgf("[Invalid Argument] - alphaCutoffGT=%s is not compatible with %s", GetOpacityStateAsString(config.alphaCutoffGT), GetFormatAsString(config.globalFormat));
-    if (!IsCompatible(config.alphaCutoffLE, config.globalFormat))
-        return m_log.InvalidArgf("[Invalid Argument] - alphaCutoffLE=%s is not compatible with %s", GetOpacityStateAsString(config.alphaCutoffLE), GetFormatAsString(config.globalFormat));
+    if (!IsCompatible(config.alphaCutoffGreater, config.globalFormat))
+        return m_log.InvalidArgf("[Invalid Argument] - alphaCutoffGreater=%s is not compatible with %s", GetOpacityStateAsString(config.alphaCutoffGreater), GetFormatAsString(config.globalFormat));
+    if (!IsCompatible(config.alphaCutoffLessEqual, config.globalFormat))
+        return m_log.InvalidArgf("[Invalid Argument] - alphaCutoffLessEqual=%s is not compatible with %s", GetOpacityStateAsString(config.alphaCutoffLessEqual), GetFormatAsString(config.globalFormat));
 
     return ommResult_SUCCESS;
 }
@@ -738,8 +738,8 @@ ommResult PipelineImpl::InitGlobalConstants(const ommGpuDispatchConfigDesc& conf
     cbuffer.TexCoordOffset                             = config.texCoordOffsetInBytes;
     cbuffer.TexCoordStride                             = config.texCoordStrideInBytes == 0 ? GetTexCoordFormatSize(config.texCoordFormat) : config.texCoordStrideInBytes;
     cbuffer.AlphaCutoff                                = config.alphaCutoff;
-    cbuffer.AlphaCutoffGT                              = (uint32_t)config.alphaCutoffGT;
-    cbuffer.AlphaCutoffLE                              = (uint32_t)config.alphaCutoffLE;
+    cbuffer.AlphaCutoffGreater                         = (uint32_t)config.alphaCutoffGreater;
+    cbuffer.AlphaCutoffLessEqual                       = (uint32_t)config.alphaCutoffLessEqual;
     cbuffer.AlphaTextureChannel                        = config.alphaTextureChannel;
     cbuffer.FilterType                                 = (uint32_t)config.runtimeSamplerDesc.filter;
     cbuffer.EnableLevelLine                            = (uint32_t)enableLevelLine;
