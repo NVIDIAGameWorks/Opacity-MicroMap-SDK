@@ -8,8 +8,8 @@ distribution of this software and related documentation without an express
 license agreement from NVIDIA CORPORATION is strictly prohibited.
 */
 
-#ifndef WORK_SETUP_COMMON_HLSLI
-#define WORK_SETUP_COMMON_HLSLI
+#ifndef OMM_COMMON_HLSLI
+#define OMM_COMMON_HLSLI
 
 #include "omm_platform.hlsli"
 #include "omm.hlsli"
@@ -261,4 +261,4 @@ int GetOmmDescOffset(ByteAddressBuffer ommIndexBuffer, uint primitiveIndex)
 	}
 }
 
-#endif // WORK_SETUP_COMMON_HLSLI
+#endif // OMM_COMMON_HLSLI
