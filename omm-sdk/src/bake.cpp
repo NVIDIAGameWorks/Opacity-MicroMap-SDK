@@ -97,21 +97,6 @@ OMM_API ommResult OMM_CALL ommCpuDestroyTexture(ommBaker baker, ommCpuTexture te
     return ommResult_SUCCESS;
 }
 
-OMM_API ommResult OMM_CALL ommCpuValidate(ommBaker baker, const ommCpuBakeInputDesc* bakeInputDesc, ommCpuValidateResultDesc* outValidateResult)
-{
-    if (baker == 0)
-        return ommResult_INVALID_ARGUMENT;
-
-    Cpu::BakerImpl* impl = GetBakerImpl<Cpu::BakerImpl>(baker);
-
-    if (bakeInputDesc == 0)
-        return impl->GetLog().InvalidArg("input desc was not set");
-    if (GetBakerType(baker) != ommBakerType_CPU)
-        return impl->GetLog().InvalidArg("Baker was not created as the right type");
-
-    return (*impl).ValidateOpacityMicromap(*bakeInputDesc, outValidateResult);
-}
-
 OMM_API ommResult OMM_CALL ommCpuBake(ommBaker baker, const ommCpuBakeInputDesc* bakeInputDesc, ommCpuBakeResult* bakeResult)
 {
     if (baker == 0)

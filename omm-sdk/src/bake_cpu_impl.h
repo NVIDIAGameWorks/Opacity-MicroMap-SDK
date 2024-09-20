@@ -45,7 +45,6 @@ namespace Cpu
         { return m_log; }
 
         ommResult Create(const ommBakerCreationDesc& bakeCreationDesc);
-        ommResult ValidateOpacityMicromap(const ommCpuBakeInputDesc& bakeInputDesc, ommCpuValidateResultDesc* outValidateResult);
         ommResult BakeOpacityMicromap(const ommCpuBakeInputDesc& bakeInputDesc, ommCpuBakeResult* bakeOutput);
 
     private:

@@ -513,8 +513,6 @@ OMM_API ommResult ommCpuCreateTexture(ommBaker baker, const ommCpuTextureDesc* d
 
 OMM_API ommResult ommCpuDestroyTexture(ommBaker baker, ommCpuTexture texture);
 
-OMM_API ommResult ommCpuValidate(ommBaker baker, const ommCpuBakeInputDesc* bakeInputDesc, ommCpuValidateResultDesc* outValidateResult);
-
 OMM_API ommResult ommCpuBake(ommBaker baker, const ommCpuBakeInputDesc* bakeInputDesc, ommCpuBakeResult* outBakeResult);
 
 OMM_API ommResult ommCpuDestroyBakeResult(ommCpuBakeResult bakeResult);
