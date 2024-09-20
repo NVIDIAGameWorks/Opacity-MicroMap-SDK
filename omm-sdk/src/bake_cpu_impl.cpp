@@ -102,6 +102,15 @@ namespace Cpu
         return ommResult_SUCCESS;
     }
 
+    ommResult BakerImpl::ValidateOpacityMicromap(const ommCpuBakeInputDesc& bakeInputDesc, ommCpuValidateResultDesc* outValidateResult)
+    {
+        RETURN_STATUS_IF_FAILED(Validate(bakeInputDesc));
+        BakeOutputImpl* implementation = Allocate<BakeOutputImpl>(m_stdAllocator, m_stdAllocator, m_log);
+        ommResult result = implementation->Validate(outValidateResult);
+        Deallocate(m_stdAllocator, implementation);
+        return result;
+    }
+
     ommResult BakerImpl::BakeOpacityMicromap(const ommCpuBakeInputDesc& bakeInputDesc, ommCpuBakeResult* outBakeommResult)
     {
         RETURN_STATUS_IF_FAILED(Validate(bakeInputDesc));

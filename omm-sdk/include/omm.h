@@ -464,6 +464,17 @@ typedef struct ommCpuOpacityMicromapUsageCount
    uint16_t format;
 } ommCpuOpacityMicromapUsageCount;
 
+typedef struct ommCpuValidateResultDesc
+{
+    // This value correlates to the amount of processing required in the OMM bake call.
+    // Factors that influence this value is:
+    // * Number of unique UVs
+    // * Size of the UVs
+    // * Resolution of the underlying alpha texture
+    // * Subdivision level of the OMMs.
+    uint64_t numTexelsToProcess;
+} ommCpuValidateResultDesc;
+
 typedef struct ommCpuBakeResultDesc
 {
    // Below is used as OMM array build input DX/VK.
@@ -484,15 +495,35 @@ typedef struct ommCpuBakeResultDesc
    uint32_t                               indexHistogramCount;
 } ommCpuBakeResultDesc;
 
+typedef struct ommBlob
+{
+    void*       data;
+    uint64_t    size;
+} ommBlob;
+
+inline ommBlob ommBlobDefault()
+{
+    ommBlob blob;
+    blob.data   = nullptr;
+    blob.size   = 0;
+    return blob;
+}
+
 OMM_API ommResult ommCpuCreateTexture(ommBaker baker, const ommCpuTextureDesc* desc, ommCpuTexture* outTexture);
 
 OMM_API ommResult ommCpuDestroyTexture(ommBaker baker, ommCpuTexture texture);
+
+OMM_API ommResult ommCpuValidate(ommBaker baker, const ommCpuBakeInputDesc* bakeInputDesc, ommCpuValidateResultDesc* outValidateResult);
 
 OMM_API ommResult ommCpuBake(ommBaker baker, const ommCpuBakeInputDesc* bakeInputDesc, ommCpuBakeResult* outBakeResult);
 
 OMM_API ommResult ommCpuDestroyBakeResult(ommCpuBakeResult bakeResult);
 
 OMM_API ommResult ommCpuGetBakeResultDesc(ommCpuBakeResult bakeResult, const ommCpuBakeResultDesc** desc);
+
+OMM_API ommResult ommCpuSerialize(ommBaker baker, const ommCpuBakeInputDesc* inDesc, const ommBlob* outBlob);
+
+OMM_API ommResult ommCpuDeserialize(ommBaker baker, const ommBlob* inBlob, const ommCpuBakeInputDesc* outDesc);
 
 typedef ommHandle ommGpuPipeline;
 
@@ -1062,9 +1093,6 @@ inline ommDebugSaveImagesDesc ommDebugSaveImagesDescDefault()
    return v;
 }
 
-// Walk each primitive and dumps the corresponding OMM overlay to the alpha textures.
-OMM_API ommResult ommDebugSaveAsImages(ommBaker baker, const ommCpuBakeInputDesc* bakeInputDesc, const ommCpuBakeResultDesc* res, const ommDebugSaveImagesDesc* desc);
-
 typedef struct ommDebugStats
 {
    uint64_t totalOpaque;
@@ -1090,6 +1118,9 @@ inline ommDebugStats ommDebugStatsDefault()
    v.totalFullyUnknownTransparent  = 0;
    return v;
 }
+
+// Walk each primitive and dumps the corresponding OMM overlay to the alpha textures.
+OMM_API ommResult ommDebugSaveAsImages(ommBaker baker, const ommCpuBakeInputDesc* bakeInputDesc, const ommCpuBakeResultDesc* res, const ommDebugSaveImagesDesc* desc);
 
 OMM_API ommResult ommDebugGetStats(ommBaker baker, const ommCpuBakeResultDesc* res, ommDebugStats* out);
 #endif // #ifndef INCLUDE_OMM_SDK_C
