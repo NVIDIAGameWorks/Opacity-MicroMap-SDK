@@ -13,6 +13,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include "bake_gpu_impl.h"
 #include "debug_impl.h"
 #include "texture_impl.h"
+#include "serialize_impl.h"
 #include "version.h"
 
 #include <array>
@@ -131,7 +132,7 @@ OMM_API ommResult OMM_CALL ommCpuGetBakeResultDesc(ommCpuBakeResult bakeResult, 
     return (*(omm::Cpu::BakeOutputImpl*)bakeResult).GetBakeResultDesc(desc);
 }
 
-OMM_API ommResult OMM_CALL ommCpuSerialize(ommBaker baker, const ommCpuBakeInputDesc* inputDesc, const ommCpuBakeResult* bakeResult, ommBlob* outBlob)
+OMM_API ommResult OMM_CALL ommCpuSerialize(ommBaker baker, const ommCpuDeserializedDesc& desc, ommCpuSerializedResult* outResult)
 {
     if (baker == 0)
         return ommResult_INVALID_ARGUMENT;
@@ -143,24 +144,47 @@ OMM_API ommResult OMM_CALL ommCpuSerialize(ommBaker baker, const ommCpuBakeInput
 
     StdAllocator<uint8_t>& memoryAllocator = (*impl).GetStdAllocator();
 
-    omm::Cpu::BakeBlobImpl* blobImpl = Allocate<omm::Cpu::BakeBlobImpl>(memoryAllocator, memoryAllocator, impl->GetLog());
+    omm::Cpu::SerializeResultImpl* blobImpl = Allocate<omm::Cpu::SerializeResultImpl>(memoryAllocator, memoryAllocator, impl->GetLog());
 
-    ommResult res = blobImpl->Serialize(inputDesc, bakeResult);
+    ommResult res = blobImpl->Serialize(desc);
 
     if (res == ommResult_SUCCESS)
     {
-        *outBlob = (ommBlob)blobImpl;
+        *outResult = (ommCpuSerializedResult)blobImpl;
     }
     else
     {
         Deallocate(memoryAllocator, blobImpl);
-        *outBlob = (ommBlob)nullptr;
+        *outResult = (ommCpuSerializedResult)nullptr;
     }
 
     return res;
 }
 
-OMM_API ommResult OMM_CALL ommCpuDeserialize(ommBaker baker, const ommCpuBlobDesc* desc, ommBlob* outBlob)
+OMM_API ommResult ommCpuGetSerializedResultDesc(ommCpuSerializedResult result, const ommCpuBlobDesc** desc)
+{
+    if (result == 0)
+        return ommResult_INVALID_ARGUMENT;
+
+    if (desc == nullptr)
+        return ommResult_INVALID_ARGUMENT;
+
+    omm::Cpu::SerializeResultImpl* impl = (omm::Cpu::SerializeResultImpl*)result;
+    *desc = impl->GetDesc();
+    return ommResult_SUCCESS;
+}
+
+OMM_API ommResult ommCpuDestroySerializedResult(ommCpuSerializedResult result)
+{
+    if (result == 0)
+        return ommResult_INVALID_ARGUMENT;
+    omm::Cpu::SerializeResultImpl* impl = (omm::Cpu::SerializeResultImpl*)result;
+    const StdAllocator<uint8_t>& memoryAllocator = (*impl).GetStdAllocator();
+    Deallocate(memoryAllocator, impl);
+    return ommResult_SUCCESS;
+}
+
+OMM_API ommResult ommCpuDeserialize(ommBaker baker, const ommCpuBlobDesc& desc, ommCpuDeserializedResult* outResult)
 {
     if (baker == 0)
         return ommResult_INVALID_ARGUMENT;
@@ -172,62 +196,46 @@ OMM_API ommResult OMM_CALL ommCpuDeserialize(ommBaker baker, const ommCpuBlobDes
 
     StdAllocator<uint8_t>& memoryAllocator = (*impl).GetStdAllocator();
 
-    omm::Cpu::BakeBlobImpl* blobImpl = Allocate<omm::Cpu::BakeBlobImpl>(memoryAllocator, memoryAllocator, impl->GetLog());
+    omm::Cpu::DeserializedResultImpl* desImpl = Allocate<omm::Cpu::DeserializedResultImpl>(memoryAllocator, memoryAllocator, impl->GetLog());
 
-    ommResult res = blobImpl->Deserialize(desc);
+    ommResult res = desImpl->Deserialize(desc);
+
     if (res == ommResult_SUCCESS)
     {
-        *outBlob = (ommBlob)blobImpl;
+        *outResult = (ommCpuDeserializedResult)desImpl;
     }
     else
     {
-        Deallocate(memoryAllocator, blobImpl);
-        *outBlob = (ommBlob)nullptr;
+        Deallocate(memoryAllocator, desImpl);
+        *outResult = (ommCpuDeserializedResult)nullptr;
     }
+
     return res;
 }
 
-OMM_API ommResult OMM_CALL ommCpuGetBlobDesc(ommBlob blob, const ommCpuBlobDesc** desc)
+OMM_API ommResult ommCpuGetDeserializedDesc(ommCpuDeserializedResult result, const ommCpuDeserializedDesc** desc)
 {
-    if (blob == 0)
+    if (result == 0)
         return ommResult_INVALID_ARGUMENT;
 
-    omm::Cpu::BakeBlobImpl* blobImpl = (omm::Cpu::BakeBlobImpl*)blob;
+    if (desc == nullptr)
+        return ommResult_INVALID_ARGUMENT;
 
-    *desc = blobImpl->GetDesc();
+    omm::Cpu::DeserializedResultImpl* desImpl = (omm::Cpu::DeserializedResultImpl*)result;
+
+    *desc = desImpl->GetDesc();
+
     return ommResult_SUCCESS;
 }
 
-OMM_API ommResult ommCpuGetBlobInputDesc(ommBlob blob, const ommCpuBakeInputDesc** inputDesc)
+OMM_API ommResult ommCpuDestroyDeserializedResult(ommCpuDeserializedResult result)
 {
-    if (blob == 0)
+    if (result == 0)
         return ommResult_INVALID_ARGUMENT;
 
-    omm::Cpu::BakeBlobImpl* blobImpl = (omm::Cpu::BakeBlobImpl*)blob;
-
-    *inputDesc = blobImpl->GetInputDesc();
-    return ommResult_SUCCESS;
-}
-
-OMM_API ommResult ommCpuGetBlobBakeResult(ommBlob blob, const ommCpuBakeResult** outBakeResult)
-{
-    if (blob == 0)
-        return ommResult_INVALID_ARGUMENT;
-
-    omm::Cpu::BakeBlobImpl* blobImpl = (omm::Cpu::BakeBlobImpl*)blob;
-
-    *outBakeResult = blobImpl->GetBakeResult();
-    return ommResult_SUCCESS;
-}
-
-OMM_API ommResult OMM_CALL ommCpuDestroyBlob(ommBlob blob)
-{
-    if (blob == 0)
-        return ommResult_INVALID_ARGUMENT;
-
-    omm::Cpu::BakeBlobImpl* blobImpl = (omm::Cpu::BakeBlobImpl*)blob;
-    const StdAllocator<uint8_t>& memoryAllocator = (*blobImpl).GetStdAllocator();
-    Deallocate(memoryAllocator, blobImpl);
+    omm::Cpu::DeserializedResultImpl* impl = (omm::Cpu::DeserializedResultImpl*)result;
+    const StdAllocator<uint8_t>& memoryAllocator = (*impl).GetStdAllocator();
+    Deallocate(memoryAllocator, impl);
     return ommResult_SUCCESS;
 }
 

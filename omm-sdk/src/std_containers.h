@@ -17,6 +17,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include <string>
 #include <streambuf>
 #include <ostream>
+#include <istream>
 
 #include "omm.h"
 

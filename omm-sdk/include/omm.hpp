@@ -188,6 +188,10 @@ namespace omm
 
       using Texture = Handle;
 
+      using SerializedResult = Handle;
+
+      using DeserializedResult = Handle;
+
       enum class TextureFormat
       {
          UNORM8,
@@ -235,6 +239,13 @@ namespace omm
           EnableWorkloadValidation    = 1u << 5,
       };
       OMM_DEFINE_ENUM_FLAG_OPERATORS(BakeFlags);
+
+      enum class SerializeFlags
+      {
+          None,
+          Compress,
+      };
+      OMM_DEFINE_ENUM_FLAG_OPERATORS(SerializeFlags);
 
       // The baker supports conservativle baking from a MIP array when the runtime wants to pick freely between texture levels at
       // runtime without the need to update the OMM data. _However_ baking from mip level 0 only is recommended in the general
@@ -290,13 +301,13 @@ namespace omm
          {
              OMM_DEPRECATED_MSG("alphaCutoffLE has been deprecated, please use alphaCutoffLessEqual")
              omm::OpacityState     alphaCutoffLE;
-             omm::OpacityState     alphaCutoffLessEqual;
+             omm::OpacityState     alphaCutoffLessEqual = omm::OpacityState::Transparent;
          };
          union
          {
              OMM_DEPRECATED_MSG("alphaCutoffGT has been deprecated, please use alphaCutoffGreater instead")
              omm::OpacityState     alphaCutoffGT;
-             omm::OpacityState     alphaCutoffGreater;
+             omm::OpacityState     alphaCutoffGreater = omm::OpacityState::Opaque;
          };
          // The global Format. May be overriden by the per-triangle subdivision level setting.
          Format                format                        = Format::OC1_4_State;
@@ -364,6 +375,17 @@ namespace omm
           uint64_t  size = 0;
       };
 
+      struct DeserializedDesc
+      {
+          SerializeFlags    flags           = SerializeFlags::None;
+          // Optional
+          int               numInputDescs   = 0;
+          BakeInputDesc*    inputDescs      = nullptr;
+          // Optional
+          int               numResultDescs  = 0;
+          BakeResultDesc*   resultDescs     = nullptr;
+      };
+
       static inline Result CreateTexture(Baker baker, const TextureDesc& desc, Texture* outTexture);
 
       static inline Result DestroyTexture(Baker baker, Texture texture);
@@ -374,17 +396,17 @@ namespace omm
 
       static inline Result GetBakeResultDesc(BakeResult bakeResult, const BakeResultDesc** desc);
 
-      static inline Result Serialize(ommBaker baker, const BakeInputDesc* inputDesc /*optional*/, const BakeResult* bakeResult /*optional*/, ommBlob* outBlob);
+      static inline Result Serialize(ommBaker baker, const DeserializedDesc& inputDesc, SerializedResult* outResult);
 
-      static inline Result Deserialize(ommBaker baker, const BlobDesc* desc, ommBlob* outBlob);
+      static inline Result GetSerializedResultDesc(SerializedResult result, const BlobDesc** desc);
 
-      static inline Result GetBlobDesc(ommBlob blob, const BlobDesc** inputDesc);
+      static inline Result DestroySerializedResult(SerializedResult result);
 
-      static inline Result GetBlobInputDesc(ommBlob blob, const ommCpuBakeInputDesc** inputDesc);
+      static inline Result Deserialize(ommBaker baker, const BlobDesc& desc, DeserializedResult* outResult);
 
-      static inline Result GetBlobBakeResult(ommBlob blob, const ommCpuBakeResult** outBakeResult);
+      static inline Result GetDeserializedDesc(DeserializedResult result, const DeserializedDesc** desc);
 
-      static inline Result DestroyBlob(ommBlob blob);
+      static inline Result DestroyDeserializedResult(DeserializedResult result);
 
    } // namespace Cpu
 
@@ -786,13 +808,13 @@ namespace omm
          {
              OMM_DEPRECATED_MSG("alphaCutoffLE has been deprecated, please use alphaCutoffLessEqual")
              omm::OpacityState     alphaCutoffLE;
-             omm::OpacityState     alphaCutoffLessEqual;
+             omm::OpacityState     alphaCutoffLessEqual = omm::OpacityState::Transparent;
          };
          union
          {
              OMM_DEPRECATED_MSG("alphaCutoffGT has been deprecated, please use alphaCutoffGreater instead")
              omm::OpacityState     alphaCutoffGT;
-             omm::OpacityState     alphaCutoffGreater;
+             omm::OpacityState     alphaCutoffGreater = omm::OpacityState::Opaque;
          };
          // Configure the target resolution when running dynamic subdivision level. <= 0: disabled. > 0: The subdivision level be
          // chosen such that a single micro-triangle covers approximatley a dynamicSubdivisionScale * dynamicSubdivisionScale texel
@@ -951,29 +973,29 @@ namespace omm
         {
             return (Result)ommCpuGetBakeResultDesc((ommCpuBakeResult)bakeResult, reinterpret_cast<const ommCpuBakeResultDesc**>(desc));
         }
-        static inline Result Serialize(ommBaker baker, const BakeInputDesc* inputDesc /*optional*/, const BakeResult* bakeResult /*optional*/, ommBlob* outBlob)
+        static inline Result Serialize(ommBaker baker, const DeserializedDesc& desc, SerializedResult* outResult)
         {
-            return (Result)ommCpuSerialize((ommBaker)baker, reinterpret_cast<const ommCpuBakeInputDesc*>(inputDesc), reinterpret_cast<const ommCpuBakeResult*>(bakeResult), outBlob);
+            return (Result)ommCpuSerialize(baker, reinterpret_cast<const ommCpuDeserializedDesc&>(desc), reinterpret_cast<ommCpuSerializedResult*>(outResult));
         }
-        static inline Result Deserialize(ommBaker baker, const BlobDesc* desc, ommBlob* outBlob)
+        static inline Result GetSerializedResultDesc(SerializedResult result, const BlobDesc** desc)
         {
-            return (Result)ommCpuDeserialize((ommBaker)baker, reinterpret_cast<const ommCpuBlobDesc*>(desc), outBlob);
+            return (Result)ommCpuGetSerializedResultDesc((ommCpuSerializedResult)result, reinterpret_cast<const ommCpuBlobDesc**>(desc));
         }
-        static inline Result GetBlobDesc(ommBlob blob, const BlobDesc** inputDesc)
+        static inline Result DestroySerializedResult(SerializedResult result)
         {
-            return (Result)ommCpuGetBlobDesc((ommBlob)blob, reinterpret_cast<const ommCpuBlobDesc**>(inputDesc));
+            return (Result)ommCpuDestroySerializedResult((ommCpuSerializedResult)result);
         }
-        static inline Result GetBlobInputDesc(ommBlob blob, const BakeInputDesc** inputDesc)
+        static inline Result Deserialize(ommBaker baker, const BlobDesc& desc, DeserializedResult* outResult)
         {
-            return (Result)ommCpuGetBlobInputDesc((ommBlob)blob, reinterpret_cast<const ommCpuBakeInputDesc**>(inputDesc));
+            return (Result)ommCpuDeserialize(baker, reinterpret_cast<const ommCpuBlobDesc&>(desc), reinterpret_cast<ommCpuDeserializedResult*>(outResult));
         }
-        static inline Result GetBlobBakeResult(ommBlob blob, const BakeResult** outBakeResult)
+        static inline Result GetDeserializedDesc(DeserializedResult result, const DeserializedDesc** desc)
         {
-            return (Result)ommCpuGetBlobBakeResult((ommBlob)blob, reinterpret_cast<const ommCpuBakeResult**>(outBakeResult));
+            return (Result)ommCpuGetDeserializedDesc((ommCpuDeserializedResult)result, reinterpret_cast<const ommCpuDeserializedDesc**>(desc));
         }
-        static inline Result DestroyBlob(ommBlob blob)
+        static inline Result DestroyDeserializedResult(DeserializedResult result)
         {
-            return (Result)ommCpuDestroyBlob((ommBlob)blob);
+            return (Result)ommCpuDestroyDeserializedResult((ommCpuDeserializedResult)result);
         }
     }
     namespace Gpu

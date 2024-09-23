@@ -58,11 +58,13 @@ typedef uintptr_t ommHandle;
 
 typedef ommHandle ommBaker;
 
-typedef ommHandle ommBlob;
-
 typedef ommHandle ommCpuBakeResult;
 
 typedef ommHandle ommCpuTexture;
+
+typedef ommHandle ommCpuSerializedResult;
+
+typedef ommHandle ommCpuDeserializedResult;
 
 typedef void* (*ommAllocate)(void* userArg, size_t size, size_t alignment);
 
@@ -174,6 +176,12 @@ typedef enum ommAlphaMode
    ommAlphaMode_Blend,
    ommAlphaMode_MAX_NUM,
 } ommAlphaMode;
+
+typedef enum ommCpuSerializeFlags
+{
+    ommCpuSerializeFlags_None,
+    ommCpuSerializeFlags_Compress
+} ommCpuSerializeFlags;
 
 typedef struct ommLibraryDesc
 {
@@ -501,12 +509,34 @@ typedef struct ommCpuBlobDesc
     uint64_t    size;
 } ommCpuBlobDesc;
 
-inline ommCpuBlobDesc ommCpuBlobDefault()
+inline ommCpuBlobDesc ommCpuBlobDescDefault()
 {
-    ommCpuBlobDesc blob;
-    blob.data   = nullptr;
-    blob.size   = 0;
-    return blob;
+    ommCpuBlobDesc v;
+    v.data = nullptr;
+    v.size = 0;
+    return v;
+}
+
+typedef struct ommCpuDeserializedDesc
+{
+    ommCpuSerializeFlags    flags;
+    // Optional
+    int                     numInputDescs;
+    ommCpuBakeInputDesc*    inputDescs;
+    // Optional
+    int                     numResultDescs;
+    ommCpuBakeResultDesc*   resultDescs;
+} ommCpuDeserializedDesc;
+
+inline ommCpuDeserializedDesc ommCpuDeserializedDescDefault()
+{
+    ommCpuDeserializedDesc v;
+    v.flags             = ommCpuSerializeFlags_None;
+    v.numInputDescs     = 0;
+    v.inputDescs        = nullptr;
+    v.numResultDescs    = 0;
+    v.resultDescs       = nullptr;
+    return v;
 }
 
 OMM_API ommResult ommCpuCreateTexture(ommBaker baker, const ommCpuTextureDesc* desc, ommCpuTexture* outTexture);
@@ -519,17 +549,21 @@ OMM_API ommResult ommCpuDestroyBakeResult(ommCpuBakeResult bakeResult);
 
 OMM_API ommResult ommCpuGetBakeResultDesc(ommCpuBakeResult bakeResult, const ommCpuBakeResultDesc** desc);
 
-OMM_API ommResult ommCpuSerialize(ommBaker baker, const ommCpuBakeInputDesc* inputDesc /*optional*/, const ommCpuBakeResult* bakeResult /*optional*/, ommBlob* outBlob);
+// Serialization API useful to distribute input and /or output data for debugging& visualization purposes
 
-OMM_API ommResult ommCpuDeserialize(ommBaker baker, const ommCpuBlobDesc* desc, ommBlob* outBlob);
+// Serialization
+OMM_API ommResult ommCpuSerialize(ommBaker baker, const ommCpuDeserializedDesc& desc, ommCpuSerializedResult* outResult);
 
-OMM_API ommResult ommCpuGetBlobDesc(ommBlob blob, const ommCpuBlobDesc** inputDesc);
+OMM_API ommResult ommCpuGetSerializedResultDesc(ommCpuSerializedResult result, const ommCpuBlobDesc** desc);
 
-OMM_API ommResult ommCpuGetBlobInputDesc(ommBlob blob, const ommCpuBakeInputDesc** inputDesc);
+OMM_API ommResult ommCpuDestroySerializedResult(ommCpuSerializedResult result);
 
-OMM_API ommResult ommCpuGetBlobBakeResult(ommBlob blob, const ommCpuBakeResult** outBakeResult);
+// Deserialization
+OMM_API ommResult ommCpuDeserialize(ommBaker baker, const ommCpuBlobDesc& desc, ommCpuDeserializedResult* outResult);
 
-OMM_API ommResult ommCpuDestroyBlob(ommBlob blob);
+OMM_API ommResult ommCpuGetDeserializedDesc(ommCpuDeserializedResult result, const ommCpuDeserializedDesc** desc);
+
+OMM_API ommResult ommCpuDestroyDeserializedResult(ommCpuDeserializedResult result);
 
 typedef ommHandle ommGpuPipeline;
 

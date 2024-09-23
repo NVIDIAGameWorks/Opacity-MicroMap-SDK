@@ -30,6 +30,7 @@ namespace {
 		Force32BitIndices,
 		TextureAsUNORM8,
 		AlphaCutoff,
+		Serialize,
 	};
 
 	struct Options
@@ -64,7 +65,8 @@ namespace {
 		bool Force32BitIndices() const { return (GetParam() & TestSuiteConfig::Force32BitIndices) == TestSuiteConfig::Force32BitIndices; }
 		bool TextureAsUNORM8() const { return (GetParam() & TestSuiteConfig::TextureAsUNORM8) == TestSuiteConfig::TextureAsUNORM8; }
 		bool EnableAlphaCutoff() const { return (GetParam() & TestSuiteConfig::AlphaCutoff) == TestSuiteConfig::AlphaCutoff; }
-
+		bool EnableSerialize() const { return (GetParam() & TestSuiteConfig::Serialize) == TestSuiteConfig::Serialize; }
+		
 		omm::Cpu::Texture CreateTexture(const omm::Cpu::TextureDesc& desc) {
 			omm::Cpu::Texture tex = 0;
 			EXPECT_EQ(omm::Cpu::CreateTexture(_baker, desc, &tex), omm::Result::SUCCESS);
@@ -150,8 +152,30 @@ namespace {
 
 			omm::Cpu::BakeResult res = 0;
 
-			EXPECT_EQ(omm::Cpu::Bake(_baker, desc, &res), omm::Result::SUCCESS);
-			EXPECT_NE(res, 0);
+			if (EnableSerialize())
+			{
+				omm::Cpu::DeserializedDesc toSerialize;
+				toSerialize.numInputDescs = 1;
+				toSerialize.inputDescs = &desc;
+
+				ommCpuSerializedResult res = 0;
+				EXPECT_EQ(omm::Cpu::Serialize(_baker, toSerialize, &res), omm::Result::SUCCESS);
+				EXPECT_NE(res, 0);
+
+				// EXPECT_EQ(omm::Cpu::Deserialize(_baker, desc, &blob), omm::Result::SUCCESS);
+				// EXPECT_NE(blob, 0);
+
+				const omm::Cpu::BakeInputDesc* descCopy;
+				EXPECT_EQ(omm::Cpu::Get(blob, &descCopy), omm::Result::SUCCESS);
+
+				EXPECT_EQ(omm::Cpu::Bake(_baker, *descCopy, &res), omm::Result::SUCCESS);
+				EXPECT_NE(res, 0);
+			}
+			else
+			{
+				EXPECT_EQ(omm::Cpu::Bake(_baker, desc, &res), omm::Result::SUCCESS);
+				EXPECT_NE(res, 0);
+			}
 
 			const omm::Cpu::BakeResultDesc* resDesc = nullptr;
 			EXPECT_EQ(omm::Cpu::GetBakeResultDesc(res, &resDesc), omm::Result::SUCCESS);
@@ -1653,11 +1677,12 @@ namespace {
 	}
 
 	INSTANTIATE_TEST_SUITE_P(OMMTestCPU, OMMBakeTestCPU, ::testing::Values(
-		TestSuiteConfig::Default
-		,	TestSuiteConfig::TextureDisableZOrder
-		,	TestSuiteConfig::Force32BitIndices
-		,	TestSuiteConfig::TextureAsUNORM8
+		  TestSuiteConfig::Default
+		, TestSuiteConfig::TextureDisableZOrder
+		, TestSuiteConfig::Force32BitIndices
+		, TestSuiteConfig::TextureAsUNORM8
 		, TestSuiteConfig::AlphaCutoff
+		, TestSuiteConfig::Serialize
 		
 	), CustomParamName);
 
