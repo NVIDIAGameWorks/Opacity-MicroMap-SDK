@@ -188,6 +188,8 @@ namespace Cpu
 
         if (desc.texture == 0)
             return m_log.InvalidArg("[Invalid Argument] - texture is not set");
+        if (!GetCheckedHandleImpl<TextureImpl>(desc.texture))
+            return m_log.InvalidArg("[Invalid Argument] - desc.texture is of incorrect type");
         if (desc.alphaMode == ommAlphaMode_MAX_NUM)
             return m_log.InvalidArg("[Invalid Argument] - alphaMode is not set");
         if (desc.runtimeSamplerDesc.addressingMode == ommTextureAddressMode_MAX_NUM)
@@ -217,7 +219,7 @@ namespace Cpu
         if (options.enableWorkloadValidation && !m_log.HasLogger())
             return m_log.InvalidArg("[Invalid Argument] - EnableWorkloadValidation is set but not message callback was provided"); // this works more as documentation since it won't be logged
 
-        if (TextureImpl* texture = ((TextureImpl*)desc.texture))
+        if (TextureImpl* texture = GetHandleImpl<TextureImpl>(desc.texture))
         {
             if (texture->HasAlphaCutoff() && texture->GetAlphaCutoff() != desc.alphaCutoff)
             {
@@ -244,7 +246,7 @@ namespace Cpu
     }
 
     ommResult BakeOutputImpl::InvokeDispatch(const ommCpuBakeInputDesc& desc) {
-        TextureImpl* texture = ((TextureImpl*)desc.texture);
+        TextureImpl* texture = GetHandleImpl<TextureImpl>(desc.texture);
         auto it = bakeDispatchTable.find(std::make_tuple(texture->GetTextureFormat(), texture->GetTilingMode(), desc.runtimeSamplerDesc.addressingMode, desc.runtimeSamplerDesc.filter));
         if (it == bakeDispatchTable.end())
             return ommResult_FAILURE;
@@ -489,7 +491,7 @@ namespace Cpu
             const StdAllocator<uint8_t>& allocator, const Logger& log, const ommCpuBakeInputDesc& desc, const Options& options, 
             vector<OmmWorkItem>& vmWorkItems)
         {
-            const TextureImpl* texture = ((const TextureImpl*)desc.texture);
+            const TextureImpl* texture = GetHandleImpl<TextureImpl>(desc.texture);
 
             const int32_t triangleCount = desc.indexCount / 3u;
 
@@ -561,7 +563,7 @@ namespace Cpu
             if (!options.enableWorkloadValidation)
                 return ommResult_SUCCESS;
 
-            const TextureImpl* texture = ((const TextureImpl*)desc.texture);
+            const TextureImpl* texture = GetHandleImpl<TextureImpl>(desc.texture);
 
             // Approximate the workload size. 
             // The workload metric is the accumulated count of the number of texels in total that needs to be processed.
@@ -594,7 +596,7 @@ namespace Cpu
             if (options.enableAABBTesting && !options.disableLevelLineIntersection)
                 return log.InvalidArg("[Invalid Arg] - EnableAABBTesting can't be used without also setting DisableLevelLineIntersection");
 
-            const TextureImpl* texture = ((const TextureImpl*)desc.texture);
+            const TextureImpl* texture = GetHandleImpl<TextureImpl>(desc.texture);
 
             if (!texture->HasSAT())
                 return ommResult_SUCCESS;
@@ -692,7 +694,7 @@ namespace Cpu
             if (options.disableFineClassification)
                 return ommResult_SUCCESS;
 
-            const TextureImpl* texture = ((const TextureImpl*)desc.texture);
+            const TextureImpl* texture = GetHandleImpl<TextureImpl>(desc.texture);
 
             // 3. Process the queue of unique triangles...
             {

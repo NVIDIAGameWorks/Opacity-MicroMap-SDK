@@ -142,7 +142,7 @@ namespace omm
         if (dumpDesc.detailedCutout && dumpDesc.oneFile)
             return ommResult_INVALID_ARGUMENT;
 
-        TextureImpl* texImpl = (TextureImpl*)desc.texture;
+        const TextureImpl* texImpl = GetHandleImpl<TextureImpl>(desc.texture);
 
         vector<ommOpacityState> states(memoryAllocator);
         set<int32_t> dumpedOMMs(memoryAllocator);

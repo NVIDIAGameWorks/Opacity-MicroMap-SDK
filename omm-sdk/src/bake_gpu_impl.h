@@ -11,6 +11,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #pragma once
 
 #include "omm.h"
+#include "omm_handle.h"
 #include "std_containers.h"
 #include "shader_bindings.h"
 #include "std_allocator.h"
@@ -909,6 +910,9 @@ namespace Gpu
     {
         // Internal
     public:
+
+        static constexpr HandleType kHandleType = HandleType::Pipeline;
+
         PipelineImpl(const StdAllocator<uint8_t>& stdAllocator, const Logger& log)
             : m_stdAllocator(stdAllocator)
             , m_log(log)
@@ -1057,6 +1061,8 @@ namespace Gpu
     {
     // Internal
     public:
+        static inline constexpr HandleType kHandleType = HandleType::GpuBaker;
+
         inline BakerImpl(const StdAllocator<uint8_t>& stdAllocator) :
             m_stdAllocator(stdAllocator)
         {}

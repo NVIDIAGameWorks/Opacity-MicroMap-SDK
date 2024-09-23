@@ -116,14 +116,14 @@ namespace {
 			_expectedLogMsg = expectedLogMsg;
 			_logCounter = 0;
 
-			omm::Cpu::BakeResult res = 0;
+			omm::Cpu::BakeResult res = nullptr;
 
 			ASSERT_EQ(omm::Cpu::Bake(_baker, desc, &res), expectedResult);
 
 			if (expectedResult != omm::Result::SUCCESS)
 				return;
 
-			EXPECT_NE(res, 0);
+			EXPECT_NE(res, nullptr);
 
 			const omm::Cpu::BakeResultDesc* resDesc = nullptr;
 			EXPECT_EQ(omm::Cpu::GetBakeResultDesc(res, &resDesc), omm::Result::SUCCESS);

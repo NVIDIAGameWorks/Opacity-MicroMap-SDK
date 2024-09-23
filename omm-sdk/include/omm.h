@@ -14,8 +14,8 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include <stdint.h>
 #include <stddef.h>
 
-#define OMM_VERSION_MAJOR 1
-#define OMM_VERSION_MINOR 3
+#define OMM_VERSION_MAJOR 2
+#define OMM_VERSION_MINOR 0
 #define OMM_VERSION_BUILD 0
 
 #define OMM_MAX_TRANSIENT_POOL_BUFFERS 8
@@ -54,17 +54,20 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 typedef uint8_t ommBool;
 
-typedef uintptr_t ommHandle;
+typedef struct _ommBaker _ommBaker;
+typedef _ommBaker* ommBaker;
 
-typedef ommHandle ommBaker;
+typedef struct _ommCpuBakeResult _ommCpuBakeResult;
+typedef _ommCpuBakeResult* ommCpuBakeResult;
 
-typedef ommHandle ommCpuBakeResult;
+typedef struct _ommCpuTexture _ommCpuTexture;
+typedef _ommCpuTexture* ommCpuTexture;
 
-typedef ommHandle ommCpuTexture;
+typedef struct _ommCpuSerializedResult _ommCpuSerializedResult;
+typedef _ommCpuSerializedResult* ommCpuSerializedResult;
 
-typedef ommHandle ommCpuSerializedResult;
-
-typedef ommHandle ommCpuDeserializedResult;
+typedef struct _ommCpuDeserializedResult _ommCpuDeserializedResult;
+typedef _ommCpuDeserializedResult* ommCpuDeserializedResult;
 
 typedef void* (*ommAllocate)(void* userArg, size_t size, size_t alignment);
 
@@ -566,7 +569,8 @@ OMM_API ommResult ommCpuGetDeserializedDesc(ommCpuDeserializedResult result, con
 
 OMM_API ommResult ommCpuDestroyDeserializedResult(ommCpuDeserializedResult result);
 
-typedef ommHandle ommGpuPipeline;
+typedef struct _ommGpuPipeline _ommGpuPipeline;
+typedef _ommGpuPipeline* ommGpuPipeline;
 
 typedef enum ommGpuDescriptorType
 {

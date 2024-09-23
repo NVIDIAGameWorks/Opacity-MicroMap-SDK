@@ -1279,7 +1279,7 @@ ommResult BakerImpl::CreatePipeline(const ommGpuPipelineConfigDesc& config, ommG
     StdAllocator<uint8_t>& memoryAllocator = GetStdAllocator();
     PipelineImpl* implementation = Allocate<PipelineImpl>(memoryAllocator, memoryAllocator, GetLog());
     RETURN_STATUS_IF_FAILED(implementation->Create(config));
-    *outPipeline = (ommGpuPipeline)implementation;
+    *outPipeline = CreateHandle<ommGpuPipeline, PipelineImpl>(implementation);
     return ommResult_SUCCESS;
 }
 
@@ -1288,7 +1288,7 @@ ommResult BakerImpl::DestroyPipeline(ommGpuPipeline pipeline)
     if (pipeline == 0)
         return m_log.InvalidArg("[Invalid Arg] - pipeline is null");
 
-    PipelineImpl* impl = (PipelineImpl*)pipeline;
+    PipelineImpl* impl = GetHandleImpl< PipelineImpl>(pipeline);
     StdAllocator<uint8_t>& memoryAllocator = GetStdAllocator();
     Deallocate(memoryAllocator, impl);
     return ommResult_SUCCESS;

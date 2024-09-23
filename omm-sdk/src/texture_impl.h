@@ -11,6 +11,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #pragma once
 
 #include "omm.h"
+#include "omm_handle.h"
 
 #include "std_containers.h"
 #include "log.h"
@@ -31,6 +32,8 @@ namespace omm
     class TextureImpl
     {
     public:
+        static inline constexpr HandleType kHandleType = HandleType::Texture;
+
         TextureImpl(const StdAllocator<uint8_t>& stdAllocator, const Logger& log);
         ~TextureImpl();
 
@@ -259,7 +262,7 @@ namespace omm
         if (m_dataSATSize != 0)
         {
             m_dataSAT = m_stdAllocator.allocate(m_dataSATSize, kAlignment);
-            os.read(reinterpret_cast<char*>(&m_dataSAT), sizeof(m_dataSATSize));
+            os.read(reinterpret_cast<char*>(m_dataSAT), m_dataSATSize);
         }
     }
 }

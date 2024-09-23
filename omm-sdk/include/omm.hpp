@@ -171,9 +171,7 @@ namespace omm
       MessageInterface         messageInterface          = {};
    };
 
-   using Handle = uintptr_t;
-
-   using Baker = Handle;
+   typedef ommBaker Baker;
 
    static inline LibraryDesc GetLibraryDesc();
 
@@ -183,14 +181,13 @@ namespace omm
 
    namespace Cpu
    {
+      typedef ommCpuBakeResult BakeResult;
 
-      using BakeResult = Handle;
+      typedef ommCpuTexture Texture;
 
-      using Texture = Handle;
+      typedef ommCpuSerializedResult SerializedResult;
 
-      using SerializedResult = Handle;
-
-      using DeserializedResult = Handle;
+      typedef ommCpuDeserializedResult DeserializedResult;
 
       enum class TextureFormat
       {
@@ -413,7 +410,8 @@ namespace omm
    namespace Gpu
    {
 
-      using Pipeline = Handle;
+      typedef struct _Pipeline _Pipeline;
+      typedef _Pipeline* Pipeline;
 
       enum class DescriptorType
       {

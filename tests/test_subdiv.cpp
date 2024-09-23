@@ -160,10 +160,10 @@ namespace {
 				);
 
 			desc.dynamicSubdivisionScale = 0.f;
-			omm::Cpu::BakeResult res = 0;
+			omm::Cpu::BakeResult res = nullptr;
 
 			EXPECT_EQ(omm::Cpu::Bake(_baker, desc, &res), omm::Result::SUCCESS);
-			EXPECT_NE(res, 0);
+			EXPECT_NE(res, nullptr);
 
 			const omm::Cpu::BakeResultDesc* resDesc = nullptr;
 			EXPECT_EQ(omm::Cpu::GetBakeResultDesc(res, &resDesc), omm::Result::SUCCESS);

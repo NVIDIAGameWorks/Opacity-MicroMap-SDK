@@ -31,6 +31,7 @@ namespace Cpu
     class SerializeResultImpl
     {
     public:
+        static inline constexpr HandleType kHandleType = HandleType::SerializeResult;
 
         enum {
             VERSION = 1
@@ -69,6 +70,8 @@ namespace Cpu
     class DeserializedResultImpl
     {
     public:
+        static inline constexpr HandleType kHandleType = HandleType::DeserializeResult;
+
         DeserializedResultImpl(const StdAllocator<uint8_t>& stdAllocator, const Logger& log);
         ~DeserializedResultImpl();
 

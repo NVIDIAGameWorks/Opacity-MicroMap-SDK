@@ -182,13 +182,13 @@ namespace {
 				dataToSerialize.inputDescs = &desc;
 
 				EXPECT_EQ(omm::Cpu::Serialize(_baker, dataToSerialize, &serializedRes), omm::Result::SUCCESS);
-				EXPECT_NE(serializedRes, 0);
+				EXPECT_NE(serializedRes, nullptr);
 
 
 				// EXPECT_EQ(omm::Debug::SaveBinaryToDisk(_baker, *blob, "myBlob.bin"), omm::Result::SUCCESS);
 			}
 
-			omm::Cpu::BakeResult res = 0;
+			omm::Cpu::BakeResult res = nullptr;
 			if (EnableSerialize())
 			{
 				// open the file:
@@ -205,12 +205,12 @@ namespace {
 				// blob.size = dataFile.size();
 
 				// Now do deserialize
-				omm::Cpu::DeserializedResult res = 0;
-				EXPECT_EQ(omm::Cpu::Deserialize(_baker, *blob, &res), omm::Result::SUCCESS);
-				EXPECT_NE(res, 0);
+				omm::Cpu::DeserializedResult dRes = nullptr;
+				EXPECT_EQ(omm::Cpu::Deserialize(_baker, *blob, &dRes), omm::Result::SUCCESS);
+				EXPECT_NE(dRes, nullptr);
 
 				const omm::Cpu::DeserializedDesc* desDesc;
-				EXPECT_EQ(omm::Cpu::GetDeserializedDesc(res, &desDesc), omm::Result::SUCCESS);
+				EXPECT_EQ(omm::Cpu::GetDeserializedDesc(dRes, &desDesc), omm::Result::SUCCESS);
 
 				EXPECT_EQ(desDesc->numInputDescs, 1);
 				EXPECT_EQ(desDesc->numResultDescs, 0);
@@ -218,14 +218,14 @@ namespace {
 				const omm::Cpu::BakeInputDesc& descCopy = desDesc->inputDescs[0];
 
 				EXPECT_EQ(omm::Cpu::Bake(_baker, descCopy, &res), omm::Result::SUCCESS);
-				EXPECT_NE(res, 0);
+				EXPECT_NE(res, nullptr);
 
-				EXPECT_EQ(omm::Cpu::DestroyDeserializedResult(res), omm::Result::SUCCESS);
+				EXPECT_EQ(omm::Cpu::DestroyDeserializedResult(dRes), omm::Result::SUCCESS);
 			}
 			else
 			{
 				EXPECT_EQ(omm::Cpu::Bake(_baker, desc, &res), omm::Result::SUCCESS);
-				EXPECT_NE(res, 0);
+				EXPECT_NE(res, nullptr);
 			}
 
 			const omm::Cpu::BakeResultDesc* resDesc = nullptr;
@@ -441,9 +441,9 @@ namespace {
 	TEST_P(OMMBakeTestCPU, NullDesc) {
 
 		omm::Cpu::BakeInputDesc nullDesc;
-		omm::Cpu::BakeResult res = 0;
+		omm::Cpu::BakeResult res = nullptr;
 		EXPECT_EQ(omm::Cpu::Bake(_baker, nullDesc, &res), omm::Result::INVALID_ARGUMENT);
-		EXPECT_EQ(res, 0);
+		EXPECT_EQ(res, nullptr);
 	}
 
 	TEST_P(OMMBakeTestCPU, AllOpaque4) {

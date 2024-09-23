@@ -8,6 +8,7 @@ distribution of this software and related documentation without an express
 license agreement from NVIDIA CORPORATION is strictly prohibited.
 */
 
+#include "omm_handle.h"
 #include "serialize_impl.h"
 
 namespace omm
@@ -79,7 +80,7 @@ namespace Cpu
 
         os.write(reinterpret_cast<const char*>(&inputDesc.bakeFlags), sizeof(inputDesc.bakeFlags));
 
-        TextureImpl* texture = ((TextureImpl*)inputDesc.texture);
+        const TextureImpl* texture = GetHandleImpl<TextureImpl>(inputDesc.texture);
         texture->Serialize(buffer);
 
         os.write(reinterpret_cast<const char*>(&inputDesc.runtimeSamplerDesc.addressingMode), sizeof(inputDesc.runtimeSamplerDesc.addressingMode));
@@ -142,7 +143,7 @@ namespace Cpu
     {
         std::ostream os(&buffer);
 
-        // BEGING HEADER
+        // BEGIN HEADER
         int major = OMM_VERSION_MAJOR;
         int minor = OMM_VERSION_MINOR;
         int patch = OMM_VERSION_BUILD;
@@ -203,9 +204,13 @@ namespace Cpu
         for (int i = 0; i < m_inputDesc.numInputDescs; ++i)
         {
             auto& inputDesc = m_inputDesc.inputDescs[i];
+            OMM_ASSERT(inputDesc.texture != 0);
             if (inputDesc.texture)
             {
-                Deallocate(m_stdAllocator, (TextureImpl*)inputDesc.texture);
+                const StdAllocator<uint8_t>& memoryAllocator = GetStdAllocator();
+                TextureImpl* texture = GetHandleImpl<TextureImpl>(inputDesc.texture);
+                Deallocate(memoryAllocator, texture);
+                inputDesc.texture = 0;
             }
 
             if (inputDesc.texCoords)
@@ -245,7 +250,7 @@ namespace Cpu
 
         TextureImpl* texture = Allocate<TextureImpl>(m_stdAllocator, m_stdAllocator, m_log);
         texture->Deserialize(buffer);
-        inputDesc.texture = (ommCpuTexture)texture;
+        inputDesc.texture = CreateHandle<omm::Cpu::Texture, TextureImpl>(texture);
 
         os.read(reinterpret_cast<char*>(&inputDesc.runtimeSamplerDesc.addressingMode), sizeof(inputDesc.runtimeSamplerDesc.addressingMode));
         os.read(reinterpret_cast<char*>(&inputDesc.runtimeSamplerDesc.filter), sizeof(inputDesc.runtimeSamplerDesc.filter));
@@ -317,7 +322,7 @@ namespace Cpu
     {
         std::istream os(&buffer);
 
-        // BEGING HEADER
+        // BEGIN HEADER
         int major = 0;
         int minor = 0;
         int patch = 0;
