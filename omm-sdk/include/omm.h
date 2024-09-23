@@ -87,6 +87,7 @@ typedef enum ommMessageSeverity
 {
     ommMessageSeverity_Info,
     ommMessageSeverity_PerfWarning,
+    ommMessageSeverity_Error,
     ommMessageSeverity_Fatal,
     ommMessageSeverity_MAX_NUM,
 } ommMessageSeverity;
@@ -1163,4 +1164,7 @@ inline ommDebugStats ommDebugStatsDefault()
 OMM_API ommResult ommDebugSaveAsImages(ommBaker baker, const ommCpuBakeInputDesc* bakeInputDesc, const ommCpuBakeResultDesc* res, const ommDebugSaveImagesDesc* desc);
 
 OMM_API ommResult ommDebugGetStats(ommBaker baker, const ommCpuBakeResultDesc* res, ommDebugStats* out);
+
+OMM_API ommResult ommDebugSaveBinaryToDisk(ommBaker baker, const ommCpuBlobDesc& data, const char* path);
+
 #endif // #ifndef INCLUDE_OMM_SDK_C

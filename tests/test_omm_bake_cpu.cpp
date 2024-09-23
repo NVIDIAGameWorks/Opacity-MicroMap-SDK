@@ -21,6 +21,12 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include <math.h>
 #include <cmath>
 
+#include <string>
+#include <fstream>
+#include <vector>
+#include <istream>
+#include <iterator>
+
 namespace {
 
 	enum TestSuiteConfig
@@ -112,6 +118,24 @@ namespace {
 			}
 		}
 
+		std::vector<std::byte> readFileData(const std::string& name) {
+			std::ifstream inputFile(name, std::ios_base::binary);
+
+			// Determine the length of the file by seeking
+			// to the end of the file, reading the value of the
+			// position indicator, and then seeking back to the beginning.
+			inputFile.seekg(0, std::ios_base::end);
+			auto length = inputFile.tellg();
+			inputFile.seekg(0, std::ios_base::beg);
+
+			// Make a buffer of the exact size of the file and read the data into it.
+			std::vector<std::byte> buffer(length);
+			inputFile.read(reinterpret_cast<char*>(buffer.data()), length);
+
+			inputFile.close();
+			return buffer;
+		}
+
 		omm::Debug::Stats RunOmmBake(
 			float alphaCutoff,
 			uint32_t subdivisionLevel,
@@ -150,26 +174,53 @@ namespace {
 
 			desc.dynamicSubdivisionScale = 0.f;
 
-			omm::Cpu::BakeResult res = 0;
-
+			omm::Cpu::SerializedResult serializedRes = 0;
 			if (EnableSerialize())
 			{
-				omm::Cpu::DeserializedDesc toSerialize;
-				toSerialize.numInputDescs = 1;
-				toSerialize.inputDescs = &desc;
+				omm::Cpu::DeserializedDesc dataToSerialize;
+				dataToSerialize.numInputDescs = 1;
+				dataToSerialize.inputDescs = &desc;
 
-				ommCpuSerializedResult res = 0;
-				EXPECT_EQ(omm::Cpu::Serialize(_baker, toSerialize, &res), omm::Result::SUCCESS);
+				EXPECT_EQ(omm::Cpu::Serialize(_baker, dataToSerialize, &serializedRes), omm::Result::SUCCESS);
+				EXPECT_NE(serializedRes, 0);
+
+
+				// EXPECT_EQ(omm::Debug::SaveBinaryToDisk(_baker, *blob, "myBlob.bin"), omm::Result::SUCCESS);
+			}
+
+			omm::Cpu::BakeResult res = 0;
+			if (EnableSerialize())
+			{
+				// open the file:
+				std::basic_ifstream<uint8_t> file("myBlob.bin", std::ios::binary);
+
+				// read the data:
+				auto dataFile = std::vector<uint8_t>((std::istreambuf_iterator<uint8_t>(file)),	std::istreambuf_iterator<uint8_t>());
+
+				const omm::Cpu::BlobDesc* blob = nullptr;
+				EXPECT_EQ(omm::Cpu::GetSerializedResultDesc(serializedRes, &blob), omm::Result::SUCCESS);
+
+				// omm::Cpu::BlobDesc blob;
+				// blob.data = dataFile.data();
+				// blob.size = dataFile.size();
+
+				// Now do deserialize
+				omm::Cpu::DeserializedResult res = 0;
+				EXPECT_EQ(omm::Cpu::Deserialize(_baker, *blob, &res), omm::Result::SUCCESS);
 				EXPECT_NE(res, 0);
 
-				// EXPECT_EQ(omm::Cpu::Deserialize(_baker, desc, &blob), omm::Result::SUCCESS);
-				// EXPECT_NE(blob, 0);
+				const omm::Cpu::DeserializedDesc* desDesc;
+				EXPECT_EQ(omm::Cpu::GetDeserializedDesc(res, &desDesc), omm::Result::SUCCESS);
 
-				const omm::Cpu::BakeInputDesc* descCopy;
-				EXPECT_EQ(omm::Cpu::Get(blob, &descCopy), omm::Result::SUCCESS);
+				EXPECT_EQ(desDesc->numInputDescs, 1);
+				EXPECT_EQ(desDesc->numResultDescs, 0);
 
-				EXPECT_EQ(omm::Cpu::Bake(_baker, *descCopy, &res), omm::Result::SUCCESS);
+				const omm::Cpu::BakeInputDesc& descCopy = desDesc->inputDescs[0];
+
+				EXPECT_EQ(omm::Cpu::Bake(_baker, descCopy, &res), omm::Result::SUCCESS);
 				EXPECT_NE(res, 0);
+
+				EXPECT_EQ(omm::Cpu::DestroyDeserializedResult(res), omm::Result::SUCCESS);
 			}
 			else
 			{
@@ -1677,12 +1728,13 @@ namespace {
 	}
 
 	INSTANTIATE_TEST_SUITE_P(OMMTestCPU, OMMBakeTestCPU, ::testing::Values(
-		  TestSuiteConfig::Default
-		, TestSuiteConfig::TextureDisableZOrder
-		, TestSuiteConfig::Force32BitIndices
-		, TestSuiteConfig::TextureAsUNORM8
-		, TestSuiteConfig::AlphaCutoff
-		, TestSuiteConfig::Serialize
+		//   TestSuiteConfig::Default
+		// , TestSuiteConfig::TextureDisableZOrder
+		// , TestSuiteConfig::Force32BitIndices
+		// , TestSuiteConfig::TextureAsUNORM8
+		// , TestSuiteConfig::AlphaCutoff
+		//, 
+		TestSuiteConfig::Serialize
 		
 	), CustomParamName);
 

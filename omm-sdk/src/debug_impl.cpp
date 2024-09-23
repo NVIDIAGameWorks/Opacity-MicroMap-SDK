@@ -581,4 +581,22 @@ namespace omm
         *out = CollectStats(memoryAllocator, *resDesc);
         return ommResult_SUCCESS;
     }
+
+    ommResult SaveBinaryToDiskImpl(const Logger& log, const ommCpuBlobDesc& data, const char* path)
+    {
+        std::ofstream outputFile(path, std::ios::binary);
+
+        if (outputFile.is_open())
+        {
+            outputFile.write(reinterpret_cast<const char*>(data.data), data.size);
+
+            outputFile.close();
+
+            return ommResult_SUCCESS;
+        }
+        else {
+            return log.ErrorArgf("Unable to save file %s", path);
+        }
+    }
+
 }  // namespace omm

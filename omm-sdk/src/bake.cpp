@@ -344,6 +344,28 @@ OMM_API ommResult OMM_CALL ommDebugGetStats(ommBaker baker, const ommCpuBakeResu
         return ommResult_INVALID_ARGUMENT;
 }
 
+OMM_API ommResult OMM_CALL ommDebugSaveBinaryToDisk(ommBaker baker, const ommCpuBlobDesc& data, const char* path)
+{
+    if (baker == 0)
+        return ommResult_INVALID_ARGUMENT;
+    if (path == 0)
+        return ommResult_INVALID_ARGUMENT;
+    if (GetBakerType(baker) == ommBakerType_CPU)
+    {
+        Cpu::BakerImpl* impl = GetBakerImpl<Cpu::BakerImpl>(baker);
+        const Logger& log = (*impl).GetLog();
+        return SaveBinaryToDiskImpl(log, data, path);
+    }
+    else if (GetBakerType(baker) == ommBakerType_GPU)
+    {
+        Gpu::BakerImpl* impl = GetBakerImpl<Gpu::BakerImpl>(baker);
+        const Logger& log = (*impl).GetLog();
+        return SaveBinaryToDiskImpl(log, data, path);
+    }
+    else
+        return ommResult_INVALID_ARGUMENT;
+}
+
 OMM_API ommResult OMM_CALL ommCreateBaker(const ommBakerCreationDesc* desc, ommBaker* baker)
 {
     if (desc == 0)

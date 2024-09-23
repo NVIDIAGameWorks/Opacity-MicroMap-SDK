@@ -208,10 +208,15 @@ namespace omm
 
         os.write(reinterpret_cast<const char*>(&m_tilingMode), sizeof(m_tilingMode));
         os.write(reinterpret_cast<const char*>(&m_textureFormat), sizeof(m_textureFormat));
+
         os.write(reinterpret_cast<const char*>(&m_dataSize), sizeof(m_dataSize));
         os.write(reinterpret_cast<const char*>(m_data), m_dataSize);
+
         os.write(reinterpret_cast<const char*>(&m_dataSATSize), sizeof(m_dataSATSize));
-        os.write(reinterpret_cast<const char*>(m_dataSAT), m_dataSATSize);
+        if (m_dataSATSize != 0)
+        {
+            os.write(reinterpret_cast<const char*>(m_dataSAT), m_dataSATSize);
+        }
     }
 
     template<class TMemoryStreamBuf>
@@ -245,8 +250,8 @@ namespace omm
 
         os.read(reinterpret_cast<char*>(&m_tilingMode), sizeof(m_tilingMode));
         os.read(reinterpret_cast<char*>(&m_textureFormat), sizeof(m_textureFormat));
+
         os.read(reinterpret_cast<char*>(&m_dataSize), sizeof(m_dataSize));
-        
         m_data = m_stdAllocator.allocate(m_dataSize, kAlignment);
         os.read(reinterpret_cast<char*>(m_data), m_dataSize);
 

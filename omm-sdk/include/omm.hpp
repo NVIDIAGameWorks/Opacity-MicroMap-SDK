@@ -1035,6 +1035,10 @@ namespace omm
         {
             return (Result)ommDebugGetStats((ommBaker)baker, reinterpret_cast<const ommCpuBakeResultDesc*>(res), reinterpret_cast<ommDebugStats*>(out));
         }
+        static inline Result SaveBinaryToDisk(Baker baker, const Cpu::BlobDesc& data, const char* path)
+        {
+            return (Result)ommDebugSaveBinaryToDisk((ommBaker)baker, reinterpret_cast<const ommCpuBlobDesc&>(data), path);
+        }
     }
 }
 
