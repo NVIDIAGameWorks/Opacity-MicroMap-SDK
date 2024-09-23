@@ -259,7 +259,7 @@ OMM_API ommResult OMM_CALL ommGpuGetPipelineDesc(ommGpuPipeline pipeline, const 
 {
     if (pipeline == 0)
         return ommResult_INVALID_ARGUMENT;
-    Gpu::PipelineImpl* impl = (Gpu::PipelineImpl*)(pipeline);
+    Gpu::PipelineImpl* impl = GetHandleImpl<Gpu::PipelineImpl>(pipeline);
     return impl->GetPipelineDesc(outPipelineDesc);
 }
 
@@ -281,7 +281,7 @@ OMM_API ommResult OMM_CALL ommGpuGetPreDispatchInfo(ommGpuPipeline pipeline, con
         return ommResult_INVALID_ARGUMENT;
     if (config == 0)
         return ommResult_INVALID_ARGUMENT;
-    Gpu::PipelineImpl* impl = (Gpu::PipelineImpl*)(pipeline);
+    Gpu::PipelineImpl* impl = GetHandleImpl<Gpu::PipelineImpl>(pipeline);
     return impl->GetPreDispatchInfo(*config, outPreBuildInfo);
 }
 
@@ -291,7 +291,7 @@ OMM_API ommResult OMM_CALL ommGpuDispatch(ommGpuPipeline pipeline, const ommGpuD
         return ommResult_INVALID_ARGUMENT;
     if (dispatchConfig == 0)
         return ommResult_INVALID_ARGUMENT;
-    Gpu::PipelineImpl* impl = (Gpu::PipelineImpl*)(pipeline);
+    Gpu::PipelineImpl* impl = GetHandleImpl<Gpu::PipelineImpl>(pipeline);
     return impl->GetDispatchDesc(*dispatchConfig, outDispatchDesc);
 }
     
