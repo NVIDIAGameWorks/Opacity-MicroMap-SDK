@@ -311,7 +311,6 @@ namespace omm
          // When dynamicSubdivisionScale is disabled maxSubdivisionLevel is the subdivision level applied uniformly to all
          // triangles.
          uint8_t               maxSubdivisionLevel           = 8;
-         bool                  enableSubdivisionLevelBuffer  = false;
          // [optional] Use subdivisionLevels to control subdivision on a per triangle granularity.
          // +14 - reserved for future use.
          // 13 - use global value specified in 'subdivisionLevel.
@@ -359,6 +358,12 @@ namespace omm
          uint32_t                         indexHistogramCount;
       };
 
+      struct BlobDesc
+      {
+          void*     data = nullptr;
+          uint64_t  size = 0;
+      };
+
       static inline Result CreateTexture(Baker baker, const TextureDesc& desc, Texture* outTexture);
 
       static inline Result DestroyTexture(Baker baker, Texture texture);
@@ -368,6 +373,18 @@ namespace omm
       static inline Result DestroyBakeResult(BakeResult bakeResult);
 
       static inline Result GetBakeResultDesc(BakeResult bakeResult, const BakeResultDesc** desc);
+
+      static inline Result Serialize(ommBaker baker, const BakeInputDesc* inputDesc /*optional*/, const BakeResult* bakeResult /*optional*/, ommBlob* outBlob);
+
+      static inline Result Deserialize(ommBaker baker, const BlobDesc* desc, ommBlob* outBlob);
+
+      static inline Result GetBlobDesc(ommBlob blob, const BlobDesc** inputDesc);
+
+      static inline Result GetBlobInputDesc(ommBlob blob, const ommCpuBakeInputDesc** inputDesc);
+
+      static inline Result GetBlobBakeResult(ommBlob blob, const ommCpuBakeResult** outBakeResult);
+
+      static inline Result DestroyBlob(ommBlob blob);
 
    } // namespace Cpu
 
@@ -898,81 +915,105 @@ namespace omm
 
 namespace omm
 {
-	static inline LibraryDesc GetLibraryDesc()
-	{
+    static inline LibraryDesc GetLibraryDesc()
+    {
         ommLibraryDesc res = ommGetLibraryDesc();
         return reinterpret_cast<LibraryDesc&>(res);
-	}
-	static inline Result CreateBaker(const BakerCreationDesc& bakeCreationDesc, Baker* outBaker)
-	{
-		static_assert(sizeof(BakerCreationDesc) == sizeof(ommBakerCreationDesc));
-		return (Result)ommCreateBaker(reinterpret_cast<const ommBakerCreationDesc*>(&bakeCreationDesc), (ommBaker*)outBaker);
-	}
-	static inline Result DestroyBaker(Baker baker)
-	{
-		return (Result)ommDestroyBaker((ommBaker)baker);
-	}
-	namespace Cpu
-	{
-		static inline Result CreateTexture(Baker baker, const TextureDesc& desc, Texture* outTexture)
-		{
-			return (Result)ommCpuCreateTexture((ommBaker)baker, reinterpret_cast<const ommCpuTextureDesc*>(&desc), (ommCpuTexture*)outTexture);
-		}
-		static inline Result DestroyTexture(Baker baker, Texture texture)
-		{
-			return (Result)ommCpuDestroyTexture((ommBaker)baker, (ommCpuTexture)texture);
-		}
-		static inline Result Bake(Baker baker, const BakeInputDesc& bakeInputDesc, BakeResult* outBakeResult)
-		{
-			return (Result)ommCpuBake((ommBaker)baker, reinterpret_cast<const ommCpuBakeInputDesc*>(&bakeInputDesc), (ommCpuBakeResult*)outBakeResult);
-		}
-		static inline Result DestroyBakeResult(BakeResult bakeResult)
-		{
-			return (Result)ommCpuDestroyBakeResult((ommCpuBakeResult)bakeResult);
-		}
-		static inline Result GetBakeResultDesc(BakeResult bakeResult, const BakeResultDesc** desc)
-		{
-			return (Result)ommCpuGetBakeResultDesc((ommCpuBakeResult)bakeResult, reinterpret_cast<const ommCpuBakeResultDesc**>(desc));
-		}
-	}
-	namespace Gpu
-	{
-		static inline Result GetStaticResourceData(ResourceType resource, uint8_t* data, size_t* outByteSize)
-		{
-			return (Result)ommGpuGetStaticResourceData((ommGpuResourceType)resource, data, outByteSize);
-		}
-		static inline Result CreatePipeline(Baker baker, const PipelineConfigDesc& pipelineCfg, Pipeline* outPipeline)
-		{
-			return (Result)ommGpuCreatePipeline((ommBaker)baker, reinterpret_cast<const ommGpuPipelineConfigDesc*>(&pipelineCfg), (ommGpuPipeline*)outPipeline);
-		}
-		static inline Result DestroyPipeline(Baker baker, Pipeline pipeline)
-		{
-			return (Result)ommGpuDestroyPipeline((ommBaker)baker, (ommGpuPipeline)pipeline);
-		}
-		static inline Result GetPipelineDesc(Pipeline pipeline, const PipelineInfoDesc** outPipelineDesc)
-		{
-			return (Result)ommGpuGetPipelineDesc((ommGpuPipeline)pipeline, reinterpret_cast<const ommGpuPipelineInfoDesc**>(outPipelineDesc));
-		}
-		static inline Result GetPreDispatchInfo(Pipeline pipeline, const DispatchConfigDesc& config, PreDispatchInfo* outPreBuildInfo)
-		{
-			return (Result)ommGpuGetPreDispatchInfo((ommGpuPipeline)pipeline, reinterpret_cast<const ommGpuDispatchConfigDesc*>(&config), reinterpret_cast<ommGpuPreDispatchInfo*>(outPreBuildInfo));
-		}
-		static inline Result Dispatch(Pipeline pipeline, const DispatchConfigDesc& config, const DispatchChain** outDispatchDesc)
-		{
-			return (Result)ommGpuDispatch((ommGpuPipeline)pipeline, reinterpret_cast<const ommGpuDispatchConfigDesc*>(&config), reinterpret_cast<const ommGpuDispatchChain**>(outDispatchDesc));
-		}
-	}
-	namespace Debug
-	{
-		static inline Result SaveAsImages(Baker baker, const Cpu::BakeInputDesc& bakeInputDesc, const Cpu::BakeResultDesc* res, const SaveImagesDesc& desc)
-		{
-			return (Result)ommDebugSaveAsImages((ommBaker)baker, reinterpret_cast<const ommCpuBakeInputDesc*>(&bakeInputDesc), reinterpret_cast<const ommCpuBakeResultDesc*>(res), reinterpret_cast<const ommDebugSaveImagesDesc*>(&desc));
-		}
-		static inline Result GetStats(Baker baker, const Cpu::BakeResultDesc* res, Stats* out)
-		{
-			return (Result)ommDebugGetStats((ommBaker)baker, reinterpret_cast<const ommCpuBakeResultDesc*>(res), reinterpret_cast<ommDebugStats*>(out));
-		}
-	}
+    }
+    static inline Result CreateBaker(const BakerCreationDesc& bakeCreationDesc, Baker* outBaker)
+    {
+        static_assert(sizeof(BakerCreationDesc) == sizeof(ommBakerCreationDesc));
+        return (Result)ommCreateBaker(reinterpret_cast<const ommBakerCreationDesc*>(&bakeCreationDesc), (ommBaker*)outBaker);
+    }
+    static inline Result DestroyBaker(Baker baker)
+    {
+        return (Result)ommDestroyBaker((ommBaker)baker);
+    }
+    namespace Cpu
+    {
+        static inline Result CreateTexture(Baker baker, const TextureDesc& desc, Texture* outTexture)
+        {
+            return (Result)ommCpuCreateTexture((ommBaker)baker, reinterpret_cast<const ommCpuTextureDesc*>(&desc), (ommCpuTexture*)outTexture);
+        }
+        static inline Result DestroyTexture(Baker baker, Texture texture)
+        {
+            return (Result)ommCpuDestroyTexture((ommBaker)baker, (ommCpuTexture)texture);
+        }
+        static inline Result Bake(Baker baker, const BakeInputDesc& bakeInputDesc, BakeResult* outBakeResult)
+        {
+            return (Result)ommCpuBake((ommBaker)baker, reinterpret_cast<const ommCpuBakeInputDesc*>(&bakeInputDesc), (ommCpuBakeResult*)outBakeResult);
+        }
+        static inline Result DestroyBakeResult(BakeResult bakeResult)
+        {
+            return (Result)ommCpuDestroyBakeResult((ommCpuBakeResult)bakeResult);
+        }
+        static inline Result GetBakeResultDesc(BakeResult bakeResult, const BakeResultDesc** desc)
+        {
+            return (Result)ommCpuGetBakeResultDesc((ommCpuBakeResult)bakeResult, reinterpret_cast<const ommCpuBakeResultDesc**>(desc));
+        }
+        static inline Result Serialize(ommBaker baker, const BakeInputDesc* inputDesc /*optional*/, const BakeResult* bakeResult /*optional*/, ommBlob* outBlob)
+        {
+            return (Result)ommCpuSerialize((ommBaker)baker, reinterpret_cast<const ommCpuBakeInputDesc*>(inputDesc), reinterpret_cast<const ommCpuBakeResult*>(bakeResult), outBlob);
+        }
+        static inline Result Deserialize(ommBaker baker, const BlobDesc* desc, ommBlob* outBlob)
+        {
+            return (Result)ommCpuDeserialize((ommBaker)baker, reinterpret_cast<const ommCpuBlobDesc*>(desc), outBlob);
+        }
+        static inline Result GetBlobDesc(ommBlob blob, const BlobDesc** inputDesc)
+        {
+            return (Result)ommCpuGetBlobDesc((ommBlob)blob, reinterpret_cast<const ommCpuBlobDesc**>(inputDesc));
+        }
+        static inline Result GetBlobInputDesc(ommBlob blob, const BakeInputDesc** inputDesc)
+        {
+            return (Result)ommCpuGetBlobInputDesc((ommBlob)blob, reinterpret_cast<const ommCpuBakeInputDesc**>(inputDesc));
+        }
+        static inline Result GetBlobBakeResult(ommBlob blob, const BakeResult** outBakeResult)
+        {
+            return (Result)ommCpuGetBlobBakeResult((ommBlob)blob, reinterpret_cast<const ommCpuBakeResult**>(outBakeResult));
+        }
+        static inline Result DestroyBlob(ommBlob blob)
+        {
+            return (Result)ommCpuDestroyBlob((ommBlob)blob);
+        }
+    }
+    namespace Gpu
+    {
+        static inline Result GetStaticResourceData(ResourceType resource, uint8_t* data, size_t* outByteSize)
+        {
+            return (Result)ommGpuGetStaticResourceData((ommGpuResourceType)resource, data, outByteSize);
+        }
+        static inline Result CreatePipeline(Baker baker, const PipelineConfigDesc& pipelineCfg, Pipeline* outPipeline)
+        {
+            return (Result)ommGpuCreatePipeline((ommBaker)baker, reinterpret_cast<const ommGpuPipelineConfigDesc*>(&pipelineCfg), (ommGpuPipeline*)outPipeline);
+        }
+        static inline Result DestroyPipeline(Baker baker, Pipeline pipeline)
+        {
+            return (Result)ommGpuDestroyPipeline((ommBaker)baker, (ommGpuPipeline)pipeline);
+        }
+        static inline Result GetPipelineDesc(Pipeline pipeline, const PipelineInfoDesc** outPipelineDesc)
+        {
+            return (Result)ommGpuGetPipelineDesc((ommGpuPipeline)pipeline, reinterpret_cast<const ommGpuPipelineInfoDesc**>(outPipelineDesc));
+        }
+        static inline Result GetPreDispatchInfo(Pipeline pipeline, const DispatchConfigDesc& config, PreDispatchInfo* outPreBuildInfo)
+        {
+            return (Result)ommGpuGetPreDispatchInfo((ommGpuPipeline)pipeline, reinterpret_cast<const ommGpuDispatchConfigDesc*>(&config), reinterpret_cast<ommGpuPreDispatchInfo*>(outPreBuildInfo));
+        }
+        static inline Result Dispatch(Pipeline pipeline, const DispatchConfigDesc& config, const DispatchChain** outDispatchDesc)
+        {
+            return (Result)ommGpuDispatch((ommGpuPipeline)pipeline, reinterpret_cast<const ommGpuDispatchConfigDesc*>(&config), reinterpret_cast<const ommGpuDispatchChain**>(outDispatchDesc));
+        }
+    }
+    namespace Debug
+    {
+        static inline Result SaveAsImages(Baker baker, const Cpu::BakeInputDesc& bakeInputDesc, const Cpu::BakeResultDesc* res, const SaveImagesDesc& desc)
+        {
+            return (Result)ommDebugSaveAsImages((ommBaker)baker, reinterpret_cast<const ommCpuBakeInputDesc*>(&bakeInputDesc), reinterpret_cast<const ommCpuBakeResultDesc*>(res), reinterpret_cast<const ommDebugSaveImagesDesc*>(&desc));
+        }
+        static inline Result GetStats(Baker baker, const Cpu::BakeResultDesc* res, Stats* out)
+        {
+            return (Result)ommDebugGetStats((ommBaker)baker, reinterpret_cast<const ommCpuBakeResultDesc*>(res), reinterpret_cast<ommDebugStats*>(out));
+        }
+    }
 }
 
 #endif // #ifndef INCLUDE_OMM_SDK_CPP

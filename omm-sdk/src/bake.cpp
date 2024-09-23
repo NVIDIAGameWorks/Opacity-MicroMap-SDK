@@ -117,7 +117,7 @@ OMM_API ommResult OMM_CALL ommCpuDestroyBakeResult(ommCpuBakeResult bakeResult)
     if (bakeResult == 0)
         return ommResult_INVALID_ARGUMENT;
 
-    StdAllocator<uint8_t>& memoryAllocator = (*(omm::Cpu::BakeOutputImpl*)bakeResult).GetStdAllocator();
+    const StdAllocator<uint8_t>& memoryAllocator = (*(omm::Cpu::BakeOutputImpl*)bakeResult).GetStdAllocator();
     Deallocate(memoryAllocator, (omm::Cpu::BakeOutputImpl*)bakeResult);
 
     return ommResult_SUCCESS;
@@ -129,6 +129,106 @@ OMM_API ommResult OMM_CALL ommCpuGetBakeResultDesc(ommCpuBakeResult bakeResult, 
         return ommResult_INVALID_ARGUMENT;
 
     return (*(omm::Cpu::BakeOutputImpl*)bakeResult).GetBakeResultDesc(desc);
+}
+
+OMM_API ommResult OMM_CALL ommCpuSerialize(ommBaker baker, const ommCpuBakeInputDesc* inputDesc, const ommCpuBakeResult* bakeResult, ommBlob* outBlob)
+{
+    if (baker == 0)
+        return ommResult_INVALID_ARGUMENT;
+
+    Cpu::BakerImpl* impl = GetBakerImpl<Cpu::BakerImpl>(baker);
+
+    if (GetBakerType(baker) != ommBakerType_CPU)
+        return impl->GetLog().InvalidArg("Baker was not created as the right type");
+
+    StdAllocator<uint8_t>& memoryAllocator = (*impl).GetStdAllocator();
+
+    omm::Cpu::BakeBlobImpl* blobImpl = Allocate<omm::Cpu::BakeBlobImpl>(memoryAllocator, memoryAllocator, impl->GetLog());
+
+    ommResult res = blobImpl->Serialize(inputDesc, bakeResult);
+
+    if (res == ommResult_SUCCESS)
+    {
+        *outBlob = (ommBlob)blobImpl;
+    }
+    else
+    {
+        Deallocate(memoryAllocator, blobImpl);
+        *outBlob = (ommBlob)nullptr;
+    }
+
+    return res;
+}
+
+OMM_API ommResult OMM_CALL ommCpuDeserialize(ommBaker baker, const ommCpuBlobDesc* desc, ommBlob* outBlob)
+{
+    if (baker == 0)
+        return ommResult_INVALID_ARGUMENT;
+
+    Cpu::BakerImpl* impl = GetBakerImpl<Cpu::BakerImpl>(baker);
+
+    if (GetBakerType(baker) != ommBakerType_CPU)
+        return impl->GetLog().InvalidArg("Baker was not created as the right type");
+
+    StdAllocator<uint8_t>& memoryAllocator = (*impl).GetStdAllocator();
+
+    omm::Cpu::BakeBlobImpl* blobImpl = Allocate<omm::Cpu::BakeBlobImpl>(memoryAllocator, memoryAllocator, impl->GetLog());
+
+    ommResult res = blobImpl->Deserialize(desc);
+    if (res == ommResult_SUCCESS)
+    {
+        *outBlob = (ommBlob)blobImpl;
+    }
+    else
+    {
+        Deallocate(memoryAllocator, blobImpl);
+        *outBlob = (ommBlob)nullptr;
+    }
+    return res;
+}
+
+OMM_API ommResult OMM_CALL ommCpuGetBlobDesc(ommBlob blob, const ommCpuBlobDesc** desc)
+{
+    if (blob == 0)
+        return ommResult_INVALID_ARGUMENT;
+
+    omm::Cpu::BakeBlobImpl* blobImpl = (omm::Cpu::BakeBlobImpl*)blob;
+
+    *desc = blobImpl->GetDesc();
+    return ommResult_SUCCESS;
+}
+
+OMM_API ommResult ommCpuGetBlobInputDesc(ommBlob blob, const ommCpuBakeInputDesc** inputDesc)
+{
+    if (blob == 0)
+        return ommResult_INVALID_ARGUMENT;
+
+    omm::Cpu::BakeBlobImpl* blobImpl = (omm::Cpu::BakeBlobImpl*)blob;
+
+    *inputDesc = blobImpl->GetInputDesc();
+    return ommResult_SUCCESS;
+}
+
+OMM_API ommResult ommCpuGetBlobBakeResult(ommBlob blob, const ommCpuBakeResult** outBakeResult)
+{
+    if (blob == 0)
+        return ommResult_INVALID_ARGUMENT;
+
+    omm::Cpu::BakeBlobImpl* blobImpl = (omm::Cpu::BakeBlobImpl*)blob;
+
+    *outBakeResult = blobImpl->GetBakeResult();
+    return ommResult_SUCCESS;
+}
+
+OMM_API ommResult OMM_CALL ommCpuDestroyBlob(ommBlob blob)
+{
+    if (blob == 0)
+        return ommResult_INVALID_ARGUMENT;
+
+    omm::Cpu::BakeBlobImpl* blobImpl = (omm::Cpu::BakeBlobImpl*)blob;
+    const StdAllocator<uint8_t>& memoryAllocator = (*blobImpl).GetStdAllocator();
+    Deallocate(memoryAllocator, blobImpl);
+    return ommResult_SUCCESS;
 }
 
 OMM_API ommResult OMM_CALL ommGpuGetStaticResourceData(ommGpuResourceType resource, uint8_t* data, size_t* outByteSize)

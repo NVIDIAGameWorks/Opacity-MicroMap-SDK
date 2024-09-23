@@ -88,13 +88,54 @@ namespace Cpu
         }
     };
 
+    class BakeBlobImpl
+    {
+    public:
+        BakeBlobImpl(const StdAllocator<uint8_t>& stdAllocator, const Logger& log);
+        ~BakeBlobImpl();
+
+        inline const StdAllocator<uint8_t>& GetStdAllocator() const
+        {
+            return m_stdAllocator;
+        }
+
+        const ommCpuBlobDesc* GetDesc() const
+        {
+            return &m_desc;
+        }
+
+        const ommCpuBakeInputDesc* GetInputDesc() const
+        {
+            return &m_inputDesc;
+        }
+
+        const ommCpuBakeResult* GetBakeResult() const
+        {
+            return &m_bakeResult;
+        }
+
+        ommResult Serialize(const ommCpuBakeInputDesc* inputDesc, const ommCpuBakeResult* bakeResult);
+        
+        ommResult Deserialize(const ommCpuBlobDesc* desc);
+
+    private:
+        template<class TMemoryStreamBuf>
+        void _Serialize(const ommCpuBakeInputDesc* inputDesc, const ommCpuBakeResult* bakeResult, TMemoryStreamBuf& buffer);
+
+        const StdAllocator<uint8_t>& m_stdAllocator;
+        const Logger& m_log;
+        ommCpuBlobDesc m_desc;
+        ommCpuBakeResult m_bakeResult;
+        ommCpuBakeInputDesc m_inputDesc;
+    };
+
     class BakeOutputImpl
     {
     public:
         BakeOutputImpl(const StdAllocator<uint8_t>& stdAllocator, const Logger& log);
         ~BakeOutputImpl();
 
-        inline StdAllocator<uint8_t>& GetStdAllocator()
+        inline const StdAllocator<uint8_t>& GetStdAllocator() const
         {
             return m_stdAllocator;
         }
@@ -126,7 +167,7 @@ namespace Cpu
         map<std::tuple<ommCpuTextureFormat, TilingMode, ommTextureAddressMode, ommTextureFilterMode>, std::function<ommResult(const ommCpuBakeInputDesc& desc)>> bakeDispatchTable;
         ommResult InvokeDispatch(const ommCpuBakeInputDesc& desc);
     private:
-        StdAllocator<uint8_t> m_stdAllocator;
+        const StdAllocator<uint8_t>& m_stdAllocator;
         const Logger& m_log;
         ommCpuBakeInputDesc m_bakeInputDesc;
         BakeResultImpl m_bakeResult;

@@ -238,7 +238,7 @@ inline T* AllocateArray(StdAllocator<uint8_t>& allocator, size_t arraySize, Args
 }
 
 template<typename T>
-inline void Deallocate(StdAllocator<uint8_t>& allocator, T* object)
+inline void Deallocate(const StdAllocator<uint8_t>& allocator, T* object)
 {
     if (object == nullptr)
         return;

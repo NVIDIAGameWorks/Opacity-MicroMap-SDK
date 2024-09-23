@@ -58,6 +58,8 @@ typedef uintptr_t ommHandle;
 
 typedef ommHandle ommBaker;
 
+typedef ommHandle ommBlob;
+
 typedef ommHandle ommCpuBakeResult;
 
 typedef ommHandle ommCpuTexture;
@@ -409,7 +411,6 @@ typedef struct ommCpuBakeInputDesc
    // When dynamicSubdivisionScale is disabled maxSubdivisionLevel is the subdivision level applied uniformly to all
    // triangles.
    uint8_t                  maxSubdivisionLevel;
-   ommBool                  enableSubdivisionLevelBuffer;
    // [optional] Use subdivisionLevels to control subdivision on a per triangle granularity.
    // +14 - reserved for future use.
    // 13 - use global value specified in 'subdivisionLevel.
@@ -439,7 +440,6 @@ inline ommCpuBakeInputDesc ommCpuBakeInputDescDefault()
    v.formats                       = NULL;
    v.unknownStatePromotion         = ommUnknownStatePromotion_ForceOpaque;
    v.maxSubdivisionLevel           = 8;
-   v.enableSubdivisionLevelBuffer  = 0;
    v.subdivisionLevels             = NULL;
    return v;
 }
@@ -495,15 +495,15 @@ typedef struct ommCpuBakeResultDesc
    uint32_t                               indexHistogramCount;
 } ommCpuBakeResultDesc;
 
-typedef struct ommBlob
+typedef struct ommCpuBlobDesc
 {
     void*       data;
     uint64_t    size;
-} ommBlob;
+} ommCpuBlobDesc;
 
-inline ommBlob ommBlobDefault()
+inline ommCpuBlobDesc ommCpuBlobDefault()
 {
-    ommBlob blob;
+    ommCpuBlobDesc blob;
     blob.data   = nullptr;
     blob.size   = 0;
     return blob;
@@ -519,9 +519,17 @@ OMM_API ommResult ommCpuDestroyBakeResult(ommCpuBakeResult bakeResult);
 
 OMM_API ommResult ommCpuGetBakeResultDesc(ommCpuBakeResult bakeResult, const ommCpuBakeResultDesc** desc);
 
-OMM_API ommResult ommCpuSerialize(ommBaker baker, const ommCpuBakeInputDesc* inDesc, const ommBlob* outBlob);
+OMM_API ommResult ommCpuSerialize(ommBaker baker, const ommCpuBakeInputDesc* inputDesc /*optional*/, const ommCpuBakeResult* bakeResult /*optional*/, ommBlob* outBlob);
 
-OMM_API ommResult ommCpuDeserialize(ommBaker baker, const ommBlob* inBlob, const ommCpuBakeInputDesc* outDesc);
+OMM_API ommResult ommCpuDeserialize(ommBaker baker, const ommCpuBlobDesc* desc, ommBlob* outBlob);
+
+OMM_API ommResult ommCpuGetBlobDesc(ommBlob blob, const ommCpuBlobDesc** inputDesc);
+
+OMM_API ommResult ommCpuGetBlobInputDesc(ommBlob blob, const ommCpuBakeInputDesc** inputDesc);
+
+OMM_API ommResult ommCpuGetBlobBakeResult(ommBlob blob, const ommCpuBakeResult** outBakeResult);
+
+OMM_API ommResult ommCpuDestroyBlob(ommBlob blob);
 
 typedef ommHandle ommGpuPipeline;
 

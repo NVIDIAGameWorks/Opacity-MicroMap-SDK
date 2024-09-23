@@ -118,6 +118,167 @@ namespace Cpu
         return result;
     }
 
+    BakeBlobImpl::BakeBlobImpl(const StdAllocator<uint8_t>& stdAllocator, const Logger& log)
+        : m_stdAllocator(stdAllocator)
+        , m_log(log)
+        , m_desc(ommCpuBlobDefault())
+        , m_bakeResult(0)
+        , m_inputDesc(ommCpuBakeInputDescDefault())
+    {
+    }
+
+    BakeBlobImpl::~BakeBlobImpl()
+    {
+    }
+
+    class MemoryStreamBuf : public std::streambuf {
+    public:
+        MemoryStreamBuf(uint8_t* data, size_t size) {
+            setg((char*)data, (char*)data, (char*)data + size);
+            setp((char*)data, (char*)data + size);
+        }
+    };
+
+    class PassthroughStreamBuf : public std::streambuf {
+    public:
+        PassthroughStreamBuf() { }
+
+        std::streamsize GetWrittenSize() const
+        {
+            return written_size;
+        }
+
+        std::streamsize xsputn(const char* s, std::streamsize n) override {
+            written_size += n;
+            return n;
+        }
+    private:
+        std::streamsize written_size = 0;
+    };
+
+    template<class TMemoryStreamBuf>
+    void BakeBlobImpl::_Serialize(const ommCpuBakeInputDesc* inputDesc, const ommCpuBakeResult* bakeResult, TMemoryStreamBuf& buffer)
+    {
+        std::ostream os(&buffer);
+
+        os.write(reinterpret_cast<const char*>(&inputDesc->bakeFlags), sizeof(inputDesc->bakeFlags));
+
+        TextureImpl* texture = ((TextureImpl*)inputDesc->texture);
+        texture->Serialize(buffer);
+
+        os.write(reinterpret_cast<const char*>(&inputDesc->runtimeSamplerDesc.addressingMode), sizeof(inputDesc->runtimeSamplerDesc.addressingMode));
+        os.write(reinterpret_cast<const char*>(&inputDesc->runtimeSamplerDesc.filter), sizeof(inputDesc->runtimeSamplerDesc.filter));
+        os.write(reinterpret_cast<const char*>(&inputDesc->runtimeSamplerDesc.borderAlpha), sizeof(inputDesc->runtimeSamplerDesc.borderAlpha));
+        os.write(reinterpret_cast<const char*>(&inputDesc->alphaMode), sizeof(inputDesc->alphaMode));
+        os.write(reinterpret_cast<const char*>(&inputDesc->texCoordFormat), sizeof(inputDesc->texCoordFormat));
+        os.write(reinterpret_cast<const char*>(&inputDesc->indexFormat), sizeof(inputDesc->indexFormat));
+        os.write(reinterpret_cast<const char*>(&inputDesc->indexCount), sizeof(inputDesc->indexCount));
+        
+        static_assert(ommIndexFormat_MAX_NUM == 2);
+        size_t indexSize = inputDesc->indexCount * (inputDesc->indexFormat == ommIndexFormat_UINT_16 ? 2 : 4);
+        os.write(reinterpret_cast<const char*>(inputDesc->indexBuffer), indexSize * inputDesc->indexCount);
+        os.write(reinterpret_cast<const char*>(&inputDesc->dynamicSubdivisionScale), sizeof(inputDesc->dynamicSubdivisionScale));
+        os.write(reinterpret_cast<const char*>(&inputDesc->rejectionThreshold), sizeof(inputDesc->rejectionThreshold));
+        os.write(reinterpret_cast<const char*>(&inputDesc->alphaCutoff), sizeof(inputDesc->alphaCutoff));
+        os.write(reinterpret_cast<const char*>(&inputDesc->alphaCutoffLessEqual), sizeof(inputDesc->alphaCutoffLessEqual));
+        os.write(reinterpret_cast<const char*>(&inputDesc->alphaCutoffGreater), sizeof(inputDesc->alphaCutoffGreater));
+        os.write(reinterpret_cast<const char*>(&inputDesc->format), sizeof(inputDesc->format));
+        
+        size_t numFormats = inputDesc->formats == nullptr ? 0 : inputDesc->indexCount;
+        os.write(reinterpret_cast<const char*>(&numFormats), sizeof(numFormats));
+
+        if (numFormats != 0)
+        {
+            os.write(reinterpret_cast<const char*>(inputDesc->formats), numFormats * sizeof(ommFormat));
+        }
+
+        os.write(reinterpret_cast<const char*>(&inputDesc->unknownStatePromotion), sizeof(inputDesc->unknownStatePromotion));
+        os.write(reinterpret_cast<const char*>(&inputDesc->maxSubdivisionLevel), sizeof(inputDesc->maxSubdivisionLevel));
+        
+        size_t numSubdivLvls = inputDesc->subdivisionLevels == nullptr ? 0 : inputDesc->indexCount;
+        os.write(reinterpret_cast<const char*>(&numSubdivLvls), sizeof(numSubdivLvls));
+        if (numSubdivLvls != 0)
+        {
+            os.write(reinterpret_cast<const char*>(inputDesc->subdivisionLevels), numSubdivLvls * sizeof(uint8_t));
+        }
+    }
+
+   // template<class TMemoryStreamBuf>
+   // void BakeBlobImpl::_Deserialize(const ommCpuBakeInputDesc* inputDesc, const ommCpuBakeResult* bakeResult, TMemoryStreamBuf& buffer)
+   // {
+   //     std::istream os(&buffer);
+   // 
+   //     os.write(reinterpret_cast<const char*>(&inputDesc->alphaCutoff), sizeof(inputDesc->alphaCutoff));
+   //     os.write(reinterpret_cast<const char*>(&inputDesc->bakeFlags), sizeof(inputDesc->bakeFlags));
+   // 
+   //     TextureImpl* texture = ((TextureImpl*)inputDesc->texture);
+   //     texture->Serialize(buffer);
+   // 
+   //     os.write(reinterpret_cast<const char*>(&inputDesc->runtimeSamplerDesc.addressingMode), sizeof(inputDesc->runtimeSamplerDesc.addressingMode));
+   //     os.write(reinterpret_cast<const char*>(&inputDesc->runtimeSamplerDesc.filter), sizeof(inputDesc->runtimeSamplerDesc.filter));
+   //     os.write(reinterpret_cast<const char*>(&inputDesc->runtimeSamplerDesc.borderAlpha), sizeof(inputDesc->runtimeSamplerDesc.borderAlpha));
+   //     os.write(reinterpret_cast<const char*>(&inputDesc->alphaMode), sizeof(inputDesc->alphaMode));
+   //     os.write(reinterpret_cast<const char*>(&inputDesc->texCoordFormat), sizeof(inputDesc->texCoordFormat));
+   //     os.write(reinterpret_cast<const char*>(&inputDesc->indexFormat), sizeof(inputDesc->indexFormat));
+   //     os.write(reinterpret_cast<const char*>(&inputDesc->indexCount), sizeof(inputDesc->indexCount));
+   // 
+   //     static_assert(ommIndexFormat_MAX_NUM == 2);
+   //     size_t indexSize = inputDesc->indexCount * (inputDesc->indexFormat == ommIndexFormat_UINT_16 ? 2 : 4);
+   //     os.write(reinterpret_cast<const char*>(inputDesc->indexBuffer), indexSize * inputDesc->indexCount);
+   //     os.write(reinterpret_cast<const char*>(&inputDesc->dynamicSubdivisionScale), sizeof(inputDesc->dynamicSubdivisionScale));
+   //     os.write(reinterpret_cast<const char*>(&inputDesc->rejectionThreshold), sizeof(inputDesc->rejectionThreshold));
+   //     os.write(reinterpret_cast<const char*>(&inputDesc->alphaCutoff), sizeof(inputDesc->alphaCutoff));
+   //     os.write(reinterpret_cast<const char*>(&inputDesc->alphaCutoffLessEqual), sizeof(inputDesc->alphaCutoffLessEqual));
+   //     os.write(reinterpret_cast<const char*>(&inputDesc->alphaCutoffGreater), sizeof(inputDesc->alphaCutoffGreater));
+   //     os.write(reinterpret_cast<const char*>(&inputDesc->format), sizeof(inputDesc->format));
+   // 
+   //     size_t numFormats = inputDesc->formats == nullptr ? 0 : inputDesc->indexCount;
+   //     os.write(reinterpret_cast<const char*>(&numFormats), sizeof(numFormats));
+   // 
+   //     if (numFormats != 0)
+   //     {
+   //         os.write(reinterpret_cast<const char*>(inputDesc->formats), numFormats * sizeof(ommFormat));
+   //     }
+   // 
+   //     os.write(reinterpret_cast<const char*>(&inputDesc->unknownStatePromotion), sizeof(inputDesc->unknownStatePromotion));
+   //     os.write(reinterpret_cast<const char*>(&inputDesc->maxSubdivisionLevel), sizeof(inputDesc->maxSubdivisionLevel));
+   // 
+   //     size_t numSubdivLvls = inputDesc->subdivisionLevels == nullptr ? 0 : inputDesc->indexCount;
+   //     os.write(reinterpret_cast<const char*>(&numSubdivLvls), sizeof(numSubdivLvls));
+   //     if (numSubdivLvls != 0)
+   //     {
+   //         os.write(reinterpret_cast<const char*>(inputDesc->subdivisionLevels), numSubdivLvls * sizeof(uint8_t));
+   //     }
+   // }
+
+    ommResult BakeBlobImpl::Serialize(const ommCpuBakeInputDesc* inputDesc, const ommCpuBakeResult* bakeResult)
+    {
+        if (inputDesc == nullptr && bakeResult == nullptr)
+            return m_log.InvalidArg("Either inputDesc or bakeResult must be set.");
+
+        if (bakeResult != nullptr)
+            return m_log.NotImplemented("Serialization of ommCpuBakeResult is currently not implemented.");
+
+        PassthroughStreamBuf passthrough;
+        _Serialize(inputDesc, bakeResult, passthrough);
+
+        size_t size = passthrough.GetWrittenSize();
+
+        m_desc.data = m_stdAllocator.GetInterface().Allocate(nullptr, size, 16);
+        m_desc.size = size;
+
+        MemoryStreamBuf buf((uint8_t*)m_desc.data, m_desc.size);
+
+        _Serialize(inputDesc, bakeResult, buf);
+
+        return ommResult_SUCCESS;
+    }
+
+    ommResult BakeBlobImpl::Deserialize(const ommCpuBlobDesc* desc)
+    {
+        return ommResult_SUCCESS;
+    }
+
     BakeOutputImpl::BakeOutputImpl(const StdAllocator<uint8_t>& stdAllocator, const Logger& log) :
         m_stdAllocator(stdAllocator),
         m_log(log),
@@ -346,7 +507,7 @@ namespace Cpu
     {
     public:
         OmmArrayDataVector() = delete;
-        OmmArrayDataVector(StdAllocator<uint8_t>& stdAllocator, ommFormat format, uint32_t _subdivisionLevel)
+        OmmArrayDataVector(const StdAllocator<uint8_t>& stdAllocator, ommFormat format, uint32_t _subdivisionLevel)
             : OmmArrayDataView(format, nullptr, nullptr, 0)
             , data(stdAllocator.GetInterface())
             , data3state(stdAllocator.GetInterface())
@@ -379,7 +540,7 @@ namespace Cpu
 
         OmmWorkItem() = delete;
 
-        OmmWorkItem(StdAllocator<uint8_t>& stdAllocator, ommFormat _vmFormat, uint32_t _subdivisionLevel, uint32_t primitiveIndex, const Triangle& _uvTri)
+        OmmWorkItem(const StdAllocator<uint8_t>& stdAllocator, ommFormat _vmFormat, uint32_t _subdivisionLevel, uint32_t primitiveIndex, const Triangle& _uvTri)
             : primitiveIndices(stdAllocator)
             , subdivisionLevel(_subdivisionLevel)
             , vmFormat(_vmFormat)
@@ -486,7 +647,7 @@ namespace Cpu
     namespace impl
     {
         static ommResult SetupWorkItems(
-            StdAllocator<uint8_t>& allocator, const Logger& log, const ommCpuBakeInputDesc& desc, const Options& options, 
+            const StdAllocator<uint8_t>& allocator, const Logger& log, const ommCpuBakeInputDesc& desc, const Options& options, 
             vector<OmmWorkItem>& vmWorkItems)
         {
             const TextureImpl* texture = ((const TextureImpl*)desc.texture);
@@ -555,7 +716,7 @@ namespace Cpu
         }
 
         static ommResult ValidateWorkloadSize(
-            StdAllocator<uint8_t>& allocator, Logger log, const ommCpuBakeInputDesc& desc, const Options& options, vector<OmmWorkItem>& vmWorkItems)
+            const StdAllocator<uint8_t>& allocator, Logger log, const ommCpuBakeInputDesc& desc, const Options& options, vector<OmmWorkItem>& vmWorkItems)
         {
             // Check if the baking will complete in "finite" amount of time...
             if (!options.enableWorkloadValidation)
@@ -873,7 +1034,7 @@ namespace Cpu
             return ommResult_SUCCESS;
         }
 
-        static ommResult DeduplicateExact(StdAllocator<uint8_t>& allocator, const Options& options, vector<OmmWorkItem>& vmWorkItems)
+        static ommResult DeduplicateExact(const StdAllocator<uint8_t>& allocator, const Options& options, vector<OmmWorkItem>& vmWorkItems)
         {
             if (options.disableDuplicateDetection)
                 return ommResult_SUCCESS;
@@ -976,7 +1137,7 @@ namespace Cpu
             return ommResult_SUCCESS;
         }
 
-        static ommResult DeduplicateSimilarLSH(StdAllocator<uint8_t>& allocator, const Options& options, vector<OmmWorkItem>& vmWorkItems, uint32_t iterations)
+        static ommResult DeduplicateSimilarLSH(const StdAllocator<uint8_t>& allocator, const Options& options, vector<OmmWorkItem>& vmWorkItems, uint32_t iterations)
         {
             if (options.disableDuplicateDetection)
                 return ommResult_SUCCESS;
@@ -1004,7 +1165,7 @@ namespace Cpu
                     vector<uint32_t> bitIndices; // random bit indices
                     vector<uint64_t> workItemHashes;
                     hash_map<uint64_t, vector<uint32_t>> layerHashToWorkItem;
-                    HashTable(StdAllocator<uint8_t>& allocator) :bitIndices(allocator), workItemHashes(allocator), layerHashToWorkItem(allocator)
+                    HashTable(const StdAllocator<uint8_t>& allocator) :bitIndices(allocator), workItemHashes(allocator), layerHashToWorkItem(allocator)
                     { }
                 };
 
@@ -1196,7 +1357,7 @@ namespace Cpu
             return ommResult_SUCCESS;
         }
 
-        static ommResult DeduplicateSimilarBruteForce(StdAllocator<uint8_t>& allocator, const Options& options, vector<OmmWorkItem>& vmWorkItems)
+        static ommResult DeduplicateSimilarBruteForce(const StdAllocator<uint8_t>& allocator, const Options& options, vector<OmmWorkItem>& vmWorkItems)
         {
             if (options.disableDuplicateDetection)
                 return ommResult_SUCCESS;
@@ -1330,7 +1491,7 @@ namespace Cpu
             return ommResult_SUCCESS;
         }
 
-        static ommResult MicromapSpatialSort(StdAllocator<uint8_t>& allocator, const Options& options, const vector<OmmWorkItem>& vmWorkItems,
+        static ommResult MicromapSpatialSort(const StdAllocator<uint8_t>& allocator, const Options& options, const vector<OmmWorkItem>& vmWorkItems,
             vector<std::pair<uint64_t, uint32_t>>& sortKeys)
         {
             // The VMs should be sorted to respect the following rules:
@@ -1380,7 +1541,7 @@ namespace Cpu
         }
 
         static ommResult Serialize(
-            StdAllocator<uint8_t>& allocator, 
+            const StdAllocator<uint8_t>& allocator, 
             const ommCpuBakeInputDesc& desc, const Options& options, vector<OmmWorkItem>& vmWorkItems, const VisibilityMapUsageHistogram& ommArrayHistogram, const VisibilityMapUsageHistogram& ommIndexHistogram,
             const vector<std::pair<uint64_t, uint32_t>>& sortKeys,
             BakeResultImpl& res)

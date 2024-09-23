@@ -115,6 +115,9 @@ namespace omm
 #endif
         }
 
+        template<class TMemoryStreamBuf>
+        void Serialize(TMemoryStreamBuf& buffer);
+
     private:
         ommResult Validate(const ommCpuTextureDesc& desc) const;
         void Deallocate();
@@ -145,7 +148,9 @@ namespace omm
         ommCpuTextureFormat m_textureFormat;
         float m_alphaCutoff;
         uint8_t* m_data;
+        size_t m_dataSize;
         uint8_t* m_dataSAT;
+        size_t m_dataSATSize;
     };
 
     template<ommCpuTextureFormat eFormat, TilingMode eTilingMode>
@@ -175,4 +180,34 @@ namespace omm
 
    	template<> uint64_t TextureImpl::From2Dto1D<TilingMode::Linear>(const int2& idx, const int2& size);
    	template<> uint64_t TextureImpl::From2Dto1D<TilingMode::MortonZ>(const int2& idx, const int2& size);
+
+    template<class TMemoryStreamBuf>
+    void TextureImpl::Serialize(TMemoryStreamBuf& buffer)
+    {
+        std::ostream os(&buffer);
+
+        size_t numMips = m_mips.size();
+        os.write(reinterpret_cast<const char*>(&numMips), sizeof(numMips));
+
+        if (numMips != 0)
+        {
+            for (const auto& mip : m_mips)
+            {
+                os.write(reinterpret_cast<const char*>(&mip.size.x), sizeof(mip.size.x));
+                os.write(reinterpret_cast<const char*>(&mip.size.y), sizeof(mip.size.y));
+                os.write(reinterpret_cast<const char*>(&mip.rcpSize.x), sizeof(mip.rcpSize.x));
+                os.write(reinterpret_cast<const char*>(&mip.rcpSize.y), sizeof(mip.rcpSize.y));
+                os.write(reinterpret_cast<const char*>(&mip.dataOffset), sizeof(mip.dataOffset));
+                os.write(reinterpret_cast<const char*>(&mip.numElements), sizeof(mip.numElements));
+                os.write(reinterpret_cast<const char*>(&mip.dataOffsetSAT), sizeof(mip.dataOffsetSAT));
+            }
+        }
+
+        os.write(reinterpret_cast<const char*>(&m_tilingMode), sizeof(m_tilingMode));
+        os.write(reinterpret_cast<const char*>(&m_textureFormat), sizeof(m_textureFormat));
+        os.write(reinterpret_cast<const char*>(&m_dataSize), sizeof(m_dataSize));
+        os.write(reinterpret_cast<const char*>(m_data), m_dataSize);
+        os.write(reinterpret_cast<const char*>(&m_dataSATSize), sizeof(m_dataSATSize));
+        os.write(reinterpret_cast<const char*>(m_dataSAT), m_dataSATSize);
+    }
 }
