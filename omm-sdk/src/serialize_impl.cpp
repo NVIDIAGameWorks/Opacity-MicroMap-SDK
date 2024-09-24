@@ -40,6 +40,31 @@ namespace Cpu
         std::streamsize written_size = 0;
     };
 
+    template<class TElem>
+    void WriteArray(std::ostream& os, const TElem* data, uint32_t elementCount)
+    {
+        os.write(reinterpret_cast<const char*>(&elementCount), sizeof(elementCount));
+        if (elementCount != 0)
+            os.write(reinterpret_cast<const char*>(data), sizeof(TElem) * elementCount);
+    };
+
+    template<class TElem>
+    void ReadArray(std::istream& os, StdAllocator<uint8_t>& stdAllocator, const TElem*& outData, uint32_t& outElementCount)
+    {
+        os.read(reinterpret_cast<char*>(&outElementCount), sizeof(outElementCount));
+        if (outElementCount != 0)
+        {
+            size_t dataSize = sizeof(TElem) * outElementCount;
+            uint8_t* data = stdAllocator.allocate(dataSize, 16);
+            os.read(reinterpret_cast<char*>(data), dataSize);
+            outData = (TElem*)data;
+        }
+        else
+        {
+            outData = nullptr;
+        }
+    };
+
     SerializeResultImpl::SerializeResultImpl(const StdAllocator<uint8_t>& stdAllocator, const Logger& log)
         : m_stdAllocator(stdAllocator)
         , m_log(log)
@@ -135,7 +160,26 @@ namespace Cpu
     template<class TMemoryStreamBuf>
     ommResult SerializeResultImpl::_Serialize(const ommCpuBakeResultDesc& resultDesc, TMemoryStreamBuf& buffer)
     {
-        return m_log.NotImplemented("not implemented.");
+        std::ostream os(&buffer);
+
+        WriteArray<uint8_t>(os, (const uint8_t*)resultDesc.arrayData, resultDesc.arrayDataSize);
+        WriteArray<ommCpuOpacityMicromapDesc>(os, resultDesc.descArray, resultDesc.descArrayCount);
+        WriteArray<ommCpuOpacityMicromapUsageCount>(os, resultDesc.descArrayHistogram, resultDesc.descArrayHistogramCount);
+        
+        os.write(reinterpret_cast<const char*>(&resultDesc.indexFormat), sizeof(resultDesc.indexFormat));
+        if (resultDesc.indexFormat == ommIndexFormat_UINT_16)
+        {
+            WriteArray<uint16_t>(os, (const uint16_t*)resultDesc.indexBuffer, resultDesc.indexCount);
+        }
+        else
+        {
+            OMM_ASSERT(resultDesc.indexFormat == ommIndexFormat_UINT_32);
+            WriteArray<uint32_t>(os, (const uint32_t*)resultDesc.indexBuffer, resultDesc.indexCount);
+        }
+
+        WriteArray<ommCpuOpacityMicromapUsageCount>(os, resultDesc.indexHistogram, resultDesc.indexHistogramCount);
+
+        return ommResult_SUCCESS;
     }
 
     template<class TMemoryStreamBuf>
@@ -186,7 +230,7 @@ namespace Cpu
 
         if ((desc.flags & ommCpuSerializeFlags_Compress) == ommCpuSerializeFlags_Compress)
         {
-            return m_log.NotImplemented("compression is not implemented.");
+            // return m_log.NotImplemented("compression is not implemented.");
         }
 
         return ommResult_SUCCESS;
@@ -237,7 +281,31 @@ namespace Cpu
         for (int i = 0; i < m_inputDesc.numResultDescs; ++i)
         {
             auto& resultDesc = m_inputDesc.resultDescs[i];
-            OMM_ASSERT(false);
+
+            if (resultDesc.arrayData)
+            {
+                m_stdAllocator.deallocate((uint8_t*)resultDesc.arrayData, 0);
+            }
+
+            if (resultDesc.descArray)
+            {
+                m_stdAllocator.deallocate((uint8_t*)resultDesc.descArray, 0);
+            }
+
+            if (resultDesc.descArrayHistogram)
+            {
+                m_stdAllocator.deallocate((uint8_t*)resultDesc.descArrayHistogram, 0);
+            }
+
+            if (resultDesc.indexBuffer)
+            {
+                m_stdAllocator.deallocate((uint8_t*)resultDesc.indexBuffer, 0);
+            }
+
+            if (resultDesc.indexHistogram)
+            {
+                m_stdAllocator.deallocate((uint8_t*)resultDesc.indexHistogram, 0);
+            }
         }
     }
 
@@ -314,7 +382,29 @@ namespace Cpu
     template<class TMemoryStreamBuf>
     ommResult DeserializedResultImpl::_Deserialize(ommCpuBakeResultDesc& resultDesc, TMemoryStreamBuf& buffer)
     {
-        return m_log.NotImplemented("not implemented");
+        std::istream os(&buffer);
+
+        StdAllocator<uint8_t>& mem = m_stdAllocator;
+
+        ReadArray<uint8_t>(os, mem, reinterpret_cast<const uint8_t*&>(resultDesc.arrayData), resultDesc.arrayDataSize);
+        ReadArray<ommCpuOpacityMicromapDesc>(os, mem, resultDesc.descArray, resultDesc.descArrayCount);
+        ReadArray<ommCpuOpacityMicromapUsageCount>(os, mem, resultDesc.descArrayHistogram, resultDesc.descArrayHistogramCount);
+
+        os.read(reinterpret_cast<char*>(&resultDesc.indexFormat), sizeof(resultDesc.indexFormat));
+
+        if (resultDesc.indexFormat == ommIndexFormat_UINT_16)
+        {
+            ReadArray<uint16_t>(os, mem, reinterpret_cast<const uint16_t*&>(resultDesc.indexBuffer), resultDesc.indexCount);
+        }
+        else
+        {
+            OMM_ASSERT(resultDesc.indexFormat == ommIndexFormat_UINT_32);
+            ReadArray<uint32_t>(os, mem, reinterpret_cast<const uint32_t*&>(resultDesc.indexBuffer), resultDesc.indexCount);
+        }
+
+        ReadArray<ommCpuOpacityMicromapUsageCount>(os, mem, resultDesc.indexHistogram, resultDesc.indexHistogramCount);
+
+        return ommResult_SUCCESS;
     }
 
     template<class TMemoryStreamBuf>

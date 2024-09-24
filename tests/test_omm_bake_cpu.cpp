@@ -71,7 +71,7 @@ namespace {
 		bool Force32BitIndices() const { return (GetParam() & TestSuiteConfig::Force32BitIndices) == TestSuiteConfig::Force32BitIndices; }
 		bool TextureAsUNORM8() const { return (GetParam() & TestSuiteConfig::TextureAsUNORM8) == TestSuiteConfig::TextureAsUNORM8; }
 		bool EnableAlphaCutoff() const { return (GetParam() & TestSuiteConfig::AlphaCutoff) == TestSuiteConfig::AlphaCutoff; }
-		bool EnableSerialize() const { return (GetParam() & TestSuiteConfig::Serialize) == TestSuiteConfig::Serialize; }
+		bool TestSerialization() const { return (GetParam() & TestSuiteConfig::Serialize) == TestSuiteConfig::Serialize; }
 		
 		omm::Cpu::Texture CreateTexture(const omm::Cpu::TextureDesc& desc) {
 			omm::Cpu::Texture tex = 0;
@@ -145,7 +145,7 @@ namespace {
 			omm::TexCoordFormat texCoordFormat,
 			void* texCoords,
 			omm::Cpu::Texture tex,
-			const Options opt = {}) 
+			const Options opt = {})
 		{
 			omm::Cpu::BakeInputDesc desc;
 			desc.texture = tex;
@@ -174,64 +174,126 @@ namespace {
 
 			desc.dynamicSubdivisionScale = 0.f;
 
-			omm::Cpu::SerializedResult serializedRes = 0;
-			if (EnableSerialize())
-			{
-				omm::Cpu::DeserializedDesc dataToSerialize;
-				dataToSerialize.numInputDescs = 1;
-				dataToSerialize.inputDescs = &desc;
-
-				EXPECT_EQ(omm::Cpu::Serialize(_baker, dataToSerialize, &serializedRes), omm::Result::SUCCESS);
-				EXPECT_NE(serializedRes, nullptr);
-
-
-				// EXPECT_EQ(omm::Debug::SaveBinaryToDisk(_baker, *blob, "myBlob.bin"), omm::Result::SUCCESS);
-			}
-
 			omm::Cpu::BakeResult res = nullptr;
-			if (EnableSerialize())
+			const omm::Cpu::BakeResultDesc* resDesc = nullptr;
+			if (TestSerialization())
 			{
-				// open the file:
-				std::basic_ifstream<uint8_t> file("myBlob.bin", std::ios::binary);
+				std::vector<uint8_t> data;
+				{
+					omm::Cpu::DeserializedDesc dataToSerialize;
+					dataToSerialize.numInputDescs = 1;
+					dataToSerialize.inputDescs = &desc;
 
-				// read the data:
-				auto dataFile = std::vector<uint8_t>((std::istreambuf_iterator<uint8_t>(file)),	std::istreambuf_iterator<uint8_t>());
+					// Serialize...
+					omm::Cpu::SerializedResult serializedRes = 0;
+					EXPECT_EQ(omm::Cpu::Serialize(_baker, dataToSerialize, &serializedRes), omm::Result::SUCCESS);
+					EXPECT_NE(serializedRes, nullptr);
 
-				const omm::Cpu::BlobDesc* blob = nullptr;
-				EXPECT_EQ(omm::Cpu::GetSerializedResultDesc(serializedRes, &blob), omm::Result::SUCCESS);
+					// Get data blob
+					const omm::Cpu::BlobDesc* blob = nullptr;
+					EXPECT_EQ(omm::Cpu::GetSerializedResultDesc(serializedRes, &blob), omm::Result::SUCCESS);
 
-				// omm::Cpu::BlobDesc blob;
-				// blob.data = dataFile.data();
-				// blob.size = dataFile.size();
+					// Copy content.
+					data = std::vector<uint8_t>((uint8_t*)blob->data, (uint8_t*)blob->data + blob->size);
 
-				// Now do deserialize
-				omm::Cpu::DeserializedResult dRes = nullptr;
-				EXPECT_EQ(omm::Cpu::Deserialize(_baker, *blob, &dRes), omm::Result::SUCCESS);
-				EXPECT_NE(dRes, nullptr);
+					// Destroy
+					EXPECT_EQ(omm::Cpu::DestroySerializedResult(serializedRes), omm::Result::SUCCESS);
+				}
+				
+				// Now do deserialize again and call bake
+				{
+					omm::Cpu::BlobDesc blob;
+					blob.data = data.data();
+					blob.size = data.size();
 
-				const omm::Cpu::DeserializedDesc* desDesc;
-				EXPECT_EQ(omm::Cpu::GetDeserializedDesc(dRes, &desDesc), omm::Result::SUCCESS);
+					omm::Cpu::DeserializedResult dRes = nullptr;
+					EXPECT_EQ(omm::Cpu::Deserialize(_baker, blob, &dRes), omm::Result::SUCCESS);
+					EXPECT_NE(dRes, nullptr);
 
-				EXPECT_EQ(desDesc->numInputDescs, 1);
-				EXPECT_EQ(desDesc->numResultDescs, 0);
+					const omm::Cpu::DeserializedDesc* desDesc = nullptr;
+					EXPECT_EQ(omm::Cpu::GetDeserializedDesc(dRes, &desDesc), omm::Result::SUCCESS);
 
-				const omm::Cpu::BakeInputDesc& descCopy = desDesc->inputDescs[0];
+					EXPECT_EQ(desDesc->numInputDescs, 1);
+					EXPECT_EQ(desDesc->numResultDescs, 0);
 
-				EXPECT_EQ(omm::Cpu::Bake(_baker, descCopy, &res), omm::Result::SUCCESS);
-				EXPECT_NE(res, nullptr);
+					const omm::Cpu::BakeInputDesc& descCopy = desDesc->inputDescs[0];
 
-				EXPECT_EQ(omm::Cpu::DestroyDeserializedResult(dRes), omm::Result::SUCCESS);
+					EXPECT_EQ(omm::Cpu::Bake(_baker, descCopy, &res), omm::Result::SUCCESS);
+					EXPECT_NE(res, nullptr);
+
+					EXPECT_EQ(omm::Cpu::DestroyDeserializedResult(dRes), omm::Result::SUCCESS);
+
+					EXPECT_EQ(omm::Cpu::GetBakeResultDesc(res, &resDesc), omm::Result::SUCCESS);
+				}
+
+				// Now try serialize the bake results too!
+				{
+					omm::Cpu::DeserializedDesc dataToSerialize;
+					dataToSerialize.numResultDescs = 1;
+					dataToSerialize.resultDescs = resDesc;
+
+					// Serialize...
+					omm::Cpu::SerializedResult serializedRes = 0;
+					EXPECT_EQ(omm::Cpu::Serialize(_baker, dataToSerialize, &serializedRes), omm::Result::SUCCESS);
+					EXPECT_NE(serializedRes, nullptr);
+
+					// Get data blob
+					const omm::Cpu::BlobDesc* blob = nullptr;
+					EXPECT_EQ(omm::Cpu::GetSerializedResultDesc(serializedRes, &blob), omm::Result::SUCCESS);
+
+					// Copy content.
+					data = std::vector<uint8_t>((uint8_t*)blob->data, (uint8_t*)blob->data + blob->size);
+
+					// Destroy
+					EXPECT_EQ(omm::Cpu::DestroySerializedResult(serializedRes), omm::Result::SUCCESS);
+				}
+
+				// Now do deserialize & compare
+				{
+					omm::Cpu::BlobDesc blob;
+					blob.data = data.data();
+					blob.size = data.size();
+
+					omm::Cpu::DeserializedResult dRes = nullptr;
+					EXPECT_EQ(omm::Cpu::Deserialize(_baker, blob, &dRes), omm::Result::SUCCESS);
+					EXPECT_NE(dRes, nullptr);
+
+					const omm::Cpu::DeserializedDesc* desDesc = nullptr;
+					EXPECT_EQ(omm::Cpu::GetDeserializedDesc(dRes, &desDesc), omm::Result::SUCCESS);
+
+					EXPECT_EQ(desDesc->numInputDescs, 0);
+					EXPECT_EQ(desDesc->numResultDescs, 1);
+
+					const omm::Cpu::BakeResultDesc* resDescCpy = &desDesc->resultDescs[0];
+					// Compare results
+
+					EXPECT_EQ(resDesc->arrayDataSize, resDescCpy->arrayDataSize);
+					EXPECT_EQ(memcmp(resDesc->arrayData, resDescCpy->arrayData, resDesc->arrayDataSize), 0);
+
+					EXPECT_EQ(resDesc->descArrayCount, resDescCpy->descArrayCount);
+					EXPECT_EQ(memcmp(resDesc->descArray, resDescCpy->descArray, sizeof(omm::Cpu::OpacityMicromapDesc) * resDesc->descArrayCount), 0);
+
+					EXPECT_EQ(resDesc->descArrayHistogramCount, resDescCpy->descArrayHistogramCount);
+					EXPECT_EQ(memcmp(resDesc->descArrayHistogram, resDescCpy->descArrayHistogram, sizeof(omm::Cpu::OpacityMicromapUsageCount) * resDesc->descArrayHistogramCount), 0);
+
+					EXPECT_EQ(resDesc->indexCount, resDescCpy->indexCount);
+					EXPECT_EQ(resDesc->indexFormat, resDescCpy->indexFormat);
+					EXPECT_EQ(memcmp(resDesc->indexBuffer, resDescCpy->indexBuffer, (resDescCpy->indexFormat == omm::IndexFormat::UINT_16 ? 2 : 4) * resDesc->indexCount), 0);
+
+					EXPECT_EQ(resDesc->indexHistogramCount, resDescCpy->indexHistogramCount);
+					EXPECT_EQ(memcmp(resDesc->indexHistogram, resDescCpy->indexHistogram, sizeof(omm::Cpu::OpacityMicromapUsageCount)* resDesc->indexHistogramCount), 0);
+
+					EXPECT_EQ(omm::Cpu::DestroyDeserializedResult(dRes), omm::Result::SUCCESS);
+				}
 			}
 			else
 			{
 				EXPECT_EQ(omm::Cpu::Bake(_baker, desc, &res), omm::Result::SUCCESS);
 				EXPECT_NE(res, nullptr);
+
+				EXPECT_EQ(omm::Cpu::GetBakeResultDesc(res, &resDesc), omm::Result::SUCCESS);
 			}
 
-			const omm::Cpu::BakeResultDesc* resDesc = nullptr;
-			EXPECT_EQ(omm::Cpu::GetBakeResultDesc(res, &resDesc), omm::Result::SUCCESS);
-
-			
 #if OMM_TEST_ENABLE_IMAGE_DUMP
 			constexpr bool kDumpDebug = true;
 #else
@@ -1728,13 +1790,12 @@ namespace {
 	}
 
 	INSTANTIATE_TEST_SUITE_P(OMMTestCPU, OMMBakeTestCPU, ::testing::Values(
-		//   TestSuiteConfig::Default
-		// , TestSuiteConfig::TextureDisableZOrder
-		// , TestSuiteConfig::Force32BitIndices
-		// , TestSuiteConfig::TextureAsUNORM8
-		// , TestSuiteConfig::AlphaCutoff
-		//, 
-		TestSuiteConfig::Serialize
+		   TestSuiteConfig::Default
+		 , TestSuiteConfig::TextureDisableZOrder
+		 , TestSuiteConfig::Force32BitIndices
+		 , TestSuiteConfig::TextureAsUNORM8
+		 , TestSuiteConfig::AlphaCutoff
+		 , TestSuiteConfig::Serialize
 		
 	), CustomParamName);
 

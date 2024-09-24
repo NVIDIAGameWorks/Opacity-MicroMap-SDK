@@ -374,13 +374,13 @@ namespace omm
 
       struct DeserializedDesc
       {
-          SerializeFlags    flags           = SerializeFlags::None;
+          SerializeFlags            flags           = SerializeFlags::None;
           // Optional
-          int               numInputDescs   = 0;
-          BakeInputDesc*    inputDescs      = nullptr;
+          int                       numInputDescs   = 0;
+          const BakeInputDesc*      inputDescs      = nullptr;
           // Optional
-          int               numResultDescs  = 0;
-          BakeResultDesc*   resultDescs     = nullptr;
+          int                       numResultDescs  = 0;
+          const BakeResultDesc*     resultDescs     = nullptr;
       };
 
       static inline Result CreateTexture(Baker baker, const TextureDesc& desc, Texture* outTexture);
