@@ -51,8 +51,16 @@ namespace omm
 			nvrhi::TextureHandle				alphaTexture;
 			uint32_t							alphaTextureChannel = 3;
 			float								alphaCutoff = 0.5f;
-			omm::OpacityState					alphaCutoffGT = omm::OpacityState::Opaque;
-			omm::OpacityState					alphaCutoffLE = omm::OpacityState::Transparent;
+			union {
+				OMM_DEPRECATED_MSG("alphaCutoffGT is deprectated, please use alphaCutoffGreater")
+				omm::OpacityState					alphaCutoffGT;
+				omm::OpacityState					alphaCutoffGreater = omm::OpacityState::Opaque;
+			};
+			union {
+				OMM_DEPRECATED_MSG("alphaCutoffLT is deprectated, please use alphaCutoffLessEqual")
+				omm::OpacityState					alphaCutoffLT;
+				omm::OpacityState					alphaCutoffLessEqual = omm::OpacityState::Transparent;
+			};
 			bool								bilinearFilter = true;
 			bool								enableLevelLineIntersection = true;
 			nvrhi::SamplerAddressMode			sampleMode = nvrhi::SamplerAddressMode::Clamp;

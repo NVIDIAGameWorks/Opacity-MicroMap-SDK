@@ -29,7 +29,9 @@ namespace omm
         m_tilingMode(TilingMode::MAX_NUM),
         m_alphaCutoff(-1.f),
         m_data(nullptr),
-        m_dataSAT(nullptr)
+        m_dataSize(0),
+        m_dataSAT(nullptr),
+        m_dataSATSize(0)
     {
     }
 
@@ -86,15 +88,15 @@ namespace omm
 
         const bool enableSAT = std::numeric_limits<uint32_t>::max() > m_mips[0].numElements && m_alphaCutoff >= 0;
 
-        size_t totalSize = 0;
-        size_t totalSizeSAT = 0;
+        m_dataSize = 0;
+        m_dataSATSize = 0;
         for (uint32_t mipIt = 0; mipIt < desc.mipCount; ++mipIt)
         {
             m_mips[mipIt].size = { desc.mips[mipIt].width, desc.mips[mipIt].height };
             m_mips[mipIt].sizeMinusOne = m_mips[mipIt].size - 1;
             m_mips[mipIt].rcpSize = 1.f / (float2)m_mips[mipIt].size;
-            m_mips[mipIt].dataOffset = totalSize;
-            m_mips[mipIt].dataOffsetSAT = totalSizeSAT;
+            m_mips[mipIt].dataOffset = m_dataSize;
+            m_mips[mipIt].dataOffsetSAT = m_dataSATSize;
 
             if (m_tilingMode == TilingMode::Linear)
             {
@@ -111,18 +113,18 @@ namespace omm
                 return ommResult_FAILURE;
             }
 
-            totalSize += sizePerPixel * m_mips[mipIt].numElements;
-            totalSize = math::Align(totalSize, kAlignment);
+            m_dataSize += sizePerPixel * m_mips[mipIt].numElements;
+            m_dataSize = math::Align(m_dataSize, kAlignment);
 
             if (enableSAT)
             {
-                totalSizeSAT += sizeof(uint32_t) * m_mips[mipIt].numElements;;
-                totalSizeSAT = math::Align(totalSizeSAT, kAlignment);
+                m_dataSATSize += sizeof(uint32_t) * m_mips[mipIt].numElements;;
+                m_dataSATSize = math::Align(m_dataSATSize, kAlignment);
             }
         }
 
-        m_data = m_stdAllocator.allocate(totalSize, kAlignment);
-        m_dataSAT = enableSAT ? m_stdAllocator.allocate(totalSizeSAT, kAlignment) : nullptr;
+        m_data = m_stdAllocator.allocate(m_dataSize, kAlignment);
+        m_dataSAT = enableSAT ? m_stdAllocator.allocate(m_dataSATSize, kAlignment) : nullptr;
 
         for (uint32_t mipIt = 0; mipIt < desc.mipCount; ++mipIt)
         {

@@ -193,8 +193,8 @@ namespace {
 			input.alphaTexture = alphaTexture;
 			input.alphaTextureChannel = alphaTextureChannel;
 			input.alphaCutoff = p.alphaCutoff;
-			input.alphaCutoffLE = p.alphaCutoffLE;
-			input.alphaCutoffGT = p.alphaCutoffGT;
+			input.alphaCutoffLessEqual = p.alphaCutoffLE;
+			input.alphaCutoffGreater = p.alphaCutoffGT;
 			input.texCoordFormat = p.texCoordFormat;
 			input.texCoordBuffer = vb;
 			input.texCoordStrideInBytes = 0;

@@ -21,6 +21,12 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include <math.h>
 #include <cmath>
 
+#include <string>
+#include <fstream>
+#include <vector>
+#include <istream>
+#include <iterator>
+
 namespace {
 
 	enum TestSuiteConfig
@@ -30,6 +36,7 @@ namespace {
 		Force32BitIndices,
 		TextureAsUNORM8,
 		AlphaCutoff,
+		Serialize,
 	};
 
 	struct Options
@@ -44,6 +51,9 @@ namespace {
 		bool monochromeUnknowns = false;
 		omm::OpacityState alphaCutoffLE = omm::OpacityState::Transparent;
 		omm::OpacityState alphaCutoffGT = omm::OpacityState::Opaque;
+		uint64_t maxWorkloadSize = 0xFFFFFFFFFFFFFFFF;
+		omm::Result bakeResult = omm::Result::SUCCESS;
+		bool forceCorruptedBlob = false;
 	};
 
 	class OMMBakeTestCPU : public ::testing::TestWithParam<TestSuiteConfig> {
@@ -64,7 +74,8 @@ namespace {
 		bool Force32BitIndices() const { return (GetParam() & TestSuiteConfig::Force32BitIndices) == TestSuiteConfig::Force32BitIndices; }
 		bool TextureAsUNORM8() const { return (GetParam() & TestSuiteConfig::TextureAsUNORM8) == TestSuiteConfig::TextureAsUNORM8; }
 		bool EnableAlphaCutoff() const { return (GetParam() & TestSuiteConfig::AlphaCutoff) == TestSuiteConfig::AlphaCutoff; }
-
+		bool TestSerialization() const { return (GetParam() & TestSuiteConfig::Serialize) == TestSuiteConfig::Serialize; }
+		
 		omm::Cpu::Texture CreateTexture(const omm::Cpu::TextureDesc& desc) {
 			omm::Cpu::Texture tex = 0;
 			EXPECT_EQ(omm::Cpu::CreateTexture(_baker, desc, &tex), omm::Result::SUCCESS);
@@ -110,6 +121,24 @@ namespace {
 			}
 		}
 
+		std::vector<std::byte> readFileData(const std::string& name) {
+			std::ifstream inputFile(name, std::ios_base::binary);
+
+			// Determine the length of the file by seeking
+			// to the end of the file, reading the value of the
+			// position indicator, and then seeking back to the beginning.
+			inputFile.seekg(0, std::ios_base::end);
+			auto length = inputFile.tellg();
+			inputFile.seekg(0, std::ios_base::beg);
+
+			// Make a buffer of the exact size of the file and read the data into it.
+			std::vector<std::byte> buffer(length);
+			inputFile.read(reinterpret_cast<char*>(buffer.data()), length);
+
+			inputFile.close();
+			return buffer;
+		}
+
 		omm::Debug::Stats RunOmmBake(
 			float alphaCutoff,
 			uint32_t subdivisionLevel,
@@ -119,7 +148,7 @@ namespace {
 			omm::TexCoordFormat texCoordFormat,
 			void* texCoords,
 			omm::Cpu::Texture tex,
-			const Options opt = {}) 
+			const Options opt = {})
 		{
 			omm::Cpu::BakeInputDesc desc;
 			desc.texture = tex;
@@ -134,10 +163,11 @@ namespace {
 			desc.indexCount = indexCount;
 			desc.maxSubdivisionLevel = subdivisionLevel;
 			desc.alphaCutoff = alphaCutoff;
-			desc.alphaCutoffLE = opt.alphaCutoffLE;
-			desc.alphaCutoffGT = opt.alphaCutoffGT;
+			desc.alphaCutoffLessEqual = opt.alphaCutoffLE;
+			desc.alphaCutoffGreater = opt.alphaCutoffGT;
 			desc.unknownStatePromotion = opt.unknownStatePromotion;
 			desc.bakeFlags = (omm::Cpu::BakeFlags)((uint32_t)omm::Cpu::BakeFlags::EnableInternalThreads);
+			desc.maxWorkloadSize = opt.maxWorkloadSize;
 
 			if (opt.mergeSimilar)
 				desc.bakeFlags = (omm::Cpu::BakeFlags)((uint32_t)desc.bakeFlags | (uint32_t)omm::Cpu::BakeFlags::EnableNearDuplicateDetection);
@@ -148,15 +178,151 @@ namespace {
 
 			desc.dynamicSubdivisionScale = 0.f;
 
-			omm::Cpu::BakeResult res = 0;
-
-			EXPECT_EQ(omm::Cpu::Bake(_baker, desc, &res), omm::Result::SUCCESS);
-			EXPECT_NE(res, 0);
-
+			omm::Cpu::BakeResult res = nullptr;
 			const omm::Cpu::BakeResultDesc* resDesc = nullptr;
-			EXPECT_EQ(omm::Cpu::GetBakeResultDesc(res, &resDesc), omm::Result::SUCCESS);
+			if (TestSerialization() || opt.forceCorruptedBlob)
+			{
+				std::vector<uint8_t> data;
+				{
+					omm::Cpu::DeserializedDesc dataToSerialize;
+					dataToSerialize.numInputDescs = 1;
+					dataToSerialize.inputDescs = &desc;
 
-			
+					// Serialize...
+					omm::Cpu::SerializedResult serializedRes = 0;
+					EXPECT_EQ(omm::Cpu::Serialize(_baker, dataToSerialize, &serializedRes), omm::Result::SUCCESS);
+					EXPECT_NE(serializedRes, nullptr);
+
+					// Get data blob
+					const omm::Cpu::BlobDesc* blob = nullptr;
+					EXPECT_EQ(omm::Cpu::GetSerializedResultDesc(serializedRes, &blob), omm::Result::SUCCESS);
+
+					// Copy content.
+					data = std::vector<uint8_t>((uint8_t*)blob->data, (uint8_t*)blob->data + blob->size);
+
+					// Destroy
+					EXPECT_EQ(omm::Cpu::DestroySerializedResult(serializedRes), omm::Result::SUCCESS);
+				}
+				
+				// Now do deserialize again and call bake
+				{
+					omm::Cpu::BlobDesc blob;
+					blob.data = data.data();
+					blob.size = data.size();
+
+					if (opt.forceCorruptedBlob)
+					{
+						blob.size -= sizeof(uint32_t);
+					}
+
+					omm::Cpu::DeserializedResult dRes = nullptr;
+					if (opt.forceCorruptedBlob)
+					{
+						EXPECT_EQ(omm::Cpu::Deserialize(_baker, blob, &dRes), omm::Result::INVALID_ARGUMENT);
+						return omm::Debug::Stats();
+					}
+					else
+					{
+						EXPECT_EQ(omm::Cpu::Deserialize(_baker, blob, &dRes), omm::Result::SUCCESS);
+					}
+
+					EXPECT_NE(dRes, nullptr);
+
+					const omm::Cpu::DeserializedDesc* desDesc = nullptr;
+					EXPECT_EQ(omm::Cpu::GetDeserializedDesc(dRes, &desDesc), omm::Result::SUCCESS);
+					
+					EXPECT_EQ(desDesc->numInputDescs, 1);
+					EXPECT_EQ(desDesc->numResultDescs, 0);
+
+					const omm::Cpu::BakeInputDesc& descCopy = desDesc->inputDescs[0];
+
+					EXPECT_EQ(omm::Cpu::Bake(_baker, descCopy, &res), opt.bakeResult);
+
+					if (opt.bakeResult != omm::Result::SUCCESS)
+					{
+						return omm::Debug::Stats();
+					}
+
+					EXPECT_NE(res, nullptr);
+
+					EXPECT_EQ(omm::Cpu::DestroyDeserializedResult(dRes), omm::Result::SUCCESS);
+
+					EXPECT_EQ(omm::Cpu::GetBakeResultDesc(res, &resDesc), omm::Result::SUCCESS);
+				}
+
+				// Now try serialize the bake results too!
+				{
+					omm::Cpu::DeserializedDesc dataToSerialize;
+					dataToSerialize.numResultDescs = 1;
+					dataToSerialize.resultDescs = resDesc;
+
+					// Serialize...
+					omm::Cpu::SerializedResult serializedRes = 0;
+					EXPECT_EQ(omm::Cpu::Serialize(_baker, dataToSerialize, &serializedRes), omm::Result::SUCCESS);
+					EXPECT_NE(serializedRes, nullptr);
+
+					// Get data blob
+					const omm::Cpu::BlobDesc* blob = nullptr;
+					EXPECT_EQ(omm::Cpu::GetSerializedResultDesc(serializedRes, &blob), omm::Result::SUCCESS);
+
+					// Copy content.
+					data = std::vector<uint8_t>((uint8_t*)blob->data, (uint8_t*)blob->data + blob->size);
+
+					// Destroy
+					EXPECT_EQ(omm::Cpu::DestroySerializedResult(serializedRes), omm::Result::SUCCESS);
+				}
+
+				// Now do deserialize & compare
+				{
+					omm::Cpu::BlobDesc blob;
+					blob.data = data.data();
+					blob.size = data.size();
+
+					omm::Cpu::DeserializedResult dRes = nullptr;
+					EXPECT_EQ(omm::Cpu::Deserialize(_baker, blob, &dRes), omm::Result::SUCCESS);
+					EXPECT_NE(dRes, nullptr);
+
+					const omm::Cpu::DeserializedDesc* desDesc = nullptr;
+					EXPECT_EQ(omm::Cpu::GetDeserializedDesc(dRes, &desDesc), omm::Result::SUCCESS);
+
+					EXPECT_EQ(desDesc->numInputDescs, 0);
+					EXPECT_EQ(desDesc->numResultDescs, 1);
+
+					const omm::Cpu::BakeResultDesc* resDescCpy = &desDesc->resultDescs[0];
+					// Compare results
+
+					EXPECT_EQ(resDesc->arrayDataSize, resDescCpy->arrayDataSize);
+					EXPECT_EQ(memcmp(resDesc->arrayData, resDescCpy->arrayData, resDesc->arrayDataSize), 0);
+
+					EXPECT_EQ(resDesc->descArrayCount, resDescCpy->descArrayCount);
+					EXPECT_EQ(memcmp(resDesc->descArray, resDescCpy->descArray, sizeof(omm::Cpu::OpacityMicromapDesc) * resDesc->descArrayCount), 0);
+
+					EXPECT_EQ(resDesc->descArrayHistogramCount, resDescCpy->descArrayHistogramCount);
+					EXPECT_EQ(memcmp(resDesc->descArrayHistogram, resDescCpy->descArrayHistogram, sizeof(omm::Cpu::OpacityMicromapUsageCount) * resDesc->descArrayHistogramCount), 0);
+
+					EXPECT_EQ(resDesc->indexCount, resDescCpy->indexCount);
+					EXPECT_EQ(resDesc->indexFormat, resDescCpy->indexFormat);
+					EXPECT_EQ(memcmp(resDesc->indexBuffer, resDescCpy->indexBuffer, (resDescCpy->indexFormat == omm::IndexFormat::UINT_16 ? 2 : 4) * resDesc->indexCount), 0);
+
+					EXPECT_EQ(resDesc->indexHistogramCount, resDescCpy->indexHistogramCount);
+					EXPECT_EQ(memcmp(resDesc->indexHistogram, resDescCpy->indexHistogram, sizeof(omm::Cpu::OpacityMicromapUsageCount)* resDesc->indexHistogramCount), 0);
+
+					EXPECT_EQ(omm::Cpu::DestroyDeserializedResult(dRes), omm::Result::SUCCESS);
+				}
+			}
+			else
+			{
+				EXPECT_EQ(omm::Cpu::Bake(_baker, desc, &res), opt.bakeResult);
+				if (opt.bakeResult != omm::Result::SUCCESS)
+				{
+					return omm::Debug::Stats();
+				}
+
+				EXPECT_NE(res, nullptr);
+
+				EXPECT_EQ(omm::Cpu::GetBakeResultDesc(res, &resDesc), omm::Result::SUCCESS);
+			}
+
 #if OMM_TEST_ENABLE_IMAGE_DUMP
 			constexpr bool kDumpDebug = true;
 #else
@@ -325,7 +491,7 @@ namespace {
 			return stats;
 		}
 
-		omm::Debug::Stats LeafletLevelN(uint32_t subdivisionLevel)
+		omm::Debug::Stats LeafletLevelN(uint32_t subdivisionLevel, uint64_t maxWorkloadSize = 0xFFFFFFFFFFFFFFFF, omm::Result bakeResult = omm::Result::SUCCESS)
 		{
 			uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
@@ -353,11 +519,10 @@ namespace {
 
 				return 1.f - mips[w * j + i];
 
-				}, { .format = omm::Format::OC1_4_State, .unknownStatePromotion = omm::UnknownStatePromotion::Nearest, .enableSpecialIndices = false, .oneFile = true, .detailedCutout = false });
+				}, { .format = omm::Format::OC1_4_State, .unknownStatePromotion = omm::UnknownStatePromotion::Nearest, .enableSpecialIndices = false, .oneFile = true, .detailedCutout = false, .maxWorkloadSize = maxWorkloadSize, .bakeResult = bakeResult });
 
 			return stats;
 		}
-
 
 		std::vector< omm::Cpu::Texture> _textures;
 		omm::Baker _baker = 0;
@@ -366,9 +531,9 @@ namespace {
 	TEST_P(OMMBakeTestCPU, NullDesc) {
 
 		omm::Cpu::BakeInputDesc nullDesc;
-		omm::Cpu::BakeResult res = 0;
+		omm::Cpu::BakeResult res = nullptr;
 		EXPECT_EQ(omm::Cpu::Bake(_baker, nullDesc, &res), omm::Result::INVALID_ARGUMENT);
-		EXPECT_EQ(res, 0);
+		EXPECT_EQ(res, nullptr);
 	}
 
 	TEST_P(OMMBakeTestCPU, AllOpaque4) {
@@ -524,6 +689,18 @@ namespace {
 			.totalUnknownTransparent = 1,
 			.totalFullyTransparent = 1,
 			});
+	}
+
+	TEST_P(OMMBakeTestCPU, AllOpaque1_CorruptedBlob) {
+
+		uint32_t subdivisionLevel = 1;
+		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
+
+		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
+			return 0.6f;
+			}, { .bakeResult = omm::Result::INVALID_ARGUMENT, .forceCorruptedBlob = true });
+
+		ExpectEqual(stats, { .totalFullyOpaque = 0 });
 	}
 
 	TEST_P(OMMBakeTestCPU, Circle) {
@@ -1622,6 +1799,18 @@ namespace {
 			});
 	}
 
+	TEST_P(OMMBakeTestCPU, LeafletLevel12_TooBigWorkload) {
+
+		omm::Debug::Stats stats = LeafletLevelN(12, 512, omm::Result::WORKLOAD_TOO_BIG);
+
+		ExpectEqual(stats, {
+			.totalOpaque = 0,
+			.totalTransparent = 0,
+			.totalUnknownTransparent = 0,
+			.totalUnknownOpaque = 0,
+			});
+	}
+
 	TEST_P(OMMBakeTestCPU, DestroyOpacityMicromapBaker) {
 	}
 
@@ -1653,11 +1842,12 @@ namespace {
 	}
 
 	INSTANTIATE_TEST_SUITE_P(OMMTestCPU, OMMBakeTestCPU, ::testing::Values(
-		TestSuiteConfig::Default
-		,	TestSuiteConfig::TextureDisableZOrder
-		,	TestSuiteConfig::Force32BitIndices
-		,	TestSuiteConfig::TextureAsUNORM8
-		, TestSuiteConfig::AlphaCutoff
+		   TestSuiteConfig::Default
+		 , TestSuiteConfig::TextureDisableZOrder
+		 , TestSuiteConfig::Force32BitIndices
+		 , TestSuiteConfig::TextureAsUNORM8
+		 , TestSuiteConfig::AlphaCutoff
+		 , TestSuiteConfig::Serialize
 		
 	), CustomParamName);
 

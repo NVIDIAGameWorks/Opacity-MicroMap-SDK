@@ -675,8 +675,8 @@ omm::Gpu::DispatchConfigDesc GpuBakeNvrhiImpl::GetConfig(const GpuBakeNvrhi::Inp
 	config.alphaTextureChannel					= params.alphaTextureChannel;
 	config.alphaMode							= AlphaMode::Test;
 	config.alphaCutoff							= params.alphaCutoff;
-	config.alphaCutoffGT						= params.alphaCutoffGT;
-	config.alphaCutoffLE						= params.alphaCutoffLE;
+	config.alphaCutoffGreater					= params.alphaCutoffGreater;
+	config.alphaCutoffLessEqual					= params.alphaCutoffLessEqual;
 	config.texCoordFormat						= GetTexCoordFormat(params.texCoordFormat);
 	config.texCoordOffsetInBytes				= params.texCoordBufferOffsetInBytes;
 	config.texCoordStrideInBytes				= params.texCoordStrideInBytes;

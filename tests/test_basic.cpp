@@ -27,26 +27,26 @@ namespace {
 
 	TEST(Baker, DestroyNull) {
 
-		omm::Baker baker = 0;
+		omm::Baker baker = nullptr;
 		EXPECT_EQ(omm::DestroyBaker(baker), omm::Result::INVALID_ARGUMENT);
 	}
 
 	TEST(Baker, CreateDestroy) {
-		omm::Baker baker = 0;
+		omm::Baker baker = nullptr;
 		EXPECT_EQ(omm::CreateBaker({ .type = omm::BakerType::CPU }, &baker), omm::Result::SUCCESS);
-		EXPECT_NE(baker, 0);
+		EXPECT_NE(baker, nullptr);
 		EXPECT_EQ(omm::DestroyBaker(baker), omm::Result::SUCCESS);
 	}
 
 	TEST(Baker, CreateInvalid) {
-		omm::Baker baker = 0;
+		omm::Baker baker = nullptr;
 		EXPECT_EQ(omm::CreateBaker({.type = omm::BakerType::MAX_NUM}, &baker), omm::Result::INVALID_ARGUMENT);
 	}
 
 	TEST(Baker, CreateDestroyGPU) {
 		omm::Baker baker = 0;
 		EXPECT_EQ(omm::CreateBaker({ .type = omm::BakerType::GPU }, &baker), omm::Result::SUCCESS);
-		EXPECT_NE(baker, 0);
+		EXPECT_NE(baker, nullptr);
 		EXPECT_EQ(omm::DestroyBaker(baker), omm::Result::SUCCESS);
 	}
 
@@ -224,7 +224,7 @@ namespace {
 		vmtest::TextureFP32 tex(64, 100, 1, true /*enableZorder*/, -1.f /*alphaCutoff*/, [](int i, int j, int w, int h, int mip)->float {return 0.f; });
 		omm::Cpu::Texture outTexture = 0;
 		EXPECT_EQ(omm::Cpu::CreateTexture(_baker, tex.GetDesc(), &outTexture), omm::Result::SUCCESS);
-		EXPECT_NE(outTexture, 0);
+		EXPECT_NE(outTexture, nullptr);
 		EXPECT_EQ(omm::Cpu::DestroyTexture(_baker, outTexture), omm::Result::SUCCESS);
 	}
 
@@ -234,7 +234,7 @@ namespace {
 
 		omm::Cpu::Texture outTexture = 0;
 		EXPECT_EQ(omm::Cpu::CreateTexture(_baker, tex.GetDesc(), &outTexture), omm::Result::SUCCESS);
-		EXPECT_NE(outTexture, 0);
+		EXPECT_NE(outTexture, nullptr);
 		EXPECT_EQ(omm::Cpu::DestroyTexture(_baker, outTexture), omm::Result::SUCCESS);
 	}
 
@@ -244,7 +244,7 @@ namespace {
 
 		omm::Cpu::Texture outTexture = 0;
 		EXPECT_EQ(omm::Cpu::CreateTexture(_baker, tex.GetDesc(), &outTexture), omm::Result::SUCCESS);
-		EXPECT_NE(outTexture, 0);
+		EXPECT_NE(outTexture, nullptr);
 		EXPECT_EQ(omm::Cpu::DestroyTexture(_baker, outTexture), omm::Result::SUCCESS);
 	}
 

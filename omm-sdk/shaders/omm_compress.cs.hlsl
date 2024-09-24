@@ -101,7 +101,7 @@ void main(uint3 tid : SV_DispatchThreadID)
 				const uint2 counts = OMM_SUBRESOURCE_LOAD2(BakeResultBuffer, vmBakeResultOffset);
 				OMM_SUBRESOURCE_STORE2(BakeResultBuffer, vmBakeResultOffset, 0); // clear for next iteration
 
-				OpacityState opacityState = GetOpacityState(/*numOpaque*/ counts.x, /*numTransparent*/ counts.y, g_GlobalConstants.AlphaCutoffGT, g_GlobalConstants.AlphaCutoffLE, vmFormat);
+				OpacityState opacityState = GetOpacityState(/*numOpaque*/ counts.x, /*numTransparent*/ counts.y, g_GlobalConstants.AlphaCutoffGreater, g_GlobalConstants.AlphaCutoffLessEqual, vmFormat);
 
 				if (microTriangleIndex < numMicroTrianglesPerPrimitive)
 					StoreMacroTriangleState(opacityState, vmPrimitiveIndex);
@@ -132,7 +132,7 @@ void main(uint3 tid : SV_DispatchThreadID)
 				const uint2 counts = OMM_SUBRESOURCE_LOAD2(BakeResultBuffer, vmBakeResultOffset);
 				OMM_SUBRESOURCE_STORE2(BakeResultBuffer, vmBakeResultOffset, 0); // clear for next iteration
 
-				OpacityState opacityState = GetOpacityState(/*numOpaque*/ counts.x, /*numTransparent*/ counts.y, g_GlobalConstants.AlphaCutoffGT, g_GlobalConstants.AlphaCutoffLE, vmFormat);
+				OpacityState opacityState = GetOpacityState(/*numOpaque*/ counts.x, /*numTransparent*/ counts.y, g_GlobalConstants.AlphaCutoffGreater, g_GlobalConstants.AlphaCutoffLessEqual, vmFormat);
 
 				if (microTriangleIndex < numMicroTrianglesPerPrimitive)
 					StoreMacroTriangleState(opacityState, vmPrimitiveIndex);

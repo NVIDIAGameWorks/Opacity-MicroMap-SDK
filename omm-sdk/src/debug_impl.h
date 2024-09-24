@@ -12,10 +12,13 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 #include "omm.h"
 #include "std_allocator.h"
+#include "log.h"
 
 namespace omm
 {
     OMM_API ommResult SaveAsImagesImpl(StdAllocator<uint8_t>& memoryAllocator, const ommCpuBakeInputDesc& bakeInputDesc, const ommCpuBakeResultDesc* res, const ommDebugSaveImagesDesc& desc);
 
     OMM_API ommResult GetStatsImpl(StdAllocator<uint8_t>& memoryAllocator, const ommCpuBakeResultDesc* res, ommDebugStats* out);
+
+    OMM_API ommResult SaveBinaryToDiskImpl(const Logger& log, const ommCpuBlobDesc& data, const char* path);
 }
