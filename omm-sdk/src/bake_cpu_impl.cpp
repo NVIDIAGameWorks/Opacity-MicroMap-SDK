@@ -188,6 +188,8 @@ namespace Cpu
 
         if (desc.texture == 0)
             return m_log.InvalidArg("[Invalid Argument] - texture is not set");
+        if (!GetCheckedHandleImpl<TextureImpl>(desc.texture))
+            return m_log.InvalidArg("[Invalid Argument] - desc.texture is of incorrect type");
         if (desc.alphaMode == ommAlphaMode_MAX_NUM)
             return m_log.InvalidArg("[Invalid Argument] - alphaMode is not set");
         if (desc.runtimeSamplerDesc.addressingMode == ommTextureAddressMode_MAX_NUM)
@@ -217,7 +219,7 @@ namespace Cpu
         if (options.enableWorkloadValidation && !m_log.HasLogger())
             return m_log.InvalidArg("[Invalid Argument] - EnableWorkloadValidation is set but not message callback was provided"); // this works more as documentation since it won't be logged
 
-        if (TextureImpl* texture = ((TextureImpl*)desc.texture))
+        if (TextureImpl* texture = GetHandleImpl<TextureImpl>(desc.texture))
         {
             if (texture->HasAlphaCutoff() && texture->GetAlphaCutoff() != desc.alphaCutoff)
             {
@@ -225,14 +227,14 @@ namespace Cpu
             }
         }
 
-        if (!IsCompatible(desc.alphaCutoffGT, desc.format))
+        if (!IsCompatible(desc.alphaCutoffGreater, desc.format))
         {
-            return m_log.InvalidArgf("[Invalid Argument] - alphaCutoffGT=%s is not compatible with %s", GetOpacityStateAsString(desc.alphaCutoffGT), GetFormatAsString(desc.format));
+            return m_log.InvalidArgf("[Invalid Argument] - alphaCutoffGreater=%s is not compatible with %s", GetOpacityStateAsString(desc.alphaCutoffGreater), GetFormatAsString(desc.format));
         }
 
-        if (!IsCompatible(desc.alphaCutoffLE, desc.format))
+        if (!IsCompatible(desc.alphaCutoffLessEqual, desc.format))
         {
-            return m_log.InvalidArgf("[Invalid Argument] - alphaCutoffLE=%s is not compatible with %s", GetOpacityStateAsString(desc.alphaCutoffLE), GetFormatAsString(desc.format));
+            return m_log.InvalidArgf("[Invalid Argument] - alphaCutoffLessEqual=%s is not compatible with %s", GetOpacityStateAsString(desc.alphaCutoffLessEqual), GetFormatAsString(desc.format));
         }
 
         return ommResult_SUCCESS;
@@ -244,7 +246,7 @@ namespace Cpu
     }
 
     ommResult BakeOutputImpl::InvokeDispatch(const ommCpuBakeInputDesc& desc) {
-        TextureImpl* texture = ((TextureImpl*)desc.texture);
+        TextureImpl* texture = GetHandleImpl<TextureImpl>(desc.texture);
         auto it = bakeDispatchTable.find(std::make_tuple(texture->GetTextureFormat(), texture->GetTilingMode(), desc.runtimeSamplerDesc.addressingMode, desc.runtimeSamplerDesc.filter));
         if (it == bakeDispatchTable.end())
             return ommResult_FAILURE;
@@ -346,7 +348,7 @@ namespace Cpu
     {
     public:
         OmmArrayDataVector() = delete;
-        OmmArrayDataVector(StdAllocator<uint8_t>& stdAllocator, ommFormat format, uint32_t _subdivisionLevel)
+        OmmArrayDataVector(const StdAllocator<uint8_t>& stdAllocator, ommFormat format, uint32_t _subdivisionLevel)
             : OmmArrayDataView(format, nullptr, nullptr, 0)
             , data(stdAllocator.GetInterface())
             , data3state(stdAllocator.GetInterface())
@@ -379,7 +381,7 @@ namespace Cpu
 
         OmmWorkItem() = delete;
 
-        OmmWorkItem(StdAllocator<uint8_t>& stdAllocator, ommFormat _vmFormat, uint32_t _subdivisionLevel, uint32_t primitiveIndex, const Triangle& _uvTri)
+        OmmWorkItem(const StdAllocator<uint8_t>& stdAllocator, ommFormat _vmFormat, uint32_t _subdivisionLevel, uint32_t primitiveIndex, const Triangle& _uvTri)
             : primitiveIndices(stdAllocator)
             , subdivisionLevel(_subdivisionLevel)
             , vmFormat(_vmFormat)
@@ -486,10 +488,10 @@ namespace Cpu
     namespace impl
     {
         static ommResult SetupWorkItems(
-            StdAllocator<uint8_t>& allocator, const Logger& log, const ommCpuBakeInputDesc& desc, const Options& options, 
+            const StdAllocator<uint8_t>& allocator, const Logger& log, const ommCpuBakeInputDesc& desc, const Options& options, 
             vector<OmmWorkItem>& vmWorkItems)
         {
-            const TextureImpl* texture = ((const TextureImpl*)desc.texture);
+            const TextureImpl* texture = GetHandleImpl<TextureImpl>(desc.texture);
 
             const int32_t triangleCount = desc.indexCount / 3u;
 
@@ -554,14 +556,9 @@ namespace Cpu
             return ommResult_SUCCESS;
         }
 
-        static ommResult ValidateWorkloadSize(
-            StdAllocator<uint8_t>& allocator, Logger log, const ommCpuBakeInputDesc& desc, const Options& options, vector<OmmWorkItem>& vmWorkItems)
+        static uint64_t ComputeWorkloadSize(const ommCpuBakeInputDesc& desc, vector<OmmWorkItem>& vmWorkItems)
         {
-            // Check if the baking will complete in "finite" amount of time...
-            if (!options.enableWorkloadValidation)
-                return ommResult_SUCCESS;
-
-            const TextureImpl* texture = ((const TextureImpl*)desc.texture);
+            const TextureImpl* texture = GetHandleImpl<TextureImpl>(desc.texture);
 
             // Approximate the workload size. 
             // The workload metric is the accumulated count of the number of texels in total that needs to be processed.
@@ -576,13 +573,37 @@ namespace Cpu
                 workloadSize += uint64_t(aabb.x * aabb.y);
             }
 
-            const uint64_t kMaxWorkloadSize = 1 << 27; // 128 * 1024x1024 texels. 
-            if (workloadSize > kMaxWorkloadSize)
-            {
-                const uint64_t num1Ktextures = workloadSize >> (20ull); // divide by 1024x1024
+            return workloadSize;
+        }
 
-                log.PerfWarnf("[Perf Warning] - The workload consists of %lld work items (number of texels to classify), which corresponds to roughly %lld 1024x1024 textures."
-                              " This is unusually large and may result in long bake times.", workloadSize, num1Ktextures);
+        static ommResult ValidateWorkloadSize(
+            const StdAllocator<uint8_t>& allocator, Logger log, const ommCpuBakeInputDesc& desc, const Options& options, vector<OmmWorkItem>& ommWorkItems)
+        {
+            const bool limitWorkloadSize = desc.maxWorkloadSize != 0xFFFFFFFFFFFFFFFF;
+
+            if (!options.enableWorkloadValidation && !limitWorkloadSize)
+                return ommResult_SUCCESS;
+
+            uint64_t workloadSize = ComputeWorkloadSize(desc, ommWorkItems);
+
+            if (limitWorkloadSize)
+            {
+                if (workloadSize > desc.maxWorkloadSize)
+                {
+                    return ommResult_WORKLOAD_TOO_BIG;
+                }
+            }
+            
+            if (options.enableWorkloadValidation)
+            {
+                const uint64_t warnSize = 1ull << 27ull;  // 128 * 1024x1024 texels.
+                if (workloadSize > warnSize)
+                {
+                    const uint64_t num1Ktextures = workloadSize >> (20ull); // divide by 1024x1024
+
+                    log.PerfWarnf("[Perf Warning] - The workload consists of %lld work items (number of texels to classify), which corresponds to roughly %lld 1024x1024 textures."
+                        " This is unusually large and may result in long bake times.", workloadSize, num1Ktextures);
+                }
             }
 
             return ommResult_SUCCESS;
@@ -594,7 +615,7 @@ namespace Cpu
             if (options.enableAABBTesting && !options.disableLevelLineIntersection)
                 return log.InvalidArg("[Invalid Arg] - EnableAABBTesting can't be used without also setting DisableLevelLineIntersection");
 
-            const TextureImpl* texture = ((const TextureImpl*)desc.texture);
+            const TextureImpl* texture = GetHandleImpl<TextureImpl>(desc.texture);
 
             if (!texture->HasSAT())
                 return ommResult_SUCCESS;
@@ -667,12 +688,12 @@ namespace Cpu
                                     if (sa == 0)
                                     {
                                         // (Less than or equal to alpha threshold)
-                                        workItem.vmStates.SetState(uTriIt, desc.alphaCutoffLE);
+                                        workItem.vmStates.SetState(uTriIt, desc.alphaCutoffLessEqual);
                                     }
                                     else if (sa == area)
                                     {
                                         // (Greater than alpha threshold)
-                                        workItem.vmStates.SetState(uTriIt, desc.alphaCutoffGT);
+                                        workItem.vmStates.SetState(uTriIt, desc.alphaCutoffGreater);
                                     }
                                 }
                             }
@@ -692,7 +713,7 @@ namespace Cpu
             if (options.disableFineClassification)
                 return ommResult_SUCCESS;
 
-            const TextureImpl* texture = ((const TextureImpl*)desc.texture);
+            const TextureImpl* texture = GetHandleImpl<TextureImpl>(desc.texture);
 
             // 3. Process the queue of unique triangles...
             {
@@ -752,12 +773,12 @@ namespace Cpu
                                             RasterizeConservativeSerialWithOffsetCoverage(subTri, rasterSize, pixelOffset, kernel, &params);
 
                                             OMM_ASSERT(vmCoverage.numAboveAlpha != 0 || vmCoverage.numBelowAlpha != 0);
-                                            const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGT, desc.alphaCutoffLE, vmCoverage);
+                                            const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGreater, desc.alphaCutoffLessEqual, vmCoverage);
 
                                             if (IsUnknown(state))
                                                 break;
                                         }
-                                        const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGT, desc.alphaCutoffLE, vmCoverage);
+                                        const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGreater, desc.alphaCutoffLessEqual, vmCoverage);
                                         workItem.vmStates.SetState(uTriIt, state);
                                     }
                                     else if (options.enableAABBTesting)
@@ -783,7 +804,7 @@ namespace Cpu
 
                                         OMM_ASSERT(vmCoverage.numAboveAlpha != 0 || vmCoverage.numBelowAlpha != 0);
 
-                                        const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGT, desc.alphaCutoffLE, vmCoverage);
+                                        const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGreater, desc.alphaCutoffLessEqual, vmCoverage);
                                         workItem.vmStates.SetState(uTriIt, state);
                                     }
                                     else
@@ -807,7 +828,7 @@ namespace Cpu
 
                                         OMM_ASSERT(vmCoverage.numBelowAlpha != 0 || vmCoverage.numAboveAlpha != 0);
 
-                                        const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGT, desc.alphaCutoffLE, vmCoverage);
+                                        const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGreater, desc.alphaCutoffLessEqual, vmCoverage);
 
                                         workItem.vmStates.SetState(uTriIt, state);
                                     }
@@ -858,11 +879,11 @@ namespace Cpu
                                         RasterizeConservativeSerial(subTri, rasterSize, kernel, &params);
                                         OMM_ASSERT(vmCoverage.numAboveAlpha != 0 || vmCoverage.numBelowAlpha != 0);
 
-                                        const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGT, desc.alphaCutoffLE, vmCoverage);
+                                        const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGreater, desc.alphaCutoffLessEqual, vmCoverage);
                                         if (IsUnknown(state))
                                             break;
                                     }
-                                    const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGT, desc.alphaCutoffLE, vmCoverage);
+                                    const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGreater, desc.alphaCutoffLessEqual, vmCoverage);
                                     workItem.vmStates.SetState(uTriIt, state);
                                 }
                             }
@@ -873,7 +894,7 @@ namespace Cpu
             return ommResult_SUCCESS;
         }
 
-        static ommResult DeduplicateExact(StdAllocator<uint8_t>& allocator, const Options& options, vector<OmmWorkItem>& vmWorkItems)
+        static ommResult DeduplicateExact(const StdAllocator<uint8_t>& allocator, const Options& options, vector<OmmWorkItem>& vmWorkItems)
         {
             if (options.disableDuplicateDetection)
                 return ommResult_SUCCESS;
@@ -976,7 +997,7 @@ namespace Cpu
             return ommResult_SUCCESS;
         }
 
-        static ommResult DeduplicateSimilarLSH(StdAllocator<uint8_t>& allocator, const Options& options, vector<OmmWorkItem>& vmWorkItems, uint32_t iterations)
+        static ommResult DeduplicateSimilarLSH(const StdAllocator<uint8_t>& allocator, const Options& options, vector<OmmWorkItem>& vmWorkItems, uint32_t iterations)
         {
             if (options.disableDuplicateDetection)
                 return ommResult_SUCCESS;
@@ -1004,7 +1025,7 @@ namespace Cpu
                     vector<uint32_t> bitIndices; // random bit indices
                     vector<uint64_t> workItemHashes;
                     hash_map<uint64_t, vector<uint32_t>> layerHashToWorkItem;
-                    HashTable(StdAllocator<uint8_t>& allocator) :bitIndices(allocator), workItemHashes(allocator), layerHashToWorkItem(allocator)
+                    HashTable(const StdAllocator<uint8_t>& allocator) :bitIndices(allocator), workItemHashes(allocator), layerHashToWorkItem(allocator)
                     { }
                 };
 
@@ -1196,7 +1217,7 @@ namespace Cpu
             return ommResult_SUCCESS;
         }
 
-        static ommResult DeduplicateSimilarBruteForce(StdAllocator<uint8_t>& allocator, const Options& options, vector<OmmWorkItem>& vmWorkItems)
+        static ommResult DeduplicateSimilarBruteForce(const StdAllocator<uint8_t>& allocator, const Options& options, vector<OmmWorkItem>& vmWorkItems)
         {
             if (options.disableDuplicateDetection)
                 return ommResult_SUCCESS;
@@ -1330,7 +1351,7 @@ namespace Cpu
             return ommResult_SUCCESS;
         }
 
-        static ommResult MicromapSpatialSort(StdAllocator<uint8_t>& allocator, const Options& options, const vector<OmmWorkItem>& vmWorkItems,
+        static ommResult MicromapSpatialSort(const StdAllocator<uint8_t>& allocator, const Options& options, const vector<OmmWorkItem>& vmWorkItems,
             vector<std::pair<uint64_t, uint32_t>>& sortKeys)
         {
             // The VMs should be sorted to respect the following rules:
@@ -1380,7 +1401,7 @@ namespace Cpu
         }
 
         static ommResult Serialize(
-            StdAllocator<uint8_t>& allocator, 
+            const StdAllocator<uint8_t>& allocator, 
             const ommCpuBakeInputDesc& desc, const Options& options, vector<OmmWorkItem>& vmWorkItems, const VisibilityMapUsageHistogram& ommArrayHistogram, const VisibilityMapUsageHistogram& ommIndexHistogram,
             const vector<std::pair<uint64_t, uint32_t>>& sortKeys,
             BakeResultImpl& res)

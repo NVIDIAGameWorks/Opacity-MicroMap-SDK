@@ -11,6 +11,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #pragma once
 
 #include "omm.h"
+#include "omm_handle.h"
 
 #include "std_containers.h"
 #include "log.h"
@@ -31,6 +32,8 @@ namespace omm
     class TextureImpl
     {
     public:
+        static inline constexpr HandleType kHandleType = HandleType::Texture;
+
         TextureImpl(const StdAllocator<uint8_t>& stdAllocator, const Logger& log);
         ~TextureImpl();
 
@@ -115,6 +118,12 @@ namespace omm
 #endif
         }
 
+        template<class TMemoryStreamBuf>
+        void Serialize(TMemoryStreamBuf& buffer) const;
+
+        template<class TMemoryStreamBuf>
+        void Deserialize(TMemoryStreamBuf& buffer);
+
     private:
         ommResult Validate(const ommCpuTextureDesc& desc) const;
         void Deallocate();
@@ -145,7 +154,9 @@ namespace omm
         ommCpuTextureFormat m_textureFormat;
         float m_alphaCutoff;
         uint8_t* m_data;
+        size_t m_dataSize;
         uint8_t* m_dataSAT;
+        size_t m_dataSATSize;
     };
 
     template<ommCpuTextureFormat eFormat, TilingMode eTilingMode>
@@ -175,4 +186,83 @@ namespace omm
 
    	template<> uint64_t TextureImpl::From2Dto1D<TilingMode::Linear>(const int2& idx, const int2& size);
    	template<> uint64_t TextureImpl::From2Dto1D<TilingMode::MortonZ>(const int2& idx, const int2& size);
+
+    template<class TMemoryStreamBuf>
+    void TextureImpl::Serialize(TMemoryStreamBuf& buffer) const
+    {
+        std::ostream os(&buffer);
+
+        int numMips = (int)m_mips.size();
+        os.write(reinterpret_cast<const char*>(&numMips), sizeof(numMips));
+
+        if (numMips != 0)
+        {
+            for (const auto& mip : m_mips)
+            {
+                os.write(reinterpret_cast<const char*>(&mip.size.x), sizeof(mip.size.x));
+                os.write(reinterpret_cast<const char*>(&mip.size.y), sizeof(mip.size.y));
+                os.write(reinterpret_cast<const char*>(&mip.rcpSize.x), sizeof(mip.rcpSize.x));
+                os.write(reinterpret_cast<const char*>(&mip.rcpSize.y), sizeof(mip.rcpSize.y));
+                os.write(reinterpret_cast<const char*>(&mip.dataOffset), sizeof(mip.dataOffset));
+                os.write(reinterpret_cast<const char*>(&mip.numElements), sizeof(mip.numElements));
+                os.write(reinterpret_cast<const char*>(&mip.dataOffsetSAT), sizeof(mip.dataOffsetSAT));
+            }
+        }
+
+        os.write(reinterpret_cast<const char*>(&m_tilingMode), sizeof(m_tilingMode));
+        os.write(reinterpret_cast<const char*>(&m_textureFormat), sizeof(m_textureFormat));
+
+        os.write(reinterpret_cast<const char*>(&m_dataSize), sizeof(m_dataSize));
+        os.write(reinterpret_cast<const char*>(m_data), m_dataSize);
+
+        os.write(reinterpret_cast<const char*>(&m_dataSATSize), sizeof(m_dataSATSize));
+        if (m_dataSATSize != 0)
+        {
+            os.write(reinterpret_cast<const char*>(m_dataSAT), m_dataSATSize);
+        }
+    }
+
+    template<class TMemoryStreamBuf>
+    void TextureImpl::Deserialize(TMemoryStreamBuf& buffer)
+    {
+        OMM_ASSERT(m_data == nullptr);
+        OMM_ASSERT(m_dataSize == 0);
+        OMM_ASSERT(m_dataSAT == nullptr);
+        OMM_ASSERT(m_dataSATSize == 0);
+        OMM_ASSERT(m_mips.size() == 0);
+
+        std::istream os(&buffer);
+
+        int numMips = 0;
+        os.read(reinterpret_cast<char*>(&numMips), sizeof(numMips));
+
+        if (numMips != 0)
+        {
+            m_mips.resize(numMips);
+            for (auto& mip : m_mips)
+            {
+                os.read(reinterpret_cast<char*>(&mip.size.x), sizeof(mip.size.x));
+                os.read(reinterpret_cast<char*>(&mip.size.y), sizeof(mip.size.y));
+                os.read(reinterpret_cast<char*>(&mip.rcpSize.x), sizeof(mip.rcpSize.x));
+                os.read(reinterpret_cast<char*>(&mip.rcpSize.y), sizeof(mip.rcpSize.y));
+                os.read(reinterpret_cast<char*>(&mip.dataOffset), sizeof(mip.dataOffset));
+                os.read(reinterpret_cast<char*>(&mip.numElements), sizeof(mip.numElements));
+                os.read(reinterpret_cast<char*>(&mip.dataOffsetSAT), sizeof(mip.dataOffsetSAT));
+            }
+        }
+
+        os.read(reinterpret_cast<char*>(&m_tilingMode), sizeof(m_tilingMode));
+        os.read(reinterpret_cast<char*>(&m_textureFormat), sizeof(m_textureFormat));
+
+        os.read(reinterpret_cast<char*>(&m_dataSize), sizeof(m_dataSize));
+        m_data = m_stdAllocator.allocate(m_dataSize, kAlignment);
+        os.read(reinterpret_cast<char*>(m_data), m_dataSize);
+
+        os.read(reinterpret_cast<char*>(&m_dataSATSize), sizeof(m_dataSATSize));
+        if (m_dataSATSize != 0)
+        {
+            m_dataSAT = m_stdAllocator.allocate(m_dataSATSize, kAlignment);
+            os.read(reinterpret_cast<char*>(m_dataSAT), m_dataSATSize);
+        }
+    }
 }

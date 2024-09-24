@@ -9,10 +9,12 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 */
 
 #include "omm.h"
+#include "omm_handle.h"
 #include "bake_cpu_impl.h"
 #include "bake_gpu_impl.h"
 #include "debug_impl.h"
 #include "texture_impl.h"
+#include "serialize_impl.h"
 #include "version.h"
 
 #include <array>
@@ -22,26 +24,12 @@ using namespace omm;
 namespace
 {
 
-static const ommLibraryDesc g_vmbakeLibraryDesc =
+static const ommLibraryDesc g_ommbakeLibraryDesc =
 {
     VERSION_MAJOR,
     VERSION_MINOR,
     VERSION_BUILD
 };
-
-ommBakerType GetBakerType(ommBaker baker) {
-    return static_cast<ommBakerType>(baker & 0x7);
-}
-
-template<class T>
-T* GetBakerImpl(ommBaker baker) {
-    return reinterpret_cast<T*>(baker & 0xFFFFFFFFFFFFFFF8);
-}
-
-template<class T>
-ommBaker CreateHandle(ommBakerType type, T * impl) {
-    return (uintptr_t)(impl) | (uintptr_t)type;
-}
 
 } // namespace
 
@@ -50,7 +38,7 @@ OMM_API ommLibraryDesc OMM_CALL ommGetLibraryDesc()
     static_assert(VERSION_MAJOR == OMM_VERSION_MAJOR);
     static_assert(VERSION_MINOR == OMM_VERSION_MINOR);
     static_assert(VERSION_BUILD == OMM_VERSION_BUILD);
-    return g_vmbakeLibraryDesc;
+    return g_ommbakeLibraryDesc;
 }
 
 OMM_API ommResult OMM_CALL ommCpuCreateTexture(ommBaker baker, const ommCpuTextureDesc* desc, ommCpuTexture* outTexture)
@@ -58,11 +46,11 @@ OMM_API ommResult OMM_CALL ommCpuCreateTexture(ommBaker baker, const ommCpuTextu
     if (baker == 0)
         return ommResult_INVALID_ARGUMENT;
 
-    Cpu::BakerImpl* impl = GetBakerImpl<Cpu::BakerImpl>(baker);
+    Cpu::BakerImpl* impl = GetHandleImpl<Cpu::BakerImpl>(baker);
 
     if (desc == 0)
         return impl->GetLog().InvalidArg("texture desc was not set");
-    if (GetBakerType(baker) != ommBakerType_CPU)
+    if (GetHandleType(baker) != HandleType::CpuBaker)
         return impl->GetLog().InvalidArg("Baker was not created as the right type");
 
     StdAllocator<uint8_t>& memoryAllocator = (*impl).GetStdAllocator();
@@ -72,7 +60,7 @@ OMM_API ommResult OMM_CALL ommCpuCreateTexture(ommBaker baker, const ommCpuTextu
 
     if (result == ommResult_SUCCESS)
     {
-        *outTexture = (ommCpuTexture)implementation;
+        *outTexture = CreateHandle<ommCpuTexture, TextureImpl>(implementation);
         return ommResult_SUCCESS;
     }
 
@@ -85,14 +73,16 @@ OMM_API ommResult OMM_CALL ommCpuDestroyTexture(ommBaker baker, ommCpuTexture te
     if (texture == 0)
         return ommResult_INVALID_ARGUMENT;
 
-    Cpu::BakerImpl* impl = GetBakerImpl<Cpu::BakerImpl>(baker);
+    Cpu::BakerImpl* impl = GetHandleImpl<Cpu::BakerImpl>(baker);
 
-    if (GetBakerType(baker) != ommBakerType_CPU)
+    if (GetHandleType(baker) != HandleType::CpuBaker)
         return impl->GetLog().InvalidArg("Baker was not created as the right type");
 
     StdAllocator<uint8_t>& memoryAllocator = (*impl).GetStdAllocator();
 
-    Deallocate(memoryAllocator, (TextureImpl*)texture);
+    TextureImpl* textureImpl = GetHandleImpl<TextureImpl>(texture);
+
+    Deallocate(memoryAllocator, textureImpl);
 
     return ommResult_SUCCESS;
 }
@@ -102,11 +92,11 @@ OMM_API ommResult OMM_CALL ommCpuBake(ommBaker baker, const ommCpuBakeInputDesc*
     if (baker == 0)
         return ommResult_INVALID_ARGUMENT;
 
-    Cpu::BakerImpl* impl = GetBakerImpl<Cpu::BakerImpl>(baker);
+    Cpu::BakerImpl* impl = GetHandleImpl<Cpu::BakerImpl>(baker);
 
     if (bakeInputDesc == 0)
         return impl->GetLog().InvalidArg("input desc was not set");
-    if (GetBakerType(baker) != ommBakerType_CPU)
+    if (GetHandleType(baker) != HandleType::CpuBaker)
         return impl->GetLog().InvalidArg("Baker was not created as the right type");
 
     return (*impl).BakeOpacityMicromap(*bakeInputDesc, bakeResult);
@@ -117,7 +107,7 @@ OMM_API ommResult OMM_CALL ommCpuDestroyBakeResult(ommCpuBakeResult bakeResult)
     if (bakeResult == 0)
         return ommResult_INVALID_ARGUMENT;
 
-    StdAllocator<uint8_t>& memoryAllocator = (*(omm::Cpu::BakeOutputImpl*)bakeResult).GetStdAllocator();
+    const StdAllocator<uint8_t>& memoryAllocator = (*(omm::Cpu::BakeOutputImpl*)bakeResult).GetStdAllocator();
     Deallocate(memoryAllocator, (omm::Cpu::BakeOutputImpl*)bakeResult);
 
     return ommResult_SUCCESS;
@@ -131,6 +121,123 @@ OMM_API ommResult OMM_CALL ommCpuGetBakeResultDesc(ommCpuBakeResult bakeResult, 
     return (*(omm::Cpu::BakeOutputImpl*)bakeResult).GetBakeResultDesc(desc);
 }
 
+OMM_API ommResult OMM_CALL ommCpuSerialize(ommBaker baker, const ommCpuDeserializedDesc& desc, ommCpuSerializedResult* outResult)
+{
+    if (baker == 0)
+        return ommResult_INVALID_ARGUMENT;
+
+    if (outResult == nullptr)
+        return ommResult_INVALID_ARGUMENT;
+
+    Cpu::BakerImpl* impl = GetHandleImpl<Cpu::BakerImpl>(baker);
+
+    if (GetHandleType(baker) != HandleType::CpuBaker)
+        return impl->GetLog().InvalidArg("Baker was not created as the right type");
+
+    StdAllocator<uint8_t>& memoryAllocator = (*impl).GetStdAllocator();
+
+    omm::Cpu::SerializeResultImpl* blobImpl = Allocate<omm::Cpu::SerializeResultImpl>(memoryAllocator, memoryAllocator, impl->GetLog());
+
+    ommResult res = blobImpl->Serialize(desc);
+
+    if (res == ommResult_SUCCESS)
+    {
+        *outResult = CreateHandle<ommCpuSerializedResult, omm::Cpu::SerializeResultImpl>(blobImpl);
+    }
+    else
+    {
+        Deallocate(memoryAllocator, blobImpl);
+        *outResult = (ommCpuSerializedResult)nullptr;
+    }
+
+    return res;
+}
+
+OMM_API ommResult ommCpuGetSerializedResultDesc(ommCpuSerializedResult result, const ommCpuBlobDesc** desc)
+{
+    if (result == 0)
+        return ommResult_INVALID_ARGUMENT;
+
+    if (desc == nullptr)
+        return ommResult_INVALID_ARGUMENT;
+
+    omm::Cpu::SerializeResultImpl* impl = GetHandleImpl<omm::Cpu::SerializeResultImpl>(result);
+    *desc = impl->GetDesc();
+    return ommResult_SUCCESS;
+}
+
+OMM_API ommResult ommCpuDestroySerializedResult(ommCpuSerializedResult result)
+{
+    if (result == 0)
+        return ommResult_INVALID_ARGUMENT;
+    if (!CheckHandle<ommCpuSerializedResult, omm::Cpu::SerializeResultImpl>(result))
+        return ommResult_INVALID_ARGUMENT;
+
+    omm::Cpu::SerializeResultImpl* impl = GetHandleImpl<omm::Cpu::SerializeResultImpl>(result);
+    const StdAllocator<uint8_t>& memoryAllocator = (*impl).GetStdAllocator();
+    Deallocate(memoryAllocator, impl);
+    return ommResult_SUCCESS;
+}
+
+OMM_API ommResult ommCpuDeserialize(ommBaker baker, const ommCpuBlobDesc& desc, ommCpuDeserializedResult* outResult)
+{
+    if (baker == 0)
+        return ommResult_INVALID_ARGUMENT;
+
+    Cpu::BakerImpl* impl = GetHandleImpl<Cpu::BakerImpl>(baker);
+
+    if (GetHandleType(baker) != HandleType::CpuBaker)
+        return impl->GetLog().InvalidArg("Baker was not created as the right type");
+
+    StdAllocator<uint8_t>& memoryAllocator = (*impl).GetStdAllocator();
+
+    omm::Cpu::DeserializedResultImpl* desImpl = Allocate<omm::Cpu::DeserializedResultImpl>(memoryAllocator, memoryAllocator, impl->GetLog());
+
+    ommResult res = desImpl->Deserialize(desc);
+
+    if (res == ommResult_SUCCESS)
+    {
+        *outResult = CreateHandle<ommCpuDeserializedResult, omm::Cpu::DeserializedResultImpl>(desImpl);
+    }
+    else
+    {
+        Deallocate(memoryAllocator, desImpl);
+        *outResult = (ommCpuDeserializedResult)nullptr;
+    }
+
+    return res;
+}
+
+OMM_API ommResult ommCpuGetDeserializedDesc(ommCpuDeserializedResult result, const ommCpuDeserializedDesc** desc)
+{
+    if (result == 0)
+        return ommResult_INVALID_ARGUMENT;
+    if (!CheckHandle<ommCpuDeserializedResult, omm::Cpu::DeserializedResultImpl>(result))
+        return ommResult_INVALID_ARGUMENT;
+    if (desc == nullptr)
+        return ommResult_INVALID_ARGUMENT;
+
+    omm::Cpu::DeserializedResultImpl* desImpl = GetHandleImpl<omm::Cpu::DeserializedResultImpl>(result);
+
+    *desc = desImpl->GetDesc();
+
+    return ommResult_SUCCESS;
+}
+
+OMM_API ommResult ommCpuDestroyDeserializedResult(ommCpuDeserializedResult result)
+{
+    if (result == 0)
+        return ommResult_INVALID_ARGUMENT;
+    if (!CheckHandle<ommCpuDeserializedResult, omm::Cpu::DeserializedResultImpl>(result))
+        return ommResult_INVALID_ARGUMENT;
+
+    omm::Cpu::DeserializedResultImpl* impl = GetHandleImpl<omm::Cpu::DeserializedResultImpl>(result);
+
+    const StdAllocator<uint8_t>& memoryAllocator = (*impl).GetStdAllocator();
+    Deallocate(memoryAllocator, impl);
+    return ommResult_SUCCESS;
+}
+
 OMM_API ommResult OMM_CALL ommGpuGetStaticResourceData(ommGpuResourceType resource, uint8_t* data, size_t* outByteSize)
 {
     return Gpu::OmmStaticBuffers::GetStaticResourceData(resource, data, outByteSize);
@@ -142,11 +249,11 @@ OMM_API ommResult OMM_CALL ommGpuCreatePipeline(ommBaker baker, const ommGpuPipe
     if (baker == 0)
         return ommResult_INVALID_ARGUMENT;
 
-    Gpu::BakerImpl* bakePtr = GetBakerImpl<Gpu::BakerImpl>(baker);
+    Gpu::BakerImpl* bakePtr = GetHandleImpl<Gpu::BakerImpl>(baker);
 
     if (config == 0)
         return bakePtr->GetLog().InvalidArg("[Invalid Arg] - pipeline config desc must be provided");
-    if (GetBakerType(baker) != ommBakerType_GPU)
+    if (GetHandleType(baker) != HandleType::GpuBaker)
         return bakePtr->GetLog().InvalidArg("[Invalid Arg] - invalid baker type");
     return bakePtr->CreatePipeline(*config, outPipeline);
 }
@@ -155,7 +262,7 @@ OMM_API ommResult OMM_CALL ommGpuGetPipelineDesc(ommGpuPipeline pipeline, const 
 {
     if (pipeline == 0)
         return ommResult_INVALID_ARGUMENT;
-    Gpu::PipelineImpl* impl = (Gpu::PipelineImpl*)(pipeline);
+    Gpu::PipelineImpl* impl = GetHandleImpl<Gpu::PipelineImpl>(pipeline);
     return impl->GetPipelineDesc(outPipelineDesc);
 }
 
@@ -165,9 +272,9 @@ OMM_API ommResult OMM_CALL ommGpuDestroyPipeline(ommBaker baker, ommGpuPipeline 
         return ommResult_INVALID_ARGUMENT;
     if (baker == 0)
         return ommResult_INVALID_ARGUMENT;
-    if (GetBakerType(baker) != ommBakerType_GPU)
+    if (GetHandleType(baker) != HandleType::GpuBaker)
         return ommResult_INVALID_ARGUMENT;
-    Gpu::BakerImpl* bakePtr = GetBakerImpl<Gpu::BakerImpl>(baker);
+    Gpu::BakerImpl* bakePtr = GetHandleImpl<Gpu::BakerImpl>(baker);
     return bakePtr->DestroyPipeline(pipeline);
 }
 
@@ -177,7 +284,7 @@ OMM_API ommResult OMM_CALL ommGpuGetPreDispatchInfo(ommGpuPipeline pipeline, con
         return ommResult_INVALID_ARGUMENT;
     if (config == 0)
         return ommResult_INVALID_ARGUMENT;
-    Gpu::PipelineImpl* impl = (Gpu::PipelineImpl*)(pipeline);
+    Gpu::PipelineImpl* impl = GetHandleImpl<Gpu::PipelineImpl>(pipeline);
     return impl->GetPreDispatchInfo(*config, outPreBuildInfo);
 }
 
@@ -187,7 +294,7 @@ OMM_API ommResult OMM_CALL ommGpuDispatch(ommGpuPipeline pipeline, const ommGpuD
         return ommResult_INVALID_ARGUMENT;
     if (dispatchConfig == 0)
         return ommResult_INVALID_ARGUMENT;
-    Gpu::PipelineImpl* impl = (Gpu::PipelineImpl*)(pipeline);
+    Gpu::PipelineImpl* impl = GetHandleImpl<Gpu::PipelineImpl>(pipeline);
     return impl->GetDispatchDesc(*dispatchConfig, outDispatchDesc);
 }
     
@@ -199,15 +306,15 @@ OMM_API ommResult OMM_CALL ommDebugSaveAsImages(ommBaker baker, const ommCpuBake
         return ommResult_INVALID_ARGUMENT;
     if (desc == 0)
         return ommResult_INVALID_ARGUMENT;
-    if (GetBakerType(baker) == ommBakerType_CPU)
+    if (GetHandleType(baker) == HandleType::CpuBaker)
     {
-        Cpu::BakerImpl* impl = GetBakerImpl<Cpu::BakerImpl>(baker);
+        Cpu::BakerImpl* impl = GetHandleImpl<Cpu::BakerImpl>(baker);
         StdAllocator<uint8_t>& memoryAllocator = (*impl).GetStdAllocator();
         return SaveAsImagesImpl(memoryAllocator, *bakeInputDesc, res, *desc);
     }
-    else if (GetBakerType(baker) == ommBakerType_GPU)
+    else if (GetHandleType(baker) == HandleType::GpuBaker)
     {
-        Gpu::BakerImpl* impl = GetBakerImpl<Gpu::BakerImpl>(baker);
+        Gpu::BakerImpl* impl = GetHandleImpl<Gpu::BakerImpl>(baker);
         StdAllocator<uint8_t>& memoryAllocator = (*impl).GetStdAllocator();
         return SaveAsImagesImpl(memoryAllocator, *bakeInputDesc, res, *desc);
     }
@@ -220,17 +327,39 @@ OMM_API ommResult OMM_CALL ommDebugGetStats(ommBaker baker, const ommCpuBakeResu
     if (baker == 0)
         return ommResult_INVALID_ARGUMENT;
 
-    if (GetBakerType(baker) == ommBakerType_CPU)
+    if (GetHandleType(baker) == HandleType::CpuBaker)
     {
-        Cpu::BakerImpl* impl = GetBakerImpl<Cpu::BakerImpl>(baker);
+        Cpu::BakerImpl* impl = GetHandleImpl<Cpu::BakerImpl>(baker);
         StdAllocator<uint8_t>& memoryAllocator = (*impl).GetStdAllocator();
         return GetStatsImpl(memoryAllocator, res, out);
     }
-    else if (GetBakerType(baker) == ommBakerType_GPU)
+    else if (GetHandleType(baker) == HandleType::GpuBaker)
     {
-        Gpu::BakerImpl* impl = GetBakerImpl<Gpu::BakerImpl>(baker);
+        Gpu::BakerImpl* impl = GetHandleImpl<Gpu::BakerImpl>(baker);
         StdAllocator<uint8_t>& memoryAllocator = (*impl).GetStdAllocator();
         return GetStatsImpl(memoryAllocator, res, out);
+    }
+    else
+        return ommResult_INVALID_ARGUMENT;
+}
+
+OMM_API ommResult OMM_CALL ommDebugSaveBinaryToDisk(ommBaker baker, const ommCpuBlobDesc& data, const char* path)
+{
+    if (baker == 0)
+        return ommResult_INVALID_ARGUMENT;
+    if (path == 0)
+        return ommResult_INVALID_ARGUMENT;
+    if (GetHandleType(baker) == HandleType::CpuBaker)
+    {
+        Cpu::BakerImpl* impl = GetHandleImpl<Cpu::BakerImpl>(baker);
+        const Logger& log = (*impl).GetLog();
+        return SaveBinaryToDiskImpl(log, data, path);
+    }
+    else if (GetHandleType(baker) == HandleType::GpuBaker)
+    {
+        Gpu::BakerImpl* impl = GetHandleImpl<Gpu::BakerImpl>(baker);
+        const Logger& log = (*impl).GetLog();
+        return SaveBinaryToDiskImpl(log, data, path);
     }
     else
         return ommResult_INVALID_ARGUMENT;
@@ -259,7 +388,7 @@ OMM_API ommResult OMM_CALL ommCreateBaker(const ommBakerCreationDesc* desc, ommB
 
         if (result == ommResult_SUCCESS)
         {
-            *baker = CreateHandle(desc->type, implementation);
+            *baker = CreateHandle<ommBaker, Cpu::BakerImpl>(implementation);
             return ommResult_SUCCESS;
         }
 
@@ -272,7 +401,7 @@ OMM_API ommResult OMM_CALL ommCreateBaker(const ommBakerCreationDesc* desc, ommB
 
         if (result == ommResult_SUCCESS)
         {
-            *baker = CreateHandle(desc->type, implementation);
+            *baker = CreateHandle<ommBaker, Gpu::BakerImpl>(implementation);
             return ommResult_SUCCESS;
         }
 
@@ -290,17 +419,17 @@ OMM_API ommResult OMM_CALL ommDestroyBaker(ommBaker baker)
     if (baker == 0)
         return ommResult_INVALID_ARGUMENT;
 
-    const ommBakerType type = GetBakerType(baker);
-    if (type == ommBakerType_CPU)
+    const HandleType type = GetHandleType(baker);
+    if (type == HandleType::CpuBaker)
     {
-        Cpu::BakerImpl* impl = GetBakerImpl<Cpu::BakerImpl>(baker);
+        Cpu::BakerImpl* impl = GetHandleImpl<Cpu::BakerImpl>(baker);
         StdAllocator<uint8_t>& memoryAllocator = (*impl).GetStdAllocator();
         Deallocate(memoryAllocator, impl);
         return ommResult_SUCCESS;
     }
-    else  if (type == ommBakerType_GPU)
+    else  if (type == HandleType::GpuBaker)
     {
-        Gpu::BakerImpl* bakePtr = GetBakerImpl<Gpu::BakerImpl>(baker);
+        Gpu::BakerImpl* bakePtr = GetHandleImpl<Gpu::BakerImpl>(baker);
         StdAllocator<uint8_t>& memoryAllocator = (*bakePtr).GetStdAllocator();
         Deallocate(memoryAllocator, bakePtr);
         return ommResult_SUCCESS;

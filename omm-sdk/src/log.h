@@ -47,6 +47,17 @@ namespace omm
 			_Logf<N>(ommMessageSeverity_PerfWarning, format, std::forward<Args>(args)...);
 		}
 
+		void Error(const char* msg) const
+		{
+			_Log(ommMessageSeverity_Error, msg);
+		}
+
+		template<int N = 256, typename... Args>
+		void Errorf(const char* format, Args&&... args) const
+		{
+			_Logf<N>(ommMessageSeverity_Error, format, std::forward<Args>(args)...);
+		}
+
 		void Fatal(const char* msg) const
 		{
 			_Log(ommMessageSeverity_Fatal, msg);
@@ -71,6 +82,13 @@ namespace omm
 		{
 			_Log(ommMessageSeverity_Fatal, msg);
 			return ommResult_NOT_IMPLEMENTED;
+		}
+
+		template<int N = 256, typename... Args>
+		[[nodiscard]] ommResult ErrorArgf(const char* format, Args&&... args) const
+		{
+			RETURN_STATUS_IF_FAILED(_Logf<N>(ommMessageSeverity_Error, format, std::forward<Args>(args)...));
+			return ommResult_FAILURE;
 		}
 
 	private:

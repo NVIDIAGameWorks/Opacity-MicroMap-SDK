@@ -23,7 +23,7 @@ namespace omm
       INVALID_ARGUMENT,
       INSUFFICIENT_SCRATCH_MEMORY,
       NOT_IMPLEMENTED,
-      WORKLOAD_TOO_BIG OMM_DEPRECATED_MSG("WORKLOAD_TOO_BIG has been deprecated and will no longer be returned. Enable logging to look for perf warnings instead."),
+      WORKLOAD_TOO_BIG,
       MAX_NUM,
    };
 
@@ -171,9 +171,7 @@ namespace omm
       MessageInterface         messageInterface          = {};
    };
 
-   using Handle = uintptr_t;
-
-   using Baker = Handle;
+   typedef ommBaker Baker;
 
    static inline LibraryDesc GetLibraryDesc();
 
@@ -183,10 +181,13 @@ namespace omm
 
    namespace Cpu
    {
+      typedef ommCpuBakeResult BakeResult;
 
-      using BakeResult = Handle;
+      typedef ommCpuTexture Texture;
 
-      using Texture = Handle;
+      typedef ommCpuSerializedResult SerializedResult;
+
+      typedef ommCpuDeserializedResult DeserializedResult;
 
       enum class TextureFormat
       {
@@ -236,6 +237,13 @@ namespace omm
       };
       OMM_DEFINE_ENUM_FLAG_OPERATORS(BakeFlags);
 
+      enum class SerializeFlags
+      {
+          None,
+          Compress,
+      };
+      OMM_DEFINE_ENUM_FLAG_OPERATORS(SerializeFlags);
+
       // The baker supports conservativle baking from a MIP array when the runtime wants to pick freely between texture levels at
       // runtime without the need to update the OMM data. _However_ baking from mip level 0 only is recommended in the general
       // case for best performance the integration guide contains more in depth discussion on the topic
@@ -283,11 +291,21 @@ namespace omm
          // The alpha cutoff value. By default it's Texel Opacity = texture > alphaCutoff ? Opaque : Transparent
          float                 alphaCutoff                   = 0.5f;
          // alphaCutoffGT and alphaCutoffLE allows dynamic configuring of the alpha values in the texture in the following way:
-         // Texel opacity = texture > alphaCutoff ? alphaCutoffGT : alphaCutoffLE
+         // Texel Opacity = texture > alphaCutoff ? alphaCutoffGreater : alphaCutoffLessEqual
          // This can be used to construct different pairings such as transparent and unknown opaque which is useful 
          // for applications requiring partial accumulated opacity, like smoke and particle effects
-         omm::OpacityState     alphaCutoffLE                 = omm::OpacityState::Transparent;
-         omm::OpacityState     alphaCutoffGT                 = omm::OpacityState::Opaque;
+         union
+         {
+             OMM_DEPRECATED_MSG("alphaCutoffLE has been deprecated, please use alphaCutoffLessEqual")
+             omm::OpacityState     alphaCutoffLE;
+             omm::OpacityState     alphaCutoffLessEqual = omm::OpacityState::Transparent;
+         };
+         union
+         {
+             OMM_DEPRECATED_MSG("alphaCutoffGT has been deprecated, please use alphaCutoffGreater instead")
+             omm::OpacityState     alphaCutoffGT;
+             omm::OpacityState     alphaCutoffGreater = omm::OpacityState::Opaque;
+         };
          // The global Format. May be overriden by the per-triangle subdivision level setting.
          Format                format                        = Format::OC1_4_State;
          // Use Formats to control format on a per triangle granularity. If Format is set to Format::INVALID the global setting will
@@ -301,12 +319,21 @@ namespace omm
          // When dynamicSubdivisionScale is disabled maxSubdivisionLevel is the subdivision level applied uniformly to all
          // triangles.
          uint8_t               maxSubdivisionLevel           = 8;
-         bool                  enableSubdivisionLevelBuffer  = false;
          // [optional] Use subdivisionLevels to control subdivision on a per triangle granularity.
          // +14 - reserved for future use.
          // 13 - use global value specified in 'subdivisionLevel.
          // [0,12] - per triangle subdivision level'
          const uint8_t*        subdivisionLevels             = nullptr;
+         // [optional] Use maxWorkloadSize to cancel baking when the workload (# micro-triangle / texel tests) increase a certain threshold.
+         // The baker will either reduce the baking quality to fit within this computational budget, or fail completely by returning the error code ommResult_WORKLOAD_TOO_BIG
+         // This value correlates to the amount of processing required in the OMM bake call.
+         // Factors that influence this value is:
+         // * Number of unique UVs
+         // * Size of the UVs
+         // * Resolution of the underlying alpha texture
+         // * Subdivision level of the OMMs.
+         // Configure this value when experiencing long bake times, a starting point might be maxWorkloadSize = 1 << 28 (~ processing a total of 256 1k textures)
+         uint64_t              maxWorkloadSize               = 0xFFFFFFFFFFFFFFFF;
       };
 
       struct OpacityMicromapDesc
@@ -349,6 +376,23 @@ namespace omm
          uint32_t                         indexHistogramCount;
       };
 
+      struct BlobDesc
+      {
+          void*     data = nullptr;
+          uint64_t  size = 0;
+      };
+
+      struct DeserializedDesc
+      {
+          SerializeFlags            flags           = SerializeFlags::None;
+          // Optional
+          int                       numInputDescs   = 0;
+          const BakeInputDesc*      inputDescs      = nullptr;
+          // Optional
+          int                       numResultDescs  = 0;
+          const BakeResultDesc*     resultDescs     = nullptr;
+      };
+
       static inline Result CreateTexture(Baker baker, const TextureDesc& desc, Texture* outTexture);
 
       static inline Result DestroyTexture(Baker baker, Texture texture);
@@ -359,12 +403,25 @@ namespace omm
 
       static inline Result GetBakeResultDesc(BakeResult bakeResult, const BakeResultDesc** desc);
 
+      static inline Result Serialize(ommBaker baker, const DeserializedDesc& inputDesc, SerializedResult* outResult);
+
+      static inline Result GetSerializedResultDesc(SerializedResult result, const BlobDesc** desc);
+
+      static inline Result DestroySerializedResult(SerializedResult result);
+
+      static inline Result Deserialize(ommBaker baker, const BlobDesc& desc, DeserializedResult* outResult);
+
+      static inline Result GetDeserializedDesc(DeserializedResult result, const DeserializedDesc** desc);
+
+      static inline Result DestroyDeserializedResult(DeserializedResult result);
+
    } // namespace Cpu
 
    namespace Gpu
    {
 
-      using Pipeline = Handle;
+      typedef struct _Pipeline _Pipeline;
+      typedef _Pipeline* Pipeline;
 
       enum class DescriptorType
       {
@@ -752,11 +809,21 @@ namespace omm
          // The alpha cutoff value. By default it's Texel Opacity = texture > alphaCutoff ? Opaque : Transparent
          float               alphaCutoff                   = 0.5f;
          // alphaCutoffGT and alphaCutoffLE allows dynamic configuring of the alpha values in the texture in the following way:
-         // Texel Opacity = texture > alphaCutoff ? alphaCutoffGT : alphaCutoffLE
+         // Texel Opacity = texture > alphaCutoff ? alphaCutoffGreater : alphaCutoffLessEqual
          // This can be used to construct different pairings such as transparent and unknown opaque which is useful 
          // for applications requiring partial accumulated opacity, like smoke and particle effects
-         omm::OpacityState   alphaCutoffLE                 = omm::OpacityState::Transparent;
-         omm::OpacityState   alphaCutoffGT                 = omm::OpacityState::Opaque;
+         union
+         {
+             OMM_DEPRECATED_MSG("alphaCutoffLE has been deprecated, please use alphaCutoffLessEqual")
+             omm::OpacityState     alphaCutoffLE;
+             omm::OpacityState     alphaCutoffLessEqual = omm::OpacityState::Transparent;
+         };
+         union
+         {
+             OMM_DEPRECATED_MSG("alphaCutoffGT has been deprecated, please use alphaCutoffGreater instead")
+             omm::OpacityState     alphaCutoffGT;
+             omm::OpacityState     alphaCutoffGreater = omm::OpacityState::Opaque;
+         };
          // Configure the target resolution when running dynamic subdivision level. <= 0: disabled. > 0: The subdivision level be
          // chosen such that a single micro-triangle covers approximatley a dynamicSubdivisionScale * dynamicSubdivisionScale texel
          // area.
@@ -878,81 +945,109 @@ namespace omm
 
 namespace omm
 {
-	static inline LibraryDesc GetLibraryDesc()
-	{
+    static inline LibraryDesc GetLibraryDesc()
+    {
         ommLibraryDesc res = ommGetLibraryDesc();
         return reinterpret_cast<LibraryDesc&>(res);
-	}
-	static inline Result CreateBaker(const BakerCreationDesc& bakeCreationDesc, Baker* outBaker)
-	{
-		static_assert(sizeof(BakerCreationDesc) == sizeof(ommBakerCreationDesc));
-		return (Result)ommCreateBaker(reinterpret_cast<const ommBakerCreationDesc*>(&bakeCreationDesc), (ommBaker*)outBaker);
-	}
-	static inline Result DestroyBaker(Baker baker)
-	{
-		return (Result)ommDestroyBaker((ommBaker)baker);
-	}
-	namespace Cpu
-	{
-		static inline Result CreateTexture(Baker baker, const TextureDesc& desc, Texture* outTexture)
-		{
-			return (Result)ommCpuCreateTexture((ommBaker)baker, reinterpret_cast<const ommCpuTextureDesc*>(&desc), (ommCpuTexture*)outTexture);
-		}
-		static inline Result DestroyTexture(Baker baker, Texture texture)
-		{
-			return (Result)ommCpuDestroyTexture((ommBaker)baker, (ommCpuTexture)texture);
-		}
-		static inline Result Bake(Baker baker, const BakeInputDesc& bakeInputDesc, BakeResult* outBakeResult)
-		{
-			return (Result)ommCpuBake((ommBaker)baker, reinterpret_cast<const ommCpuBakeInputDesc*>(&bakeInputDesc), (ommCpuBakeResult*)outBakeResult);
-		}
-		static inline Result DestroyBakeResult(BakeResult bakeResult)
-		{
-			return (Result)ommCpuDestroyBakeResult((ommCpuBakeResult)bakeResult);
-		}
-		static inline Result GetBakeResultDesc(BakeResult bakeResult, const BakeResultDesc** desc)
-		{
-			return (Result)ommCpuGetBakeResultDesc((ommCpuBakeResult)bakeResult, reinterpret_cast<const ommCpuBakeResultDesc**>(desc));
-		}
-	}
-	namespace Gpu
-	{
-		static inline Result GetStaticResourceData(ResourceType resource, uint8_t* data, size_t* outByteSize)
-		{
-			return (Result)ommGpuGetStaticResourceData((ommGpuResourceType)resource, data, outByteSize);
-		}
-		static inline Result CreatePipeline(Baker baker, const PipelineConfigDesc& pipelineCfg, Pipeline* outPipeline)
-		{
-			return (Result)ommGpuCreatePipeline((ommBaker)baker, reinterpret_cast<const ommGpuPipelineConfigDesc*>(&pipelineCfg), (ommGpuPipeline*)outPipeline);
-		}
-		static inline Result DestroyPipeline(Baker baker, Pipeline pipeline)
-		{
-			return (Result)ommGpuDestroyPipeline((ommBaker)baker, (ommGpuPipeline)pipeline);
-		}
-		static inline Result GetPipelineDesc(Pipeline pipeline, const PipelineInfoDesc** outPipelineDesc)
-		{
-			return (Result)ommGpuGetPipelineDesc((ommGpuPipeline)pipeline, reinterpret_cast<const ommGpuPipelineInfoDesc**>(outPipelineDesc));
-		}
-		static inline Result GetPreDispatchInfo(Pipeline pipeline, const DispatchConfigDesc& config, PreDispatchInfo* outPreBuildInfo)
-		{
-			return (Result)ommGpuGetPreDispatchInfo((ommGpuPipeline)pipeline, reinterpret_cast<const ommGpuDispatchConfigDesc*>(&config), reinterpret_cast<ommGpuPreDispatchInfo*>(outPreBuildInfo));
-		}
-		static inline Result Dispatch(Pipeline pipeline, const DispatchConfigDesc& config, const DispatchChain** outDispatchDesc)
-		{
-			return (Result)ommGpuDispatch((ommGpuPipeline)pipeline, reinterpret_cast<const ommGpuDispatchConfigDesc*>(&config), reinterpret_cast<const ommGpuDispatchChain**>(outDispatchDesc));
-		}
-	}
-	namespace Debug
-	{
-		static inline Result SaveAsImages(Baker baker, const Cpu::BakeInputDesc& bakeInputDesc, const Cpu::BakeResultDesc* res, const SaveImagesDesc& desc)
-		{
-			return (Result)ommDebugSaveAsImages((ommBaker)baker, reinterpret_cast<const ommCpuBakeInputDesc*>(&bakeInputDesc), reinterpret_cast<const ommCpuBakeResultDesc*>(res), reinterpret_cast<const ommDebugSaveImagesDesc*>(&desc));
-		}
-		static inline Result GetStats(Baker baker, const Cpu::BakeResultDesc* res, Stats* out)
-		{
-			return (Result)ommDebugGetStats((ommBaker)baker, reinterpret_cast<const ommCpuBakeResultDesc*>(res), reinterpret_cast<ommDebugStats*>(out));
-		}
-	}
+    }
+    static inline Result CreateBaker(const BakerCreationDesc& bakeCreationDesc, Baker* outBaker)
+    {
+        static_assert(sizeof(BakerCreationDesc) == sizeof(ommBakerCreationDesc));
+        return (Result)ommCreateBaker(reinterpret_cast<const ommBakerCreationDesc*>(&bakeCreationDesc), (ommBaker*)outBaker);
+    }
+    static inline Result DestroyBaker(Baker baker)
+    {
+        return (Result)ommDestroyBaker((ommBaker)baker);
+    }
+    namespace Cpu
+    {
+        static inline Result CreateTexture(Baker baker, const TextureDesc& desc, Texture* outTexture)
+        {
+            return (Result)ommCpuCreateTexture((ommBaker)baker, reinterpret_cast<const ommCpuTextureDesc*>(&desc), (ommCpuTexture*)outTexture);
+        }
+        static inline Result DestroyTexture(Baker baker, Texture texture)
+        {
+            return (Result)ommCpuDestroyTexture((ommBaker)baker, (ommCpuTexture)texture);
+        }
+        static inline Result Bake(Baker baker, const BakeInputDesc& bakeInputDesc, BakeResult* outBakeResult)
+        {
+            return (Result)ommCpuBake((ommBaker)baker, reinterpret_cast<const ommCpuBakeInputDesc*>(&bakeInputDesc), (ommCpuBakeResult*)outBakeResult);
+        }
+        static inline Result DestroyBakeResult(BakeResult bakeResult)
+        {
+            return (Result)ommCpuDestroyBakeResult((ommCpuBakeResult)bakeResult);
+        }
+        static inline Result GetBakeResultDesc(BakeResult bakeResult, const BakeResultDesc** desc)
+        {
+            return (Result)ommCpuGetBakeResultDesc((ommCpuBakeResult)bakeResult, reinterpret_cast<const ommCpuBakeResultDesc**>(desc));
+        }
+        static inline Result Serialize(ommBaker baker, const DeserializedDesc& desc, SerializedResult* outResult)
+        {
+            return (Result)ommCpuSerialize(baker, reinterpret_cast<const ommCpuDeserializedDesc&>(desc), reinterpret_cast<ommCpuSerializedResult*>(outResult));
+        }
+        static inline Result GetSerializedResultDesc(SerializedResult result, const BlobDesc** desc)
+        {
+            return (Result)ommCpuGetSerializedResultDesc((ommCpuSerializedResult)result, reinterpret_cast<const ommCpuBlobDesc**>(desc));
+        }
+        static inline Result DestroySerializedResult(SerializedResult result)
+        {
+            return (Result)ommCpuDestroySerializedResult((ommCpuSerializedResult)result);
+        }
+        static inline Result Deserialize(ommBaker baker, const BlobDesc& desc, DeserializedResult* outResult)
+        {
+            return (Result)ommCpuDeserialize(baker, reinterpret_cast<const ommCpuBlobDesc&>(desc), reinterpret_cast<ommCpuDeserializedResult*>(outResult));
+        }
+        static inline Result GetDeserializedDesc(DeserializedResult result, const DeserializedDesc** desc)
+        {
+            return (Result)ommCpuGetDeserializedDesc((ommCpuDeserializedResult)result, reinterpret_cast<const ommCpuDeserializedDesc**>(desc));
+        }
+        static inline Result DestroyDeserializedResult(DeserializedResult result)
+        {
+            return (Result)ommCpuDestroyDeserializedResult((ommCpuDeserializedResult)result);
+        }
+    }
+    namespace Gpu
+    {
+        static inline Result GetStaticResourceData(ResourceType resource, uint8_t* data, size_t* outByteSize)
+        {
+            return (Result)ommGpuGetStaticResourceData((ommGpuResourceType)resource, data, outByteSize);
+        }
+        static inline Result CreatePipeline(Baker baker, const PipelineConfigDesc& pipelineCfg, Pipeline* outPipeline)
+        {
+            return (Result)ommGpuCreatePipeline((ommBaker)baker, reinterpret_cast<const ommGpuPipelineConfigDesc*>(&pipelineCfg), (ommGpuPipeline*)outPipeline);
+        }
+        static inline Result DestroyPipeline(Baker baker, Pipeline pipeline)
+        {
+            return (Result)ommGpuDestroyPipeline((ommBaker)baker, (ommGpuPipeline)pipeline);
+        }
+        static inline Result GetPipelineDesc(Pipeline pipeline, const PipelineInfoDesc** outPipelineDesc)
+        {
+            return (Result)ommGpuGetPipelineDesc((ommGpuPipeline)pipeline, reinterpret_cast<const ommGpuPipelineInfoDesc**>(outPipelineDesc));
+        }
+        static inline Result GetPreDispatchInfo(Pipeline pipeline, const DispatchConfigDesc& config, PreDispatchInfo* outPreBuildInfo)
+        {
+            return (Result)ommGpuGetPreDispatchInfo((ommGpuPipeline)pipeline, reinterpret_cast<const ommGpuDispatchConfigDesc*>(&config), reinterpret_cast<ommGpuPreDispatchInfo*>(outPreBuildInfo));
+        }
+        static inline Result Dispatch(Pipeline pipeline, const DispatchConfigDesc& config, const DispatchChain** outDispatchDesc)
+        {
+            return (Result)ommGpuDispatch((ommGpuPipeline)pipeline, reinterpret_cast<const ommGpuDispatchConfigDesc*>(&config), reinterpret_cast<const ommGpuDispatchChain**>(outDispatchDesc));
+        }
+    }
+    namespace Debug
+    {
+        static inline Result SaveAsImages(Baker baker, const Cpu::BakeInputDesc& bakeInputDesc, const Cpu::BakeResultDesc* res, const SaveImagesDesc& desc)
+        {
+            return (Result)ommDebugSaveAsImages((ommBaker)baker, reinterpret_cast<const ommCpuBakeInputDesc*>(&bakeInputDesc), reinterpret_cast<const ommCpuBakeResultDesc*>(res), reinterpret_cast<const ommDebugSaveImagesDesc*>(&desc));
+        }
+        static inline Result GetStats(Baker baker, const Cpu::BakeResultDesc* res, Stats* out)
+        {
+            return (Result)ommDebugGetStats((ommBaker)baker, reinterpret_cast<const ommCpuBakeResultDesc*>(res), reinterpret_cast<ommDebugStats*>(out));
+        }
+        static inline Result SaveBinaryToDisk(Baker baker, const Cpu::BlobDesc& data, const char* path)
+        {
+            return (Result)ommDebugSaveBinaryToDisk((ommBaker)baker, reinterpret_cast<const ommCpuBlobDesc&>(data), path);
+        }
+    }
 }
 
 #endif // #ifndef INCLUDE_OMM_SDK_CPP
