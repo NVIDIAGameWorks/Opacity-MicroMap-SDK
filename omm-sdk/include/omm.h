@@ -82,7 +82,7 @@ typedef enum ommResult
    ommResult_INVALID_ARGUMENT,
    ommResult_INSUFFICIENT_SCRATCH_MEMORY,
    ommResult_NOT_IMPLEMENTED,
-   ommResult_WORKLOAD_TOO_BIG OMM_DEPRECATED_MSG("ommResult_WORKLOAD_TOO_BIG has been deprecated and will no longer be returned. Enable logging to look for perf warnings instead."),
+   ommResult_WORKLOAD_TOO_BIG,
    ommResult_MAX_NUM,
 } ommResult;
 
@@ -428,6 +428,16 @@ typedef struct ommCpuBakeInputDesc
    // 13 - use global value specified in 'subdivisionLevel.
    // [0,12] - per triangle subdivision level'
    const uint8_t*           subdivisionLevels;
+   // [optional] Use maxWorkloadSize to cancel baking when the workload (# micro-triangle / texel tests) increase a certain threshold.
+   // The baker will either reduce the baking quality to fit within this computational budget, or fail completely by returning the error code ommResult_WORKLOAD_TOO_BIG
+   // This value correlates to the amount of processing required in the OMM bake call.
+   // Factors that influence this value is:
+   // * Number of unique UVs
+   // * Size of the UVs
+   // * Resolution of the underlying alpha texture
+   // * Subdivision level of the OMMs.
+   // Configure this value when experiencing long bake times, a starting point might be maxWorkloadSize = 1 << 28 (~ processing a total of 256 1k textures)
+   uint64_t                 maxWorkloadSize;
 } ommCpuBakeInputDesc;
 
 inline ommCpuBakeInputDesc ommCpuBakeInputDescDefault()
@@ -453,6 +463,7 @@ inline ommCpuBakeInputDesc ommCpuBakeInputDescDefault()
    v.unknownStatePromotion         = ommUnknownStatePromotion_ForceOpaque;
    v.maxSubdivisionLevel           = 8;
    v.subdivisionLevels             = NULL;
+   v.maxWorkloadSize               = 0;
    return v;
 }
 
@@ -475,17 +486,6 @@ typedef struct ommCpuOpacityMicromapUsageCount
    // OMM input format.
    uint16_t format;
 } ommCpuOpacityMicromapUsageCount;
-
-typedef struct ommCpuValidateResultDesc
-{
-    // This value correlates to the amount of processing required in the OMM bake call.
-    // Factors that influence this value is:
-    // * Number of unique UVs
-    // * Size of the UVs
-    // * Resolution of the underlying alpha texture
-    // * Subdivision level of the OMMs.
-    uint64_t numTexelsToProcess;
-} ommCpuValidateResultDesc;
 
 typedef struct ommCpuBakeResultDesc
 {
@@ -523,13 +523,13 @@ inline ommCpuBlobDesc ommCpuBlobDescDefault()
 
 typedef struct ommCpuDeserializedDesc
 {
-    ommCpuSerializeFlags    flags;
+    ommCpuSerializeFlags        flags;
     // Optional
-    int                     numInputDescs;
-    ommCpuBakeInputDesc*    inputDescs;
+    int                         numInputDescs;
+    const ommCpuBakeInputDesc*  inputDescs;
     // Optional
-    int                     numResultDescs;
-    ommCpuBakeResultDesc*   resultDescs;
+    int                         numResultDescs;
+    const ommCpuBakeResultDesc* resultDescs;
 } ommCpuDeserializedDesc;
 
 inline ommCpuDeserializedDesc ommCpuDeserializedDescDefault()

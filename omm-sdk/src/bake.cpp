@@ -126,6 +126,9 @@ OMM_API ommResult OMM_CALL ommCpuSerialize(ommBaker baker, const ommCpuDeseriali
     if (baker == 0)
         return ommResult_INVALID_ARGUMENT;
 
+    if (outResult == nullptr)
+        return ommResult_INVALID_ARGUMENT;
+
     Cpu::BakerImpl* impl = GetHandleImpl<Cpu::BakerImpl>(baker);
 
     if (GetHandleType(baker) != HandleType::CpuBaker)

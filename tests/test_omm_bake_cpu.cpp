@@ -51,6 +51,8 @@ namespace {
 		bool monochromeUnknowns = false;
 		omm::OpacityState alphaCutoffLE = omm::OpacityState::Transparent;
 		omm::OpacityState alphaCutoffGT = omm::OpacityState::Opaque;
+		uint64_t maxWorkloadSize = 0xFFFFFFFFFFFFFFFF;
+		omm::Result bakeResult = omm::Result::SUCCESS;
 	};
 
 	class OMMBakeTestCPU : public ::testing::TestWithParam<TestSuiteConfig> {
@@ -164,6 +166,7 @@ namespace {
 			desc.alphaCutoffGreater = opt.alphaCutoffGT;
 			desc.unknownStatePromotion = opt.unknownStatePromotion;
 			desc.bakeFlags = (omm::Cpu::BakeFlags)((uint32_t)omm::Cpu::BakeFlags::EnableInternalThreads);
+			desc.maxWorkloadSize = opt.maxWorkloadSize;
 
 			if (opt.mergeSimilar)
 				desc.bakeFlags = (omm::Cpu::BakeFlags)((uint32_t)desc.bakeFlags | (uint32_t)omm::Cpu::BakeFlags::EnableNearDuplicateDetection);
@@ -218,7 +221,13 @@ namespace {
 
 					const omm::Cpu::BakeInputDesc& descCopy = desDesc->inputDescs[0];
 
-					EXPECT_EQ(omm::Cpu::Bake(_baker, descCopy, &res), omm::Result::SUCCESS);
+					EXPECT_EQ(omm::Cpu::Bake(_baker, descCopy, &res), opt.bakeResult);
+
+					if (opt.bakeResult != omm::Result::SUCCESS)
+					{
+						return omm::Debug::Stats();
+					}
+
 					EXPECT_NE(res, nullptr);
 
 					EXPECT_EQ(omm::Cpu::DestroyDeserializedResult(dRes), omm::Result::SUCCESS);
@@ -288,7 +297,12 @@ namespace {
 			}
 			else
 			{
-				EXPECT_EQ(omm::Cpu::Bake(_baker, desc, &res), omm::Result::SUCCESS);
+				EXPECT_EQ(omm::Cpu::Bake(_baker, desc, &res), opt.bakeResult);
+				if (opt.bakeResult != omm::Result::SUCCESS)
+				{
+					return omm::Debug::Stats();
+				}
+
 				EXPECT_NE(res, nullptr);
 
 				EXPECT_EQ(omm::Cpu::GetBakeResultDesc(res, &resDesc), omm::Result::SUCCESS);
@@ -462,7 +476,7 @@ namespace {
 			return stats;
 		}
 
-		omm::Debug::Stats LeafletLevelN(uint32_t subdivisionLevel)
+		omm::Debug::Stats LeafletLevelN(uint32_t subdivisionLevel, uint64_t maxWorkloadSize = 0xFFFFFFFFFFFFFFFF, omm::Result bakeResult = omm::Result::SUCCESS)
 		{
 			uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
@@ -490,7 +504,7 @@ namespace {
 
 				return 1.f - mips[w * j + i];
 
-				}, { .format = omm::Format::OC1_4_State, .unknownStatePromotion = omm::UnknownStatePromotion::Nearest, .enableSpecialIndices = false, .oneFile = true, .detailedCutout = false });
+				}, { .format = omm::Format::OC1_4_State, .unknownStatePromotion = omm::UnknownStatePromotion::Nearest, .enableSpecialIndices = false, .oneFile = true, .detailedCutout = false, .maxWorkloadSize = maxWorkloadSize, .bakeResult = bakeResult });
 
 			return stats;
 		}
@@ -1756,6 +1770,18 @@ namespace {
 			.totalTransparent = 43424,
 			.totalUnknownTransparent = 1110,
 			.totalUnknownOpaque = 1171,
+			});
+	}
+
+	TEST_P(OMMBakeTestCPU, LeafletLevel12_Fail) {
+
+		omm::Debug::Stats stats = LeafletLevelN(12, 512, omm::Result::WORKLOAD_TOO_BIG);
+
+		ExpectEqual(stats, {
+			.totalOpaque = 0,
+			.totalTransparent = 0,
+			.totalUnknownTransparent = 0,
+			.totalUnknownOpaque = 0,
 			});
 	}
 

@@ -23,7 +23,7 @@ namespace omm
       INVALID_ARGUMENT,
       INSUFFICIENT_SCRATCH_MEMORY,
       NOT_IMPLEMENTED,
-      WORKLOAD_TOO_BIG OMM_DEPRECATED_MSG("WORKLOAD_TOO_BIG has been deprecated and will no longer be returned. Enable logging to look for perf warnings instead."),
+      WORKLOAD_TOO_BIG,
       MAX_NUM,
    };
 
@@ -324,6 +324,16 @@ namespace omm
          // 13 - use global value specified in 'subdivisionLevel.
          // [0,12] - per triangle subdivision level'
          const uint8_t*        subdivisionLevels             = nullptr;
+         // [optional] Use maxWorkloadSize to cancel baking when the workload (# micro-triangle / texel tests) increase a certain threshold.
+         // The baker will either reduce the baking quality to fit within this computational budget, or fail completely by returning the error code ommResult_WORKLOAD_TOO_BIG
+         // This value correlates to the amount of processing required in the OMM bake call.
+         // Factors that influence this value is:
+         // * Number of unique UVs
+         // * Size of the UVs
+         // * Resolution of the underlying alpha texture
+         // * Subdivision level of the OMMs.
+         // Configure this value when experiencing long bake times, a starting point might be maxWorkloadSize = 1 << 28 (~ processing a total of 256 1k textures)
+         uint64_t              maxWorkloadSize               = 0xFFFFFFFFFFFFFFFF;
       };
 
       struct OpacityMicromapDesc

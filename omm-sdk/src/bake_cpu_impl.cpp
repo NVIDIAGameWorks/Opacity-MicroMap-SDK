@@ -556,13 +556,8 @@ namespace Cpu
             return ommResult_SUCCESS;
         }
 
-        static ommResult ValidateWorkloadSize(
-            const StdAllocator<uint8_t>& allocator, Logger log, const ommCpuBakeInputDesc& desc, const Options& options, vector<OmmWorkItem>& vmWorkItems)
+        static uint64_t ComputeWorkloadSize(const ommCpuBakeInputDesc& desc, vector<OmmWorkItem>& vmWorkItems)
         {
-            // Check if the baking will complete in "finite" amount of time...
-            if (!options.enableWorkloadValidation)
-                return ommResult_SUCCESS;
-
             const TextureImpl* texture = GetHandleImpl<TextureImpl>(desc.texture);
 
             // Approximate the workload size. 
@@ -578,13 +573,37 @@ namespace Cpu
                 workloadSize += uint64_t(aabb.x * aabb.y);
             }
 
-            const uint64_t kMaxWorkloadSize = 1 << 27; // 128 * 1024x1024 texels. 
-            if (workloadSize > kMaxWorkloadSize)
-            {
-                const uint64_t num1Ktextures = workloadSize >> (20ull); // divide by 1024x1024
+            return workloadSize;
+        }
 
-                log.PerfWarnf("[Perf Warning] - The workload consists of %lld work items (number of texels to classify), which corresponds to roughly %lld 1024x1024 textures."
-                              " This is unusually large and may result in long bake times.", workloadSize, num1Ktextures);
+        static ommResult ValidateWorkloadSize(
+            const StdAllocator<uint8_t>& allocator, Logger log, const ommCpuBakeInputDesc& desc, const Options& options, vector<OmmWorkItem>& ommWorkItems)
+        {
+            const bool limitWorkloadSize = desc.maxWorkloadSize != 0xFFFFFFFFFFFFFFFF;
+
+            if (!options.enableWorkloadValidation && !limitWorkloadSize)
+                return ommResult_SUCCESS;
+
+            uint64_t workloadSize = ComputeWorkloadSize(desc, ommWorkItems);
+
+            if (limitWorkloadSize)
+            {
+                if (workloadSize > desc.maxWorkloadSize)
+                {
+                    return ommResult_WORKLOAD_TOO_BIG;
+                }
+            }
+            
+            if (options.enableWorkloadValidation)
+            {
+                const uint64_t warnSize = 1ull << 28ull;  // 256 * 1024x1024 texels.
+                if (workloadSize > warnSize)
+                {
+                    const uint64_t num1Ktextures = workloadSize >> (20ull); // divide by 1024x1024
+
+                    log.PerfWarnf("[Perf Warning] - The workload consists of %lld work items (number of texels to classify), which corresponds to roughly %lld 1024x1024 textures."
+                        " This is unusually large and may result in long bake times.", workloadSize, num1Ktextures);
+                }
             }
 
             return ommResult_SUCCESS;

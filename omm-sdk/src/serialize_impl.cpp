@@ -103,6 +103,8 @@ namespace Cpu
     {
         std::ostream os(&buffer);
 
+        static_assert(sizeof(ommCpuBakeInputDesc) == 128);
+
         os.write(reinterpret_cast<const char*>(&inputDesc.bakeFlags), sizeof(inputDesc.bakeFlags));
 
         const TextureImpl* texture = GetHandleImpl<TextureImpl>(inputDesc.texture);
@@ -153,6 +155,8 @@ namespace Cpu
         {
             os.write(reinterpret_cast<const char*>(inputDesc.subdivisionLevels), numSubdivLvls * sizeof(uint8_t));
         }
+
+        os.write(reinterpret_cast<const char*>(&inputDesc.maxWorkloadSize), sizeof(inputDesc.maxWorkloadSize));
 
         return ommResult_SUCCESS;
     }
@@ -254,7 +258,6 @@ namespace Cpu
                 const StdAllocator<uint8_t>& memoryAllocator = GetStdAllocator();
                 TextureImpl* texture = GetHandleImpl<TextureImpl>(inputDesc.texture);
                 Deallocate(memoryAllocator, texture);
-                inputDesc.texture = 0;
             }
 
             if (inputDesc.texCoords)
@@ -313,6 +316,8 @@ namespace Cpu
     ommResult DeserializedResultImpl::_Deserialize(ommCpuBakeInputDesc& inputDesc, TMemoryStreamBuf& buffer)
     {
         std::istream os(&buffer);
+
+        static_assert(sizeof(ommCpuBakeInputDesc) == 128);
 
         os.read(reinterpret_cast<char*>(&inputDesc.bakeFlags), sizeof(inputDesc.bakeFlags));
 
@@ -375,6 +380,8 @@ namespace Cpu
             os.read(reinterpret_cast<char*>(subdivisionLevels), subdivLvlSize);
             inputDesc.subdivisionLevels = subdivisionLevels;
         }
+
+        os.read(reinterpret_cast<char*>(&inputDesc.maxWorkloadSize), sizeof(inputDesc.maxWorkloadSize));
 
         return ommResult_SUCCESS;
     }
