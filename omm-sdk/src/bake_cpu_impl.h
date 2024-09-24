@@ -11,6 +11,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #pragma once
 
 #include "omm.h"
+#include "omm_handle.h"
 #include "defines.h"
 #include "std_containers.h"
 #include "texture_impl.h"
@@ -32,6 +33,9 @@ namespace Cpu
     {
     // Internal
     public:
+
+        static inline constexpr HandleType kHandleType = HandleType::CpuBaker;
+        
         inline BakerImpl(const StdAllocator<uint8_t>& stdAllocator) :
             m_stdAllocator(stdAllocator)
         {}
@@ -94,7 +98,7 @@ namespace Cpu
         BakeOutputImpl(const StdAllocator<uint8_t>& stdAllocator, const Logger& log);
         ~BakeOutputImpl();
 
-        inline StdAllocator<uint8_t>& GetStdAllocator()
+        inline const StdAllocator<uint8_t>& GetStdAllocator() const
         {
             return m_stdAllocator;
         }

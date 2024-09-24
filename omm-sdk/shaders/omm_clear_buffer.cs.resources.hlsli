@@ -14,11 +14,11 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
     OMM_OUTPUT_RESOURCE( RWByteAddressBuffer, u_targetBuffer, u, 0 )
 
 #define OMM_DECLARE_LOCAL_CONSTANT_BUFFER						\
-OMM_PUSH_CONSTANTS_START(LocalConstants)								\
+OMM_PUSH_CONSTANTS_START(LocalConstants)						\
 																\
-	OMM_PUSH_CONSTANT(uint, ClearValue)								\
-	OMM_PUSH_CONSTANT(uint, NumElements)								\
-	OMM_PUSH_CONSTANT(uint, BufferOffset)								\
-	OMM_PUSH_CONSTANT(uint, gPad0)									\
+	OMM_PUSH_CONSTANT(uint, ClearValue)							\
+	OMM_PUSH_CONSTANT(uint, NumElements)						\
+	OMM_PUSH_CONSTANT(uint, BufferOffset)						\
+	OMM_PUSH_CONSTANT(uint, gPad0)								\
 																\
 OMM_PUSH_CONSTANTS_END(LocalConstants, 1)

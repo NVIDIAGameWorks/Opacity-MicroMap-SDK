@@ -272,10 +272,10 @@ ommResult  PipelineImpl::Validate(const ommGpuDispatchConfigDesc& config) const
     if (!doBake && !doSetup)
         return m_log.InvalidArg("[Invalid Arg] - Either ommGpuBakeFlags_PerformBake or ommGpuBakeFlags_PerformSetup must be set");
 
-    if (!IsCompatible(config.alphaCutoffGT, config.globalFormat))
-        return m_log.InvalidArgf("[Invalid Argument] - alphaCutoffGT=%s is not compatible with %s", GetOpacityStateAsString(config.alphaCutoffGT), GetFormatAsString(config.globalFormat));
-    if (!IsCompatible(config.alphaCutoffLE, config.globalFormat))
-        return m_log.InvalidArgf("[Invalid Argument] - alphaCutoffLE=%s is not compatible with %s", GetOpacityStateAsString(config.alphaCutoffLE), GetFormatAsString(config.globalFormat));
+    if (!IsCompatible(config.alphaCutoffGreater, config.globalFormat))
+        return m_log.InvalidArgf("[Invalid Argument] - alphaCutoffGreater=%s is not compatible with %s", GetOpacityStateAsString(config.alphaCutoffGreater), GetFormatAsString(config.globalFormat));
+    if (!IsCompatible(config.alphaCutoffLessEqual, config.globalFormat))
+        return m_log.InvalidArgf("[Invalid Argument] - alphaCutoffLessEqual=%s is not compatible with %s", GetOpacityStateAsString(config.alphaCutoffLessEqual), GetFormatAsString(config.globalFormat));
 
     return ommResult_SUCCESS;
 }
@@ -734,12 +734,12 @@ ommResult PipelineImpl::InitGlobalConstants(const ommGpuDispatchConfigDesc& conf
     cbuffer.TexSize                                    = float2(config.alphaTextureWidth, config.alphaTextureHeight);
     static_assert(sizeof(float2) == sizeof(float) * 2);
     cbuffer.InvTexSize                                 = 1.f / cbuffer.TexSize;
-    cbuffer.TexCoord1Format                            = (uint32_t)config.texCoordFormat;
-    cbuffer.TexCoord1Offset                            = config.texCoordOffsetInBytes;
-    cbuffer.TexCoord1Stride                            = config.texCoordStrideInBytes == 0 ? GetTexCoordFormatSize(config.texCoordFormat) : config.texCoordStrideInBytes;
+    cbuffer.TexCoordFormat                             = (uint32_t)config.texCoordFormat;
+    cbuffer.TexCoordOffset                             = config.texCoordOffsetInBytes;
+    cbuffer.TexCoordStride                             = config.texCoordStrideInBytes == 0 ? GetTexCoordFormatSize(config.texCoordFormat) : config.texCoordStrideInBytes;
     cbuffer.AlphaCutoff                                = config.alphaCutoff;
-    cbuffer.AlphaCutoffGT                              = (uint32_t)config.alphaCutoffGT;
-    cbuffer.AlphaCutoffLE                              = (uint32_t)config.alphaCutoffLE;
+    cbuffer.AlphaCutoffGreater                         = (uint32_t)config.alphaCutoffGreater;
+    cbuffer.AlphaCutoffLessEqual                       = (uint32_t)config.alphaCutoffLessEqual;
     cbuffer.AlphaTextureChannel                        = config.alphaTextureChannel;
     cbuffer.FilterType                                 = (uint32_t)config.runtimeSamplerDesc.filter;
     cbuffer.EnableLevelLine                            = (uint32_t)enableLevelLine;
@@ -1279,7 +1279,7 @@ ommResult BakerImpl::CreatePipeline(const ommGpuPipelineConfigDesc& config, ommG
     StdAllocator<uint8_t>& memoryAllocator = GetStdAllocator();
     PipelineImpl* implementation = Allocate<PipelineImpl>(memoryAllocator, memoryAllocator, GetLog());
     RETURN_STATUS_IF_FAILED(implementation->Create(config));
-    *outPipeline = (ommGpuPipeline)implementation;
+    *outPipeline = CreateHandle<ommGpuPipeline, PipelineImpl>(implementation);
     return ommResult_SUCCESS;
 }
 
@@ -1288,7 +1288,7 @@ ommResult BakerImpl::DestroyPipeline(ommGpuPipeline pipeline)
     if (pipeline == 0)
         return m_log.InvalidArg("[Invalid Arg] - pipeline is null");
 
-    PipelineImpl* impl = (PipelineImpl*)pipeline;
+    PipelineImpl* impl = GetHandleImpl< PipelineImpl>(pipeline);
     StdAllocator<uint8_t>& memoryAllocator = GetStdAllocator();
     Deallocate(memoryAllocator, impl);
     return ommResult_SUCCESS;

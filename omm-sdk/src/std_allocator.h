@@ -216,7 +216,7 @@ constexpr void Construct(T* objects, size_t number, Args&&... args)
 }
 
 template<typename T, typename... Args>
-inline T* Allocate(StdAllocator<uint8_t>& allocator, Args&&... args)
+inline T* Allocate(const StdAllocator<uint8_t>& allocator, Args&&... args)
 {
     const auto& lowLevelAllocator = allocator.GetInterface();
     T* object = (T*)lowLevelAllocator.Allocate(lowLevelAllocator.UserArg, sizeof(T), alignof(T));
@@ -238,7 +238,7 @@ inline T* AllocateArray(StdAllocator<uint8_t>& allocator, size_t arraySize, Args
 }
 
 template<typename T>
-inline void Deallocate(StdAllocator<uint8_t>& allocator, T* object)
+inline void Deallocate(const StdAllocator<uint8_t>& allocator, T* object)
 {
     if (object == nullptr)
         return;

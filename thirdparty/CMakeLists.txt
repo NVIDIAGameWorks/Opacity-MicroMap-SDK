@@ -45,7 +45,7 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/nvrhi)
 endif()
 
 # gtest
-if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/gtest)
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/gtest AND OMM_ENABLE_TESTS)
 	set(INSTALL_GTEST OFF)
 	set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 	add_subdirectory("gtest")

@@ -32,13 +32,13 @@ OMM_CONSTANTS_START(GlobalConstants)							\
 	OMM_CONSTANT(uint, TexCoordHashTableEntryCount)				\
 																\
 	OMM_CONSTANT(float, DynamicSubdivisionScale)				\
-	OMM_CONSTANT(uint, TexCoord1Format)							\
-	OMM_CONSTANT(uint, TexCoord1Offset)							\
-	OMM_CONSTANT(uint, TexCoord1Stride)							\
+	OMM_CONSTANT(uint, TexCoordFormat)							\
+	OMM_CONSTANT(uint, TexCoordOffset)							\
+	OMM_CONSTANT(uint, TexCoordStride)							\
 																\
 	OMM_CONSTANT(float, AlphaCutoff)							\
-	OMM_CONSTANT(uint, AlphaCutoffLE)							\
-	OMM_CONSTANT(uint, AlphaCutoffGT)							\
+	OMM_CONSTANT(uint, AlphaCutoffLessEqual)					\
+	OMM_CONSTANT(uint, AlphaCutoffGreater)						\
 	OMM_CONSTANT(uint, AlphaTextureChannel)						\
 																\
 	OMM_CONSTANT(uint, FilterType) /* TextureFilterMode */ 		\

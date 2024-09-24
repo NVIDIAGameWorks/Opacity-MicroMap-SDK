@@ -116,14 +116,14 @@ namespace {
 			_expectedLogMsg = expectedLogMsg;
 			_logCounter = 0;
 
-			omm::Cpu::BakeResult res = 0;
+			omm::Cpu::BakeResult res = nullptr;
 
 			ASSERT_EQ(omm::Cpu::Bake(_baker, desc, &res), expectedResult);
 
 			if (expectedResult != omm::Result::SUCCESS)
 				return;
 
-			EXPECT_NE(res, 0);
+			EXPECT_NE(res, nullptr);
 
 			const omm::Cpu::BakeResultDesc* resDesc = nullptr;
 			EXPECT_EQ(omm::Cpu::GetBakeResultDesc(res, &resDesc), omm::Result::SUCCESS);
@@ -177,10 +177,11 @@ namespace {
 	{
 		InitBaker(true /*set callback*/);
 		omm::Cpu::BakeInputDesc desc = CreateDefaultBakeInputDesc();
-		desc.alphaCutoffGT = omm::OpacityState::Opaque;
-		desc.alphaCutoffLE = omm::OpacityState::UnknownOpaque;
+		desc.alphaCutoffGreater = omm::OpacityState::Opaque;
+		desc.alphaCutoffLessEqual = omm::OpacityState::UnknownOpaque;
 		desc.format = omm::Format::OC1_2_State;
-		Bake(desc, { "[Invalid Argument] - alphaCutoffLE=UnknownOpaque is not compatible with OC1_2_State" }, omm::Result::INVALID_ARGUMENT);
+
+		Bake(desc, { "[Invalid Argument] - alphaCutoffLessEqual=UnknownOpaque is not compatible with OC1_2_State" }, omm::Result::INVALID_ARGUMENT);
 	}
 
 	TEST_F(LogTest, PerfWarning_HugeWorkload)

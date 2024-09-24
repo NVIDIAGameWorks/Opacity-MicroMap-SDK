@@ -15,7 +15,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include <stddef.h>
 
 #define OMM_VERSION_MAJOR 1
-#define OMM_VERSION_MINOR 3
+#define OMM_VERSION_MINOR 4
 #define OMM_VERSION_BUILD 0
 
 #define OMM_MAX_TRANSIENT_POOL_BUFFERS 8
@@ -54,13 +54,20 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 typedef uint8_t ommBool;
 
-typedef uintptr_t ommHandle;
+typedef struct _ommBaker _ommBaker;
+typedef _ommBaker* ommBaker;
 
-typedef ommHandle ommBaker;
+typedef struct _ommCpuBakeResult _ommCpuBakeResult;
+typedef _ommCpuBakeResult* ommCpuBakeResult;
 
-typedef ommHandle ommCpuBakeResult;
+typedef struct _ommCpuTexture _ommCpuTexture;
+typedef _ommCpuTexture* ommCpuTexture;
 
-typedef ommHandle ommCpuTexture;
+typedef struct _ommCpuSerializedResult _ommCpuSerializedResult;
+typedef _ommCpuSerializedResult* ommCpuSerializedResult;
+
+typedef struct _ommCpuDeserializedResult _ommCpuDeserializedResult;
+typedef _ommCpuDeserializedResult* ommCpuDeserializedResult;
 
 typedef void* (*ommAllocate)(void* userArg, size_t size, size_t alignment);
 
@@ -75,7 +82,7 @@ typedef enum ommResult
    ommResult_INVALID_ARGUMENT,
    ommResult_INSUFFICIENT_SCRATCH_MEMORY,
    ommResult_NOT_IMPLEMENTED,
-   ommResult_WORKLOAD_TOO_BIG OMM_DEPRECATED_MSG("ommResult_WORKLOAD_TOO_BIG has been deprecated and will no longer be returned. Enable logging to look for perf warnings instead."),
+   ommResult_WORKLOAD_TOO_BIG,
    ommResult_MAX_NUM,
 } ommResult;
 
@@ -83,6 +90,7 @@ typedef enum ommMessageSeverity
 {
     ommMessageSeverity_Info,
     ommMessageSeverity_PerfWarning,
+    ommMessageSeverity_Error,
     ommMessageSeverity_Fatal,
     ommMessageSeverity_MAX_NUM,
 } ommMessageSeverity;
@@ -172,6 +180,12 @@ typedef enum ommAlphaMode
    ommAlphaMode_Blend,
    ommAlphaMode_MAX_NUM,
 } ommAlphaMode;
+
+typedef enum ommCpuSerializeFlags
+{
+    ommCpuSerializeFlags_None,
+    ommCpuSerializeFlags_Compress,
+} ommCpuSerializeFlags;
 
 typedef struct ommLibraryDesc
 {
@@ -384,8 +398,18 @@ typedef struct ommCpuBakeInputDesc
    // Texel opacity = texture > alphaCutoff ? alphaCutoffGT : alphaCutoffLE
    // This can be used to construct different pairings such as transparent and unknown opaque which is useful 
    // for applications requiring partial accumulated opacity, like smoke and particle effects
-   ommOpacityState          alphaCutoffLE;
-   ommOpacityState          alphaCutoffGT;
+   union
+   {
+       OMM_DEPRECATED_MSG("alphaCutoffLE has been deprecated, please use alphaCutoffLessEqual")
+       ommOpacityState      alphaCutoffLE;
+       ommOpacityState      alphaCutoffLessEqual;
+   };
+   union
+   {
+       OMM_DEPRECATED_MSG("alphaCutoffGT has been deprecated, please use alphaCutoffGreater instead")
+       ommOpacityState      alphaCutoffGT;
+       ommOpacityState      alphaCutoffGreater;
+   };
    // The global Format. May be overriden by the per-triangle subdivision level setting.
    ommFormat                format;
    // Use Formats to control format on a per triangle granularity. If Format is set to Format::INVALID the global setting will
@@ -399,12 +423,21 @@ typedef struct ommCpuBakeInputDesc
    // When dynamicSubdivisionScale is disabled maxSubdivisionLevel is the subdivision level applied uniformly to all
    // triangles.
    uint8_t                  maxSubdivisionLevel;
-   ommBool                  enableSubdivisionLevelBuffer;
    // [optional] Use subdivisionLevels to control subdivision on a per triangle granularity.
    // +14 - reserved for future use.
    // 13 - use global value specified in 'subdivisionLevel.
    // [0,12] - per triangle subdivision level'
    const uint8_t*           subdivisionLevels;
+   // [optional] Use maxWorkloadSize to cancel baking when the workload (# micro-triangle / texel tests) increase a certain threshold.
+   // The baker will either reduce the baking quality to fit within this computational budget, or fail completely by returning the error code ommResult_WORKLOAD_TOO_BIG
+   // This value correlates to the amount of processing required in the OMM bake call.
+   // Factors that influence this value is:
+   // * Number of unique UVs
+   // * Size of the UVs
+   // * Resolution of the underlying alpha texture
+   // * Subdivision level of the OMMs.
+   // Configure this value when experiencing long bake times, a starting point might be maxWorkloadSize = 1 << 28 (~ processing a total of 256 1k textures)
+   uint64_t                 maxWorkloadSize;
 } ommCpuBakeInputDesc;
 
 inline ommCpuBakeInputDesc ommCpuBakeInputDescDefault()
@@ -423,14 +456,14 @@ inline ommCpuBakeInputDesc ommCpuBakeInputDescDefault()
    v.dynamicSubdivisionScale       = 2;
    v.rejectionThreshold            = 0;
    v.alphaCutoff                   = 0.5f;
-   v.alphaCutoffLE                 = ommOpacityState_Transparent;
-   v.alphaCutoffGT                 = ommOpacityState_Opaque;
+   v.alphaCutoffLessEqual          = ommOpacityState_Transparent;
+   v.alphaCutoffGreater            = ommOpacityState_Opaque;
    v.format                        = ommFormat_OC1_4_State;
    v.formats                       = NULL;
    v.unknownStatePromotion         = ommUnknownStatePromotion_ForceOpaque;
    v.maxSubdivisionLevel           = 8;
-   v.enableSubdivisionLevelBuffer  = 0;
    v.subdivisionLevels             = NULL;
+   v.maxWorkloadSize               = 0;
    return v;
 }
 
@@ -474,6 +507,42 @@ typedef struct ommCpuBakeResultDesc
    uint32_t                               indexHistogramCount;
 } ommCpuBakeResultDesc;
 
+typedef struct ommCpuBlobDesc
+{
+    void*       data;
+    uint64_t    size;
+} ommCpuBlobDesc;
+
+inline ommCpuBlobDesc ommCpuBlobDescDefault()
+{
+    ommCpuBlobDesc v;
+    v.data = nullptr;
+    v.size = 0;
+    return v;
+}
+
+typedef struct ommCpuDeserializedDesc
+{
+    ommCpuSerializeFlags        flags;
+    // Optional
+    int                         numInputDescs;
+    const ommCpuBakeInputDesc*  inputDescs;
+    // Optional
+    int                         numResultDescs;
+    const ommCpuBakeResultDesc* resultDescs;
+} ommCpuDeserializedDesc;
+
+inline ommCpuDeserializedDesc ommCpuDeserializedDescDefault()
+{
+    ommCpuDeserializedDesc v;
+    v.flags             = ommCpuSerializeFlags_None;
+    v.numInputDescs     = 0;
+    v.inputDescs        = nullptr;
+    v.numResultDescs    = 0;
+    v.resultDescs       = nullptr;
+    return v;
+}
+
 OMM_API ommResult ommCpuCreateTexture(ommBaker baker, const ommCpuTextureDesc* desc, ommCpuTexture* outTexture);
 
 OMM_API ommResult ommCpuDestroyTexture(ommBaker baker, ommCpuTexture texture);
@@ -484,7 +553,24 @@ OMM_API ommResult ommCpuDestroyBakeResult(ommCpuBakeResult bakeResult);
 
 OMM_API ommResult ommCpuGetBakeResultDesc(ommCpuBakeResult bakeResult, const ommCpuBakeResultDesc** desc);
 
-typedef ommHandle ommGpuPipeline;
+// Serialization API useful to distribute input and /or output data for debugging& visualization purposes
+
+// Serialization
+OMM_API ommResult ommCpuSerialize(ommBaker baker, const ommCpuDeserializedDesc& desc, ommCpuSerializedResult* outResult);
+
+OMM_API ommResult ommCpuGetSerializedResultDesc(ommCpuSerializedResult result, const ommCpuBlobDesc** desc);
+
+OMM_API ommResult ommCpuDestroySerializedResult(ommCpuSerializedResult result);
+
+// Deserialization
+OMM_API ommResult ommCpuDeserialize(ommBaker baker, const ommCpuBlobDesc& desc, ommCpuDeserializedResult* outResult);
+
+OMM_API ommResult ommCpuGetDeserializedDesc(ommCpuDeserializedResult result, const ommCpuDeserializedDesc** desc);
+
+OMM_API ommResult ommCpuDestroyDeserializedResult(ommCpuDeserializedResult result);
+
+typedef struct _ommGpuPipeline _ommGpuPipeline;
+typedef _ommGpuPipeline* ommGpuPipeline;
 
 typedef enum ommGpuDescriptorType
 {
@@ -908,8 +994,18 @@ typedef struct ommGpuDispatchConfigDesc
    // Texel opacity = texture > alphaCutoff ? alphaCutoffGT : alphaCutoffLE
    // This can be used to construct different pairings such as transparent and unknown opaque which is useful 
    // for applications requiring partial accumulated opacity, like smoke and particle effects
-   ommOpacityState           alphaCutoffLE;
-   ommOpacityState           alphaCutoffGT;
+   union
+   {
+       OMM_DEPRECATED_MSG("alphaCutoffLE has been deprecated, please use alphaCutoffLessEqual")
+       ommOpacityState      alphaCutoffLE;
+       ommOpacityState      alphaCutoffLessEqual;
+   };
+   union
+   {
+       OMM_DEPRECATED_MSG("alphaCutoffGT has been deprecated, please use alphaCutoffGreater instead")
+       ommOpacityState      alphaCutoffGT;
+       ommOpacityState      alphaCutoffGreater;
+   };
    // Configure the target resolution when running dynamic subdivision level. <= 0: disabled. > 0: The subdivision level be
    // chosen such that a single micro-triangle covers approximatley a dynamicSubdivisionScale * dynamicSubdivisionScale texel
    // area.
@@ -946,8 +1042,8 @@ inline ommGpuDispatchConfigDesc ommGpuDispatchConfigDescDefault()
    v.indexCount                    = 0;
    v.indexStrideInBytes            = 0;
    v.alphaCutoff                   = 0.5f;
-   v.alphaCutoffLE                 = ommOpacityState_Transparent;
-   v.alphaCutoffGT                 = ommOpacityState_Opaque;
+   v.alphaCutoffLessEqual          = ommOpacityState_Transparent;
+   v.alphaCutoffGreater            = ommOpacityState_Opaque;
    v.dynamicSubdivisionScale       = 2;
    v.globalFormat                  = ommFormat_OC1_4_State;
    v.maxSubdivisionLevel           = 8;
@@ -1042,9 +1138,6 @@ inline ommDebugSaveImagesDesc ommDebugSaveImagesDescDefault()
    return v;
 }
 
-// Walk each primitive and dumps the corresponding OMM overlay to the alpha textures.
-OMM_API ommResult ommDebugSaveAsImages(ommBaker baker, const ommCpuBakeInputDesc* bakeInputDesc, const ommCpuBakeResultDesc* res, const ommDebugSaveImagesDesc* desc);
-
 typedef struct ommDebugStats
 {
    uint64_t totalOpaque;
@@ -1071,5 +1164,11 @@ inline ommDebugStats ommDebugStatsDefault()
    return v;
 }
 
+// Walk each primitive and dumps the corresponding OMM overlay to the alpha textures.
+OMM_API ommResult ommDebugSaveAsImages(ommBaker baker, const ommCpuBakeInputDesc* bakeInputDesc, const ommCpuBakeResultDesc* res, const ommDebugSaveImagesDesc* desc);
+
 OMM_API ommResult ommDebugGetStats(ommBaker baker, const ommCpuBakeResultDesc* res, ommDebugStats* out);
+
+OMM_API ommResult ommDebugSaveBinaryToDisk(ommBaker baker, const ommCpuBlobDesc& data, const char* path);
+
 #endif // #ifndef INCLUDE_OMM_SDK_C
