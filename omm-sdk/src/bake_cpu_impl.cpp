@@ -596,7 +596,7 @@ namespace Cpu
             
             if (options.enableWorkloadValidation)
             {
-                const uint64_t warnSize = 1ull << 28ull;  // 256 * 1024x1024 texels.
+                const uint64_t warnSize = 1ull << 27ull;  // 128 * 1024x1024 texels.
                 if (workloadSize > warnSize)
                 {
                     const uint64_t num1Ktextures = workloadSize >> (20ull); // divide by 1024x1024

@@ -10,6 +10,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 #include "omm_handle.h"
 #include "serialize_impl.h"
+#include <xxhash.h>
 
 namespace omm
 {
@@ -192,6 +193,9 @@ namespace Cpu
         std::ostream os(&buffer);
 
         // BEGIN HEADER
+        // Reserve space for the digest
+        XXH64_hash_t digest = { 0 };
+        os.write(reinterpret_cast<const char*>(&digest), sizeof(digest));
         int major = OMM_VERSION_MAJOR;
         int minor = OMM_VERSION_MINOR;
         int patch = OMM_VERSION_BUILD;
@@ -232,10 +236,9 @@ namespace Cpu
         MemoryStreamBuf buf((uint8_t*)m_desc.data, m_desc.size);
         RETURN_STATUS_IF_FAILED(_Serialize(desc, buf));
 
-        if ((desc.flags & ommCpuSerializeFlags_Compress) == ommCpuSerializeFlags_Compress)
-        {
-            // return m_log.NotImplemented("compression is not implemented.");
-        }
+        // Compute the digest
+        XXH64_hash_t hash = XXH64((uint8_t*)m_desc.data + sizeof(XXH64_hash_t), m_desc.size - sizeof(XXH64_hash_t), 42/*seed*/);
+        *(XXH64_hash_t*)m_desc.data = hash;
 
         return ommResult_SUCCESS;
     }
@@ -415,11 +418,19 @@ namespace Cpu
     }
 
     template<class TMemoryStreamBuf>
-    ommResult DeserializedResultImpl::_Deserialize(ommCpuDeserializedDesc& desc, TMemoryStreamBuf& buffer)
+    ommResult DeserializedResultImpl::_Deserialize(XXH64_hash_t hash, ommCpuDeserializedDesc& desc, TMemoryStreamBuf& buffer)
     {
         std::istream os(&buffer);
 
         // BEGIN HEADER
+        XXH64_hash_t storedHash;
+        os.read(reinterpret_cast<char*>(&storedHash), sizeof(storedHash));
+
+        if (hash != storedHash)
+        {
+            return m_log.InvalidArgf("The serialized blob appears corrupted, computed digest != header value %ull, %ull", hash, storedHash);
+        }
+
         int major = 0;
         int minor = 0;
         int patch = 0;
@@ -429,6 +440,11 @@ namespace Cpu
         os.read(reinterpret_cast<char*>(&patch), sizeof(patch));
         os.read(reinterpret_cast<char*>(&inputDescVersion), sizeof(inputDescVersion));
         // END HEADER
+
+        if (inputDescVersion != SerializeResultImpl::VERSION)
+        {
+            return m_log.InvalidArgf("The serialized blob appears to be generated from an incompatible version of the SDK (%d.%d.%d:%d)", major, minor, patch, inputDescVersion);
+        }
 
         os.read(reinterpret_cast<char*>(&desc.flags), sizeof(desc.flags));
 
@@ -467,7 +483,11 @@ namespace Cpu
             return m_log.InvalidArg("size must be non-zero");
 
         MemoryStreamBuf buf((uint8_t*)desc.data, desc.size);
-        return _Deserialize(m_inputDesc, buf);
+
+        // Compute the digest
+        XXH64_hash_t hash = XXH64((const uint8_t*)desc.data + sizeof(XXH64_hash_t), desc.size - sizeof(XXH64_hash_t), 42/*seed*/);
+
+        return _Deserialize(hash, m_inputDesc, buf);
     }
 
 } // namespace Cpu

@@ -24,6 +24,8 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 #include "std_allocator.h"
 
+typedef uint64_t XXH64_hash_t;
+
 namespace omm
 {
 namespace Cpu
@@ -94,7 +96,7 @@ namespace Cpu
         template<class TMemoryStreamBuf>
         ommResult _Deserialize(ommCpuBakeResultDesc& resultDesc, TMemoryStreamBuf& buffer);
         template<class TMemoryStreamBuf>
-        ommResult _Deserialize(ommCpuDeserializedDesc& desc, TMemoryStreamBuf& buffer);
+        ommResult _Deserialize(XXH64_hash_t hash, ommCpuDeserializedDesc& desc, TMemoryStreamBuf& buffer);
 
         StdAllocator<uint8_t> m_stdAllocator;
         const Logger& m_log;

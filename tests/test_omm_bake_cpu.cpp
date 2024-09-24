@@ -53,6 +53,7 @@ namespace {
 		omm::OpacityState alphaCutoffGT = omm::OpacityState::Opaque;
 		uint64_t maxWorkloadSize = 0xFFFFFFFFFFFFFFFF;
 		omm::Result bakeResult = omm::Result::SUCCESS;
+		bool forceCorruptedBlob = false;
 	};
 
 	class OMMBakeTestCPU : public ::testing::TestWithParam<TestSuiteConfig> {
@@ -179,7 +180,7 @@ namespace {
 
 			omm::Cpu::BakeResult res = nullptr;
 			const omm::Cpu::BakeResultDesc* resDesc = nullptr;
-			if (TestSerialization())
+			if (TestSerialization() || opt.forceCorruptedBlob)
 			{
 				std::vector<uint8_t> data;
 				{
@@ -209,13 +210,27 @@ namespace {
 					blob.data = data.data();
 					blob.size = data.size();
 
+					if (opt.forceCorruptedBlob)
+					{
+						blob.size -= sizeof(uint32_t);
+					}
+
 					omm::Cpu::DeserializedResult dRes = nullptr;
-					EXPECT_EQ(omm::Cpu::Deserialize(_baker, blob, &dRes), omm::Result::SUCCESS);
+					if (opt.forceCorruptedBlob)
+					{
+						EXPECT_EQ(omm::Cpu::Deserialize(_baker, blob, &dRes), omm::Result::INVALID_ARGUMENT);
+						return omm::Debug::Stats();
+					}
+					else
+					{
+						EXPECT_EQ(omm::Cpu::Deserialize(_baker, blob, &dRes), omm::Result::SUCCESS);
+					}
+
 					EXPECT_NE(dRes, nullptr);
 
 					const omm::Cpu::DeserializedDesc* desDesc = nullptr;
 					EXPECT_EQ(omm::Cpu::GetDeserializedDesc(dRes, &desDesc), omm::Result::SUCCESS);
-
+					
 					EXPECT_EQ(desDesc->numInputDescs, 1);
 					EXPECT_EQ(desDesc->numResultDescs, 0);
 
@@ -509,7 +524,6 @@ namespace {
 			return stats;
 		}
 
-
 		std::vector< omm::Cpu::Texture> _textures;
 		omm::Baker _baker = 0;
 	};
@@ -675,6 +689,18 @@ namespace {
 			.totalUnknownTransparent = 1,
 			.totalFullyTransparent = 1,
 			});
+	}
+
+	TEST_P(OMMBakeTestCPU, AllOpaque1_CorruptedBlob) {
+
+		uint32_t subdivisionLevel = 1;
+		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
+
+		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
+			return 0.6f;
+			}, { .bakeResult = omm::Result::INVALID_ARGUMENT, .forceCorruptedBlob = true });
+
+		ExpectEqual(stats, { .totalFullyOpaque = 0 });
 	}
 
 	TEST_P(OMMBakeTestCPU, Circle) {
@@ -1773,7 +1799,7 @@ namespace {
 			});
 	}
 
-	TEST_P(OMMBakeTestCPU, LeafletLevel12_Fail) {
+	TEST_P(OMMBakeTestCPU, LeafletLevel12_TooBigWorkload) {
 
 		omm::Debug::Stats stats = LeafletLevelN(12, 512, omm::Result::WORKLOAD_TOO_BIG);
 

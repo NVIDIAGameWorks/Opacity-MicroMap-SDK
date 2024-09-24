@@ -184,7 +184,7 @@ typedef enum ommAlphaMode
 typedef enum ommCpuSerializeFlags
 {
     ommCpuSerializeFlags_None,
-    ommCpuSerializeFlags_Compress
+    ommCpuSerializeFlags_Compress,
 } ommCpuSerializeFlags;
 
 typedef struct ommLibraryDesc
