@@ -46,6 +46,8 @@ namespace Cpu
         DisableLevelLineIntersection    = 1u << 8,
         DisableFineClassification       = 1u << 9,
         EnableNearDuplicateDetectionBruteForce = 1u << 10,
+        EnableWrapping                  = 1u << 11,
+        EnableSnapping                  = 1u << 12,
     };
 
     constexpr void ValidateInternalBakeFlags()
@@ -66,6 +68,8 @@ namespace Cpu
             disableDuplicateDetection(((uint32_t)flags& (uint32_t)BakeFlagsInternal::DisableDuplicateDetection) == (uint32_t)BakeFlagsInternal::DisableDuplicateDetection),
             enableNearDuplicateDetection(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableNearDuplicateDetection) == (uint32_t)BakeFlagsInternal::EnableNearDuplicateDetection),
             enableNearDuplicateDetectionBruteForce(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableNearDuplicateDetectionBruteForce) == (uint32_t)BakeFlagsInternal::EnableNearDuplicateDetectionBruteForce),
+            enableWrapping(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableWrapping) == (uint32_t)BakeFlagsInternal::EnableWrapping),
+            enableSnapping(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableSnapping) == (uint32_t)BakeFlagsInternal::EnableSnapping),
             enableWorkloadValidation(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableWorkloadValidation) == (uint32_t)BakeFlagsInternal::EnableWorkloadValidation),
             enableAABBTesting(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableAABBTesting) == (uint32_t)BakeFlagsInternal::EnableAABBTesting),
             disableRemovePoorQualityOMM(((uint32_t)flags& (uint32_t)BakeFlagsInternal::DisableRemovePoorQualityOMM) == (uint32_t)BakeFlagsInternal::DisableRemovePoorQualityOMM),
@@ -77,6 +81,8 @@ namespace Cpu
         const bool disableDuplicateDetection;
         const bool enableNearDuplicateDetection;
         const bool enableNearDuplicateDetectionBruteForce;
+        const bool enableWrapping;
+        const bool enableSnapping;
         const bool enableWorkloadValidation;
         const bool enableAABBTesting;
         const bool disableRemovePoorQualityOMM;
@@ -511,7 +517,36 @@ namespace Cpu
                     uint32_t triangleIndices[3];
                     GetUInt32Indices(desc.indexFormat, desc.indexBuffer, 3ull * i, triangleIndices);
 
-                    const Triangle uvTri = FetchUVTriangle(desc.texCoords, texCoordStrideInBytes, desc.texCoordFormat, triangleIndices);
+                    Triangle uvTri = FetchUVTriangle(desc.texCoords, texCoordStrideInBytes, desc.texCoordFormat, triangleIndices);
+
+                    if (desc.runtimeSamplerDesc.addressingMode == ommTextureAddressMode_Wrap &&
+                        options.enableWrapping)
+                    {
+                        // If the triangle doesn't span across the texture border we apply frac to "move" it to the base texture
+                        // This _may_ increase the triangle reuse and optimize baking times.
+                        float2 p0_int;
+                        float2 p0_frac = glm::modf(uvTri.p0, p0_int);
+                        float2 p1_int;
+                        float2 p1_frac = glm::modf(uvTri.p1, p1_int);
+                        float2 p2_int;
+                        float2 p2_frac = glm::modf(uvTri.p2, p2_int);
+                        int2 texturep1 = (int2)uvTri.p1;
+                        int2 texturep2 = (int2)uvTri.p2;
+                        if (p0_int == p1_int && p0_int == p2_int)
+                        {
+                            uvTri = Triangle(p0_frac, p1_frac, p2_frac);
+                        }
+                    }
+
+                    if (options.enableSnapping)
+                    {
+                        const float2 snapFactor = float2(1e6);
+                        float2 p0 = glm::round(uvTri.p0 * snapFactor) / snapFactor;
+                        float2 p1 = glm::round(uvTri.p1 * snapFactor) / snapFactor;
+                        float2 p2 = glm::round(uvTri.p2 * snapFactor) / snapFactor;
+
+                        uvTri = Triangle(p0, p1, p2);
+                    }
 
                     const int32_t subdivisionLevel = GetSubdivisionLevelForPrimitive(desc, i, uvTri, texture->GetSize(0 /*always based on mip 0*/));
 
@@ -623,6 +658,9 @@ namespace Cpu
             if (texture->GetMipCount() != 1)
                 return ommResult_SUCCESS;
 
+            uint64_t successfulPreClassify = 0;
+            uint64_t unsuccessfulPreClassify = 0;
+
             // 3. Process the queue of unique triangles...
             {
                 const int32_t numWorkItems = (int32_t)vmWorkItems.size();
@@ -673,10 +711,14 @@ namespace Cpu
 
                                     // This means the micro-triangle wraps over the image border.
                                     if (aabb_e.x < aabb_s.x || aabb_e.y < aabb_s.y)
+                                    {
+                                        unsuccessfulPreClassify++;
                                         continue;
+                                    }
 
                                     if (!texture->InTexture(aabb_s, mip) || !texture->InTexture(aabb_e, mip))
                                     {
+                                        unsuccessfulPreClassify++;
                                         continue;
                                     }
 
@@ -687,13 +729,18 @@ namespace Cpu
 
                                     if (sa == 0)
                                     {
+                                        successfulPreClassify++;
                                         // (Less than or equal to alpha threshold)
                                         workItem.vmStates.SetState(uTriIt, desc.alphaCutoffLessEqual);
                                     }
                                     else if (sa == area)
                                     {
+                                        successfulPreClassify++;
                                         // (Greater than alpha threshold)
                                         workItem.vmStates.SetState(uTriIt, desc.alphaCutoffGreater);
+                                    }
+                                    else {
+                                        unsuccessfulPreClassify++;
                                     }
                                 }
                             }
@@ -701,6 +748,9 @@ namespace Cpu
                     }
                 }
             }
+
+            OMM_ASSERT(successfulPreClassify != 0xFFFFFFFF);
+
             return ommResult_SUCCESS;
         }
 

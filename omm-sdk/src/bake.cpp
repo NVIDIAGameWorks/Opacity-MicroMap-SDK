@@ -384,6 +384,12 @@ OMM_API ommResult OMM_CALL ommCreateBaker(const ommBakerCreationDesc* desc, ommB
     if (desc->type == ommBakerType_CPU)
     {
         Cpu::BakerImpl* implementation = Allocate<Cpu::BakerImpl>(memoryAllocator, memoryAllocator);
+
+        if (((uintptr_t)implementation & 0x3) != 0)
+        {
+            return ommResult_FAILURE;
+        }
+
         const ommResult result = implementation->Create(*desc);
 
         if (result == ommResult_SUCCESS)

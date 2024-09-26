@@ -12,6 +12,29 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include <omm.hpp>
 #include <shared/math.h>
 
+#include <fstream>
+
+#pragma optimize("", off)
+
+class Profiler {
+public:
+	// Start the timer when the Profiler object is created
+	Profiler(const std::string& funcName) : functionName(funcName), start(std::chrono::high_resolution_clock::now()) {}
+
+	// Stop the timer when the Profiler object goes out of scope
+	~Profiler() {
+		auto end = std::chrono::high_resolution_clock::now();
+		std::chrono::duration<double, std::milli> elapsed = end - start;
+		std::cout << "Function [" << functionName << "] took " << elapsed.count() << " ms" << std::endl;
+	}
+
+private:
+	std::string functionName;
+	std::chrono::time_point<std::chrono::high_resolution_clock> start;
+};
+
+#define PROFILE_SCOPE(name) Profiler profiler##__LINE__(name);
+
 namespace {
 
 	TEST(MinimalSample, CPU) 
@@ -151,6 +174,181 @@ namespace {
 		ASSERT_EQ(res, omm::Result::SUCCESS);
 		// Cleanup. Texture no longer needed
 		res = omm::Cpu::DestroyTexture(bakerHandle, textureHandle);
+		ASSERT_EQ(res, omm::Result::SUCCESS);
+		// Cleanup. Baker no longer needed
+		res = omm::DestroyBaker(bakerHandle);
+		ASSERT_EQ(res, omm::Result::SUCCESS);
+	}
+
+	TEST(ReadFromFile, CPU)
+	{
+		// This sample will demonstrate the use of OMMs on a triangle fan modeled on top of a donut.
+
+		omm::BakerCreationDesc desc;
+		desc.type = omm::BakerType::CPU;
+		desc.messageInterface.messageCallback = [](omm::MessageSeverity severity, const char* message, void* userArg) {
+			std::cout << "[omm-sdk]: " << message << std::endl;
+			};
+
+		// desc.memoryAllocatorInterface = ...; // If we prefer to track memory allocations and / or use custom memory allocators we can override these callbacks. But it's not required.
+
+		omm::Baker bakerHandle; // Create the baker instance. This instance can be shared among all baking tasks. Typucally one per application.
+		omm::Result res = omm::CreateBaker(desc, &bakerHandle);
+		ASSERT_EQ(res, omm::Result::SUCCESS);
+
+
+		auto readFile = [](const char* filename)->std::vector<char>
+			{
+				// open the file:
+				std::ifstream file(filename, std::ios::binary);
+
+				// read the data:
+				return std::vector<char>((std::istreambuf_iterator<char>(file)),
+					std::istreambuf_iterator<char>());
+			};
+
+		auto data = readFile("C:\\Users\\jdeligiannis\\Downloads\\myExpensiveBakeJob_80mb.bin");
+
+		omm::Cpu::BlobDesc blob;
+		blob.data = data.data();
+		blob.size = data.size();
+
+		ommCpuDeserializedResult deserializedResult;
+		res = omm::Cpu::Deserialize(bakerHandle, blob, &deserializedResult);
+		ASSERT_EQ(res, omm::Result::SUCCESS);
+
+
+		const omm::Cpu::DeserializedDesc* desDesc = nullptr;
+		res = omm::Cpu::GetDeserializedDesc(deserializedResult, &desDesc);
+		ASSERT_EQ(res, omm::Result::SUCCESS);
+		ASSERT_EQ(desDesc->numInputDescs, 1);
+		ASSERT_EQ(desDesc->numResultDescs, 0);
+
+		if (true)
+		{
+			omm::Cpu::DeserializedDesc desDescCopy = *desDesc;
+			desDescCopy.flags = omm::Cpu::SerializeFlags::Compress;
+			ommCpuSerializedResult serializedResult;
+			res = omm::Cpu::Serialize(bakerHandle, desDescCopy, &serializedResult);
+			ASSERT_EQ(res, omm::Result::SUCCESS);
+
+			const omm::Cpu::BlobDesc* blob;
+			res = omm::Cpu::GetSerializedResultDesc(serializedResult, &blob);
+			ASSERT_EQ(res, omm::Result::SUCCESS);
+
+			res = omm::Debug::SaveBinaryToDisk(bakerHandle, *blob, "C:\\Users\\jdeligiannis\\Downloads\\myExpensiveBakeJob_80mb_compress.bin");
+			ASSERT_EQ(res, omm::Result::SUCCESS);
+
+			res = omm::Cpu::DestroySerializedResult(serializedResult);
+			ASSERT_EQ(res, omm::Result::SUCCESS);
+		}
+
+		// Setup the baking parameters, setting only required data.
+		omm::Cpu::BakeInputDesc bakeDesc = desDesc->inputDescs[0];
+
+		// Adjust the workload size
+
+		uint32_t flags = (uint32_t)(bakeDesc.bakeFlags) |(uint32_t)omm::Cpu::BakeFlags::DisableSpecialIndices;
+
+		int method = 1;
+
+		if (method == 0)
+		{
+			// onds to roughly 2464 1024x1024 textures. This is unusually large and may result in long bake times.
+			//flags |= 1u << 9u; // DisableFineClassification
+			//flags |= 1u << 11u; // EnableWrapping
+			//flags |= 1u << 12u; // EnableSnapping
+
+			// totalOpaque                  7055132
+			// totalTransparent             196578
+			// totalUnknownTransparent      0
+			// totalUnknownOpaque           1243394
+			// totalFullyOpaque             0
+			// totalFullyTransparent        0
+			// totalFullyUnknownOpaque      0
+			// totalFullyUnknownTransparent 0
+
+			// Function [Bake] took 415.433 ms
+		}
+		else if (method == 1)
+		{
+			// onds to roughly 2464 1024x1024 textures. This is unusually large and may result in long bake times.
+			flags |= 1u << 9u; // DisableFineClassification
+			flags |= 1u << 11u; // EnableWrapping
+			//flags |= 1u << 12u; // EnableSnapping
+
+			// totalOpaque                  7055118
+			// totalTransparent             196576
+			// totalUnknownTransparent      0
+			// totalUnknownOpaque           1243410
+			// totalFullyOpaque             0
+			// totalFullyTransparent        0
+			// totalFullyUnknownOpaque      0
+			// totalFullyUnknownTransparent 0
+
+			// Function [Bake] took 410.791 ms
+			// unknown ~14.6%
+		}
+		else if (method == 2)
+		{
+			// onds to roughly 2464 1024x1024 textures. This is unusually large and may result in long bake times
+			// totalOpaque                  7475534
+			// totalTransparent             221013
+			// totalUnknownTransparent      0
+			// totalUnknownOpaque           798557
+			// totalFullyOpaque             0
+			// totalFullyTransparent        0
+			// totalFullyUnknownOpaque      0
+			// totalFullyUnknownTransparent 0
+
+			// Function [Bake] took 78628.3 ms
+			// unknown ~9.4%
+		}
+
+		bakeDesc.bakeFlags = (omm::Cpu::BakeFlags)flags;
+		bakeDesc.maxWorkloadSize = 0xFFFFFFFFFFFFFFFF;
+
+		// perform the baking... processing time may vary depending on triangle count, triangle size, subdivision level and texture size.
+		// Read back the result.
+		omm::Cpu::BakeResult bakeResultHandle;
+		{
+			PROFILE_SCOPE("Bake")
+			res = omm::Cpu::Bake(bakerHandle, bakeDesc, &bakeResultHandle);
+		}
+		ASSERT_EQ(res, omm::Result::SUCCESS);
+
+		const omm::Cpu::BakeResultDesc* bakeResultDesc = nullptr;
+		res = omm::Cpu::GetBakeResultDesc(bakeResultHandle, &bakeResultDesc);
+		ASSERT_EQ(res, omm::Result::SUCCESS);
+
+		omm::Debug::Stats stats;
+		res = omm::Debug::GetStats(bakerHandle, bakeResultDesc, &stats);
+		ASSERT_EQ(res, omm::Result::SUCCESS);
+
+		// ... 
+		// Consume data
+		// Copy the bakeResultDesc data to GPU buffers directly, or cache to disk for later consumption.
+		// ....
+
+		// Visualize the bake result in a .png file
+#if OMM_TEST_ENABLE_IMAGE_DUMP
+		const bool debug = true;
+		if (debug)
+		{
+			res = omm::Debug::SaveAsImages(bakerHandle, bakeDesc, bakeResultDesc,
+				{
+					.path = "ReadFromFile",
+					.oneFile = false /* Will draw all triangles in the same file.*/
+				});
+			ASSERT_EQ(res, omm::Result::SUCCESS);
+		}
+#endif
+
+		// Cleanup. Result no longer needed
+		res = omm::Cpu::DestroyBakeResult(bakeResultHandle);
+		ASSERT_EQ(res, omm::Result::SUCCESS);
+		// Cleanup. Texture no longer needed
+		res = omm::Cpu::DestroyDeserializedResult(deserializedResult);
 		ASSERT_EQ(res, omm::Result::SUCCESS);
 		// Cleanup. Baker no longer needed
 		res = omm::DestroyBaker(bakerHandle);

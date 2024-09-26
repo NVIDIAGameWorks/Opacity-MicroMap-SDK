@@ -191,6 +191,19 @@ namespace omm
 
             omm::Triangle macroTriangle = FetchUVTriangle(desc.texCoords, texCoordStrideInBytes, desc.texCoordFormat, triangleIndices);
 
+            float2 p0_int;
+            float2 p0_frac = glm::modf(macroTriangle.p0, p0_int);
+            float2 p1_int;
+            float2 p1_frac = glm::modf(macroTriangle.p1, p1_int);
+            float2 p2_int;
+            float2 p2_frac = glm::modf(macroTriangle.p2, p2_int);
+           // int2 texturep1 = (int2)macroTriangle.p1;
+           // int2 texturep2 = (int2)macroTriangle.p2;
+           // if (p0_int == p1_int && p0_int == p2_int)
+            {
+                macroTriangle = Triangle(p0_frac, p1_frac, p2_frac);
+            }
+
             const bool ClippedViewport = dumpDesc.detailedCutout;
 
             int2 scale;
@@ -209,6 +222,7 @@ namespace omm
             else {
                 scale = (int2)10;
                 srcSize = alphaFps[0].GetSize() * scale;
+                srcSize = glm::min((int2)8192, srcSize);
                 offset = (int2)0;// int2(float2(srcSize)* macroTriangle.aabb_s);
                 size = srcSize;// int2(float2(srcSize)* (macroTriangle.aabb_e - macroTriangle.aabb_s)) + int2{ 1,1 };
             }

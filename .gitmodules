@@ -19,3 +19,6 @@
 [submodule "thirdparty/ShaderMake"]
 	path = thirdparty/ShaderMake
 	url = https://github.com/NVIDIAGameWorks/ShaderMake.git
+[submodule "thirdparty/lz4"]
+	path = thirdparty/lz4
+	url = https://github.com/lz4/lz4.git

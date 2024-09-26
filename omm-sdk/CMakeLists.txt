@@ -93,7 +93,7 @@ if(OMM_ENABLE_OPENMP AND OpenMP_CXX_FOUND)
     endif()
 endif()
 
-target_link_libraries(${TARGET_NAME} omm-shared glm stb_lib xxHash::xxhash) 
+target_link_libraries(${TARGET_NAME} omm-shared glm stb_lib xxHash::xxhash lz4) 
 
 set_target_properties(${TARGET_NAME} PROPERTIES VERSION ${PROJECT_VERSION})
 target_include_directories(${TARGET_NAME} PUBLIC "include")
