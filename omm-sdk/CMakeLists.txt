@@ -22,6 +22,7 @@ option(OMM_CROSSCOMPILE_AARCH64 "cross compilation for aarch64" OFF)
 option(OMM_CROSSCOMPILE_X86_64 "cross compilation for x86_64" OFF)
 option(OMM_SHADER_DEBUG_INFO "enable embedded shader debug info" OFF)
 option(OMM_INSTALL "Generate install rules for OMM" ON)
+option(OMM_ENABLE_FAST_MATH "Enable fast math optimizations()" ON)
 
 if (OMM_ENABLE_OPENMP)
 find_package(OpenMP)
@@ -93,7 +94,7 @@ if(OMM_ENABLE_OPENMP AND OpenMP_CXX_FOUND)
     endif()
 endif()
 
-target_link_libraries(${TARGET_NAME} omm-shared glm stb_lib xxHash::xxhash lz4) 
+target_link_libraries(${TARGET_NAME} omm-shared glm stb_lib xxHash::xxhash) 
 
 set_target_properties(${TARGET_NAME} PROPERTIES VERSION ${PROJECT_VERSION})
 target_include_directories(${TARGET_NAME} PUBLIC "include")
@@ -139,11 +140,21 @@ if ((CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64") OR (CMAKE_SYSTEM_PROCESSOR MATCHES
     set(OMM_ARCHITECTURE_COMPILE_OPTIONS -msse4.1)
 endif()
 
-if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    target_compile_options(${TARGET_NAME} PRIVATE ${OMM_ARCHITECTURE_COMPILE_OPTIONS} -Wno-missing-braces -Wno-return-type-c-linkage)
-elseif (CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-    target_compile_options(${TARGET_NAME} PRIVATE ${OMM_ARCHITECTURE_COMPILE_OPTIONS})
+if (OMM_ENABLE_FAST_MATH)
+    set(OMM_COMPILER_COMPILE_OPTIONS_CLANG ${OMM_COMPILER_COMPILE_OPTIONS_CLANG} -ffast-math)
+    set(OMM_COMPILER_COMPILE_OPTIONS_GCC ${OMM_COMPILER_COMPILE_OPTIONS_GCC} -ffast-math)
+    set(OMM_COMPILER_COMPILE_OPTIONS_MSVC ${OMM_COMPILER_COMPILE_OPTIONS_MSVC} /fp:fast)
 endif()
+
+if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    target_compile_options(${TARGET_NAME} PRIVATE ${OMM_ARCHITECTURE_COMPILE_OPTIONS} ${OMM_COMPILER_COMPILE_OPTIONS_CLANG} -Wno-missing-braces -Wno-return-type-c-linkage)
+elseif (CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+    target_compile_options(${TARGET_NAME} PRIVATE ${OMM_ARCHITECTURE_COMPILE_OPTIONS} ${OMM_COMPILER_COMPILE_OPTIONS_GCC})
+elseif (CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
+    target_compile_options(${TARGET_NAME} PRIVATE ${OMM_COMPILER_COMPILE_OPTIONS_MSVC})
+endif()
+
+
 
 if (NOT OMM_IS_SUBMODULE)
     set(OMM_OUTPUT_BIN_PATH "${CMAKE_SOURCE_DIR}/Bin")

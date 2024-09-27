@@ -311,7 +311,7 @@ namespace omm
                         {
                             rgb = 255.f * float4(1.f - p->srcAlphaFp[p->mip].Sample(p->runtimeSamplerDesc.addressingMode, uv));
                         }
-                        const uchar4 finalRGBA = uchar4(rgb.r, rgb.g, rgb.b, 255);
+                        const uchar4 finalRGBA = uchar4(rgb.x, rgb.y, rgb.z, 255);
                         p->target->value().Store(dst, finalRGBA);
                     }
                     else if (p->mode == Mode::FillOMMStates)
@@ -333,7 +333,7 @@ namespace omm
                         //const float3 blend = glm::lerp(vmColor, prevVal, 0.75f);
                         const float3 blend = glm::lerp(vmColor, prevVal, 0.5f);
                         const float3 finalRGB = tint * blend;
-                        const uchar4 finalRGBA = uchar4(finalRGB.r * 255.f, finalRGB.g * 255.f,  finalRGB.b * 255.f, 255);
+                        const uchar4 finalRGBA = uchar4(finalRGB.x * 255.f, finalRGB.y * 255.f,  finalRGB.z * 255.f, 255);
                         p->target->value().Store(dst, finalRGBA);
                     }
                     else if (p->mode == Mode::DrawContourLine)
@@ -361,7 +361,7 @@ namespace omm
                             const bool isContour = (trans != 0 && opaque != 0) || (std::abs(delta) < epsilon);
                             if (isContour) {
                                 const float3 finalRGB = isContour ? float3(1.f, 0, 0) : float3(1.f, 0, 0);
-                                const uchar4 finalRGBA = uchar4(finalRGB.r * 255.f, finalRGB.g * 255.f, finalRGB.b * 255.f, 255);
+                                const uchar4 finalRGBA = uchar4(finalRGB.x * 255.f, finalRGB.y * 255.f, finalRGB.z * 255.f, 255);
                                 p->target->value().Store(dst, finalRGBA);
                             }
                         }

@@ -60,6 +60,8 @@ static ommOpacityState GetStateFromCoverage(ommFormat vmFormat, ommUnknownStateP
     }
 };
 
+// private
+
 // ~~~~~~ LevelLineIntersectionKernel ~~~~~~ 
 // 
 struct LevelLineIntersectionKernel
@@ -76,6 +78,7 @@ struct LevelLineIntersectionKernel
     };
 
 private:
+#if 0
     // Borrowed from https://stackoverflow.com/questions/2049582/how-to-determine-if-a-point-is-in-a-2d-triangle
     struct Triangle
     {
@@ -109,6 +112,7 @@ private:
         float2 _v1;
         float2 _v2;
     };
+#endif
 
     struct Edge
     {
@@ -264,18 +268,23 @@ public:
             const bool IsOpaque2 = p->alphaCutoff < gatherRed.z;
             const bool IsOpaque3 = p->alphaCutoff < gatherRed.w;
 
-            Triangle t;
-            t.Init(p->triangle->p0, p->triangle->p1, p->triangle->p2);
-
             const float2 p0x0 = p->invSize * (pixelf + float2(0.0f, 0.0f));
             const float2 p0x1 = p->invSize * (pixelf + float2(0.0f, 1.0f));
             const float2 p1x1 = p->invSize * (pixelf + float2(1.0f, 1.0f));
             const float2 p1x0 = p->invSize * (pixelf + float2(1.0f, 0.0f));
 
-            const bool IsInside0 = t.PointInTriangle(p0x0);
-            const bool IsInside1 = t.PointInTriangle(p0x1);
-            const bool IsInside2 = t.PointInTriangle(p1x1);
-            const bool IsInside3 = t.PointInTriangle(p1x0);
+            bool IsInside0 = true;
+            bool IsInside1 = true;
+            bool IsInside2 = true;
+            bool IsInside3 = true;
+
+            //if (coverage == Coverage::PartiallyCovered)
+            {
+                IsInside0 = p->triangle->PointInTriangle(p0x0);
+                IsInside1 = p->triangle->PointInTriangle(p0x1);
+                IsInside2 = p->triangle->PointInTriangle(p1x1);
+                IsInside3 = p->triangle->PointInTriangle(p1x0);
+            }
 
             bool IsOpaque = false;
             bool IsTransparent = false;
@@ -379,6 +388,16 @@ struct ConservativeBilinearKernel
         Params* p = (Params*)ctx;
         int2 coord[TexelOffset::MAX_NUM];
         omm::GatherTexCoord4<eTextureAddressMode>(glm::floor(pixelf), p->size, coord);
+
+        static_assert(GLM_CONFIG_CTOR_INIT == GLM_CTOR_INIT_DISABLE);
+#if GLM_HAS_ALIGNOF && (GLM_LANG & GLM_LANG_CXXMS_FLAG) && (GLM_ARCH & GLM_ARCH_SIMD_BIT)
+#	define GLM_CONFIG_SIMD GLM_ENABLE
+#else
+#	define GLM_CONFIG_SIMD GLM_DISABLE
+#endif
+        //static_assert(GLM_HAS_ALIGNOF);
+        //static_assert(GLM_FORCE_XYZW_ONLY);
+        //static_assert(GLM_CONFIG_SIMD == GLM_ENABLE);
 
         auto IsBorder = [](int2 coord) {
             return eTextureAddressMode == ommTextureAddressMode_Border && (coord.x == kTexCoordBorder || coord.y == kTexCoordBorder);

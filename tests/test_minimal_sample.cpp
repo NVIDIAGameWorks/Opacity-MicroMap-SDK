@@ -224,7 +224,7 @@ namespace {
 		ASSERT_EQ(desDesc->numInputDescs, 1);
 		ASSERT_EQ(desDesc->numResultDescs, 0);
 
-		if (true)
+		if (false)
 		{
 			omm::Cpu::DeserializedDesc desDescCopy = *desDesc;
 			desDescCopy.flags = omm::Cpu::SerializeFlags::Compress;
@@ -250,7 +250,7 @@ namespace {
 
 		uint32_t flags = (uint32_t)(bakeDesc.bakeFlags) |(uint32_t)omm::Cpu::BakeFlags::DisableSpecialIndices;
 
-		int method = 1;
+		int method = 3;
 
 		if (method == 0)
 		{
@@ -304,9 +304,26 @@ namespace {
 			// Function [Bake] took 78628.3 ms
 			// unknown ~9.4%
 		}
+		else if (method == 3)
+		{
+			flags |= 1u << 13u; // EnableBetterCoarseClassification
+
+			// onds to roughly 2464 1024x1024 textures. This is unusually large and may result in long bake times
+			// totalOpaque                  x
+			// totalTransparent             x
+			// totalUnknownTransparent      0
+			// totalUnknownOpaque           x
+			// totalFullyOpaque             0
+			// totalFullyTransparent        0
+			// totalFullyUnknownOpaque      0
+			// totalFullyUnknownTransparent 0
+			//onds to roughly 2464 1024x1024 textures.This is unusually large and may result in long bake times.
+			//	Function[Bake] took 66458.6 ms
+		}
 
 		bakeDesc.bakeFlags = (omm::Cpu::BakeFlags)flags;
 		bakeDesc.maxWorkloadSize = 0xFFFFFFFFFFFFFFFF;
+
 
 		// perform the baking... processing time may vary depending on triangle count, triangle size, subdivision level and texture size.
 		// Read back the result.
@@ -356,3 +373,5 @@ namespace {
 	}
 
 }  // namespace
+
+

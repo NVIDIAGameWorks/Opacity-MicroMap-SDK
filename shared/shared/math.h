@@ -10,6 +10,9 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 #pragma once
 
+#define GLM_FORCE_INLINE 
+//#define GLM_FORCE_XYZW_ONLY
+#define GLM_FORCE_INTRINSICS
 #include <glm/glm.hpp>
 #include <glm/gtx/hash.hpp>
 #include <glm/gtx/compatibility.hpp>

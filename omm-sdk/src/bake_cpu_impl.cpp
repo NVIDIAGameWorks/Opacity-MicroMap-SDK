@@ -48,6 +48,7 @@ namespace Cpu
         EnableNearDuplicateDetectionBruteForce = 1u << 10,
         EnableWrapping                  = 1u << 11,
         EnableSnapping                  = 1u << 12,
+        enableStochasticClassification= 1u << 13
     };
 
     constexpr void ValidateInternalBakeFlags()
@@ -70,6 +71,7 @@ namespace Cpu
             enableNearDuplicateDetectionBruteForce(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableNearDuplicateDetectionBruteForce) == (uint32_t)BakeFlagsInternal::EnableNearDuplicateDetectionBruteForce),
             enableWrapping(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableWrapping) == (uint32_t)BakeFlagsInternal::EnableWrapping),
             enableSnapping(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableSnapping) == (uint32_t)BakeFlagsInternal::EnableSnapping),
+            enableStochasticClassification(((uint32_t)flags& (uint32_t)BakeFlagsInternal::enableStochasticClassification) == (uint32_t)BakeFlagsInternal::enableStochasticClassification),
             enableWorkloadValidation(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableWorkloadValidation) == (uint32_t)BakeFlagsInternal::EnableWorkloadValidation),
             enableAABBTesting(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableAABBTesting) == (uint32_t)BakeFlagsInternal::EnableAABBTesting),
             disableRemovePoorQualityOMM(((uint32_t)flags& (uint32_t)BakeFlagsInternal::DisableRemovePoorQualityOMM) == (uint32_t)BakeFlagsInternal::DisableRemovePoorQualityOMM),
@@ -83,6 +85,7 @@ namespace Cpu
         const bool enableNearDuplicateDetectionBruteForce;
         const bool enableWrapping;
         const bool enableSnapping;
+        const bool enableStochasticClassification;
         const bool enableWorkloadValidation;
         const bool enableAABBTesting;
         const bool disableRemovePoorQualityOMM;
@@ -302,10 +305,16 @@ namespace Cpu
 
     class OmmArrayDataView
     {
+        static void SetValueInternal(uint8_t* targetBuffer, uint32_t index, uint8_t state) {
+            targetBuffer[index] = (uint8_t)state;
+        }
+        static uint8_t GetValueInternal(const uint8_t* targetBuffer, uint32_t index) {
+            return (ommOpacityState)targetBuffer[index];
+        }
+
         static void SetStateInternal(uint8_t* targetBuffer, uint32_t index, ommOpacityState state) {
             targetBuffer[index] = (uint8_t)state;
         }
-
         static ommOpacityState GetStateInternal(const uint8_t* targetBuffer, uint32_t index) {
             return (ommOpacityState)targetBuffer[index];
         }
@@ -321,15 +330,21 @@ namespace Cpu
             OMM_ASSERT(format == ommFormat_OC1_2_State || format == ommFormat_OC1_4_State);
         }
 
-        void SetData(uint8_t* data, uint8_t* data3state, size_t size) {
+        void SetData(uint8_t* data, uint8_t* data3state, uint8_t* stateIsSet, size_t size) {
             _ommArrayData4or2state = data;
             _ommArrayData3state = data3state;
+            _ommArrayStateIsSet = stateIsSet;
             _ommArrayDataSize = size;
         }
 
         void SetState(uint32_t index, ommOpacityState state) {
             SetStateInternal(_ommArrayData4or2state, index, state);
             SetStateInternal(_ommArrayData3state, index, state == ommOpacityState_UnknownTransparent ? ommOpacityState_UnknownOpaque : state);
+            SetValueInternal(_ommArrayStateIsSet, index, 1);
+        }
+
+        bool IsStateSet(uint32_t index) const {
+            return 1u == GetValueInternal(_ommArrayStateIsSet, index);
         }
 
         ommOpacityState GetState(uint32_t index) const {
@@ -347,6 +362,7 @@ namespace Cpu
         bool _is2State;
         uint8_t* _ommArrayData4or2state;
         uint8_t* _ommArrayData3state;
+        uint8_t* _ommArrayStateIsSet;
         size_t _ommArrayDataSize;
     };
 
@@ -358,11 +374,14 @@ namespace Cpu
             : OmmArrayDataView(format, nullptr, nullptr, 0)
             , data(stdAllocator.GetInterface())
             , data3state(stdAllocator.GetInterface())
+            , stateIsSet(stdAllocator.GetInterface())
         {
             const size_t maxSizeInBytes = (size_t)omm::bird::GetNumMicroTriangles(_subdivisionLevel);
             data.resize(maxSizeInBytes);
+            stateIsSet.resize(maxSizeInBytes);
             data3state.resize(maxSizeInBytes);
-            OmmArrayDataView::SetData((uint8_t*)data.data(), data3state.data(), maxSizeInBytes);
+            stateIsSet.resize(maxSizeInBytes);
+            OmmArrayDataView::SetData((uint8_t*)data.data(), data3state.data(), stateIsSet.data(), maxSizeInBytes);
             Init();
         }
 
@@ -372,11 +391,13 @@ namespace Cpu
         {
             std::fill(data.begin(), data.end(), ommOpacityState_UnknownOpaque);
             std::fill(data3state.begin(), data3state.end(), ommOpacityState_UnknownOpaque);
+            std::fill(stateIsSet.begin(), stateIsSet.end(), 0);
         }
 
     private:
         vector<uint8_t> data;
         vector<uint8_t> data3state;
+        vector<uint8_t> stateIsSet;
     };
 
     struct OmmWorkItem {
@@ -755,6 +776,87 @@ namespace Cpu
         }
 
         template<ommCpuTextureFormat eFormat, TilingMode eTilingMode, ommTextureAddressMode eTextureAddressMode, ommTextureFilterMode eFilterMode>
+        static ommResult ResampleStochastic(const ommCpuBakeInputDesc& desc, const Logger& log, const Options& options, vector<OmmWorkItem>& vmWorkItems)
+        {
+            if (options.enableAABBTesting && !options.disableLevelLineIntersection)
+                return log.InvalidArg("[Invalid Arg] - EnableAABBTesting can't be used without also setting DisableLevelLineIntersection");
+
+            if (!options.enableStochasticClassification)
+                return ommResult_SUCCESS;
+
+            const TextureImpl* texture = GetHandleImpl<TextureImpl>(desc.texture);
+
+            const int32_t numWorkItems = (int32_t)vmWorkItems.size();
+
+            #pragma omp parallel for if(options.enableInternalThreads)
+            for (int32_t workItemIt = 0; workItemIt < numWorkItems; ++workItemIt) 
+            {
+                OmmWorkItem& workItem = vmWorkItems[workItemIt];
+
+                const uint32_t numMicroTriangles = omm::bird::GetNumMicroTriangles(workItem.subdivisionLevel);
+
+                for (uint32_t uTriIt = 0; uTriIt < numMicroTriangles; ++uTriIt)
+                {
+                    if (workItem.vmStates.IsStateSet(uTriIt))
+                    {
+                        continue;
+                    }
+
+                    OmmCoverage vmCoverage = { 0, };
+                    for (uint32_t mipIt = 0; mipIt < texture->GetMipCount(); ++mipIt)
+                    {
+                        const Triangle subTri = omm::bird::GetMicroTriangle(workItem.uvTri, uTriIt, workItem.subdivisionLevel);
+
+                        auto TestPoint = [&desc, &vmCoverage, &texture, &mipIt](float2 p) {
+                            if (desc.alphaCutoff < texture->Bilinear(eTextureAddressMode, p, mipIt))
+                                vmCoverage.numBelowAlpha++;
+                            else
+                                vmCoverage.numAboveAlpha++;
+                        };
+
+                        TestPoint(subTri.p0);
+                        TestPoint(subTri.p1);
+                        TestPoint(subTri.p2);
+
+                        {
+                            const float2 p = (subTri.p0 + 0.5f * (subTri.p1 - subTri.p0) + 0.5f * (subTri.p2 - subTri.p0));
+                            TestPoint(p);
+                        }
+                        
+                        {
+                            const float2 p = (subTri.p0 + 0.25f * (subTri.p1 - subTri.p0) + 0.25f * (subTri.p2 - subTri.p0));
+                            TestPoint(p);
+                        }
+
+                        {
+                            const float2 p = (subTri.p0 + 0.75f * (subTri.p1 - subTri.p0) + 0.25f * (subTri.p2 - subTri.p0));
+                            TestPoint(p);
+                        }
+
+                        {
+                            const float2 p = (subTri.p0 + 0.25f * (subTri.p1 - subTri.p0) + 0.75f * (subTri.p2 - subTri.p0));
+                            TestPoint(p);
+                        }
+                        
+                        {
+                            const float2 p = (subTri.p0 + 0.75f * (subTri.p1 - subTri.p0) + 0.75f * (subTri.p2 - subTri.p0));
+                            TestPoint(p);
+                        }
+
+                        const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGreater, desc.alphaCutoffLessEqual, vmCoverage);
+                        if (IsUnknown(state))
+                        {
+                            workItem.vmStates.SetState(uTriIt, state);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            return ommResult_SUCCESS;
+        }
+
+        template<ommCpuTextureFormat eFormat, TilingMode eTilingMode, ommTextureAddressMode eTextureAddressMode, ommTextureFilterMode eFilterMode>
         static ommResult ResampleFine(const ommCpuBakeInputDesc& desc, const Logger& log, const Options& options, vector<OmmWorkItem>& vmWorkItems)
         {
             if (options.enableAABBTesting && !options.disableLevelLineIntersection)
@@ -787,7 +889,12 @@ namespace Cpu
                                 // Run conservative rasterization on the micro triangle
                                 for (uint32_t uTriIt = 0; uTriIt < numMicroTriangles; ++uTriIt)
                                 {
-                                    if (workItem.vmStates.GetState(uTriIt) != ommOpacityState_UnknownOpaque)
+                                    // if (workItem.vmStates.GetState(uTriIt) != ommOpacityState_UnknownOpaque)
+                                    // {
+                                    //     continue;
+                                    // }
+
+                                    if (workItem.vmStates.IsStateSet(uTriIt))
                                     {
                                         continue;
                                     }
@@ -1604,6 +1711,10 @@ namespace Cpu
             return impl::ResampleCoarse<eFormat, eTilingMode, eTextureAddressMode, eFilterMode>(desc, log, options, vmWorkItems);
         };
 
+        auto impl__ResampleStochastic = [](const ommCpuBakeInputDesc& desc, const Logger& log, const Options& options, vector<OmmWorkItem>& vmWorkItems) {
+            return impl::ResampleStochastic<eFormat, eTilingMode, eTextureAddressMode, eFilterMode>(desc, log, options, vmWorkItems);
+            };
+
         auto impl__ResampleFine = [](const ommCpuBakeInputDesc& desc, const Logger& log, const Options& options, vector<OmmWorkItem>& vmWorkItems) {
             return impl::ResampleFine<eFormat, eTilingMode, eTextureAddressMode, eFilterMode>(desc, log, options, vmWorkItems);
         };
@@ -1616,6 +1727,8 @@ namespace Cpu
             RETURN_STATUS_IF_FAILED(impl::ValidateWorkloadSize(m_stdAllocator, m_log, desc, options, vmWorkItems));
 
             RETURN_STATUS_IF_FAILED(impl__ResampleCoarse(desc, m_log, options, vmWorkItems));
+
+            RETURN_STATUS_IF_FAILED(impl__ResampleStochastic(desc, m_log, options, vmWorkItems));
 
             RETURN_STATUS_IF_FAILED(impl__ResampleFine(desc, m_log, options, vmWorkItems));
 

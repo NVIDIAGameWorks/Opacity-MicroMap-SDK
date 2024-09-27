@@ -133,7 +133,7 @@ namespace omm
             return 0;
         }
     private:
-        static constexpr uint2  kMaxDim = int2(65536);
+        static inline uint2  kMaxDim = int2(65536);
         static constexpr size_t kAlignment = 64;
 
         StdAllocator<uint8_t> m_stdAllocator;

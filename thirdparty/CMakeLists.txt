@@ -14,10 +14,9 @@ set(XXHASH_BUILD_XXHSUM OFF)
 add_subdirectory("xxHash/cmake_unofficial")
 set_property(TARGET xxhash PROPERTY FOLDER "${OMM_PROJECT_FOLDER}/Thirdparty") 
 
-#lz4
-option(LZ4_BUILD_CLI "Build lz4 program" OFF)
-add_subdirectory("lz4/build/cmake")
-set_property(TARGET lz4_static PROPERTY FOLDER "${OMM_PROJECT_FOLDER}/Thirdparty") 
+# gbenchmark
+set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
+add_subdirectory("benchmark")
 
 # stb
 add_library(stb_lib INTERFACE)

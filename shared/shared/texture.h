@@ -19,8 +19,8 @@ namespace omm
 {
     static constexpr int    kTexCoordInvalid = 0x7FFFFFFF;
     static constexpr int    kTexCoordBorder = 0x7FFFFFFE;
-    static constexpr int2   kTexCoordInvalid2{ kTexCoordInvalid, kTexCoordInvalid };
-    static constexpr int2   kTexCoordBorder2{ kTexCoordBorder, kTexCoordBorder };
+    static inline int2   kTexCoordInvalid2{ kTexCoordInvalid, kTexCoordInvalid };
+    static inline int2   kTexCoordBorder2{ kTexCoordBorder, kTexCoordBorder };
 
     enum TexelOffset {
         I0x0,
@@ -31,7 +31,7 @@ namespace omm
     };
 
     template<ommTextureAddressMode eAddressMode>
-    static inline int2 GetTexCoord(const int2& texCoord, const int2& texSize) {
+    __forceinline static inline int2 GetTexCoord(const int2& texCoord, const int2& texSize) {
         switch (eAddressMode)
         {
         case ommTextureAddressMode_Wrap: {
@@ -89,11 +89,11 @@ namespace omm
         }
     }
 
-    static inline int2 GetTexCoord(omm::TextureAddressMode addressingMode, const int2& texCoord, const int2& texSize) {
+    __forceinline static int2 GetTexCoord(omm::TextureAddressMode addressingMode, const int2& texCoord, const int2& texSize) {
         return GetTexCoord((ommTextureAddressMode)addressingMode, texCoord, texSize);
     }
 
-    static inline void GatherTexCoord4(ommTextureAddressMode addressingMode, const int2& texCoord, const int2& texSize, int2 coords[TexelOffset::MAX_NUM]) {
+    static inline void GatherTexCoord4(ommTextureAddressMode addressingMode, const int2& texCoord, const int2& texSize, int2* coords) {
         const int2 offset   = GetTexCoord(addressingMode, texCoord, texSize);
         const int2 offset11 = GetTexCoord(addressingMode, texCoord + int2{ 1, 1 }, texSize);
         coords[TexelOffset::I0x0] = { offset.x,     offset.y };
@@ -103,7 +103,7 @@ namespace omm
     }
 
     template<ommTextureAddressMode eAddressMode>
-    static inline void GatherTexCoord4(const int2& texCoord, const int2& texSize, int2 coords[TexelOffset::MAX_NUM]) {
+    __forceinline static inline void GatherTexCoord4(const int2& texCoord, const int2& texSize, int2* __restrict coords) {
         const int2 offset = GetTexCoord<eAddressMode>(texCoord, texSize);
         const int2 offset11 = GetTexCoord<eAddressMode>(texCoord + int2{ 1, 1 }, texSize);
         coords[TexelOffset::I0x0] = { offset.x,     offset.y };

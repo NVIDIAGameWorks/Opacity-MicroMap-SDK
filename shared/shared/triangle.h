@@ -29,6 +29,8 @@ namespace omm
         return Nz < 0 ? WindingOrder::CCW : WindingOrder::CW;
     }
 
+#define CACHED_POINT_IN_TRI (1)
+
     struct Triangle {
 
         Triangle() = default;
@@ -39,6 +41,11 @@ namespace omm
             p2(_p2),
             _winding(GetWinding(p0, p1, p2))
         {
+#if CACHED_POINT_IN_TRI
+            p0p2 = p0 - p2;
+            p1p0 = p1 - p0;
+            p2p1 = p2 - p1;
+#endif
             aabb_s = { std::min(std::min(p0.x, p1.x), p2.x), std::min(std::min(p0.y, p1.y), p2.y) };
             aabb_e = { std::max(std::max(p0.x, p1.x), p2.x), std::max(std::max(p0.y, p1.y), p2.y) };
         }
@@ -52,9 +59,43 @@ namespace omm
             return p2;
         }
 
+#if CACHED_POINT_IN_TRI
+        __forceinline bool PointInTriangle(const float2& pt) const
+        {
+            float2 ptp2 = pt - p2;
+            float2 ptp0 = pt - p0;
+            float s = (p0p2.x) * (ptp2.y) - (p0p2.y) * (ptp2.x);
+            float t = (p1p0.x) * (ptp0.y) - (p1p0.y) * (ptp0.x);
+
+            if ((s < 0) != (t < 0) && s != 0 && t != 0)
+                return false;
+
+            float2 ptp1 = pt - p1;
+            float d = (p2p1.x) * (ptp1.y) - (p2p1.y) * (ptp1.x);
+            return d == 0 || (d < 0) == (s + t <= 0);
+        }
+#else
+        __forceinline bool PointInTriangle(const float2& pt) const
+        {
+            float s = (p0.x - p2.x) * (pt.y - p2.y) - (p0.y - p2.y) * (pt.x - p2.x);
+            float t = (p1.x - p0.x) * (pt.y - p0.y) - (p1.y - p0.y) * (pt.x - p0.x);
+
+            if ((s < 0) != (t < 0) && s != 0 && t != 0)
+                return false;
+
+            float d = (p2.x - p1.x) * (pt.y - p1.y) - (p2.y - p1.y) * (pt.x - p1.x);
+            return d == 0 || (d < 0) == (s + t <= 0);
+        }
+#endif
+
         float2 p0;
         float2 p1;
         float2 p2;
+#if CACHED_POINT_IN_TRI
+        float2 p0p2;
+        float2 p1p0;
+        float2 p2p1;
+#endif
 
         float2 aabb_s;     //< Start point of the aabb
         float2 aabb_e;     //< End point of the aabb
