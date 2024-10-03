@@ -37,6 +37,7 @@ namespace {
 		TextureAsUNORM8,
 		AlphaCutoff,
 		Serialize,
+		StochasticPreClassification
 	};
 
 	struct Options
@@ -75,6 +76,7 @@ namespace {
 		bool TextureAsUNORM8() const { return (GetParam() & TestSuiteConfig::TextureAsUNORM8) == TestSuiteConfig::TextureAsUNORM8; }
 		bool EnableAlphaCutoff() const { return (GetParam() & TestSuiteConfig::AlphaCutoff) == TestSuiteConfig::AlphaCutoff; }
 		bool TestSerialization() const { return (GetParam() & TestSuiteConfig::Serialize) == TestSuiteConfig::Serialize; }
+		bool StochasticPreClassification() const { return (GetParam() & TestSuiteConfig::StochasticPreClassification) == TestSuiteConfig::StochasticPreClassification; }
 		
 		omm::Cpu::Texture CreateTexture(const omm::Cpu::TextureDesc& desc) {
 			omm::Cpu::Texture tex = 0;
@@ -175,6 +177,8 @@ namespace {
 				desc.bakeFlags = (omm::Cpu::BakeFlags)((uint32_t)desc.bakeFlags | (uint32_t)omm::Cpu::BakeFlags::Force32BitIndices);
 			if (!opt.enableSpecialIndices)
 				desc.bakeFlags = (omm::Cpu::BakeFlags)((uint32_t)desc.bakeFlags | (uint32_t)omm::Cpu::BakeFlags::DisableSpecialIndices);
+			if (StochasticPreClassification())
+				desc.bakeFlags = (omm::Cpu::BakeFlags)((uint32_t)desc.bakeFlags | (uint32_t)1u << 13u);
 
 			desc.dynamicSubdivisionScale = 0.f;
 
@@ -1848,6 +1852,7 @@ namespace {
 		 , TestSuiteConfig::TextureAsUNORM8
 		 , TestSuiteConfig::AlphaCutoff
 		 , TestSuiteConfig::Serialize
+		 , TestSuiteConfig::StochasticPreClassification
 		
 	), CustomParamName);
 

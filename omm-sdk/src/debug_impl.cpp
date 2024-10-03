@@ -63,7 +63,7 @@ namespace omm
 
         T Sample(ommTextureAddressMode mode, const float2& p) const {
             const int2 pi = (int2)(glm::floor(p * float2(_size)));
-            const int2 idx = omm::GetTexCoord(mode, pi, _size);
+            const int2 idx = omm::GetTexCoord(mode, false, pi, _size);
             return Load(idx);
         }
 
@@ -72,7 +72,7 @@ namespace omm
 
             float2 pixelOffset = float2(p * (float2)_size - 0.5f);
             int2 coords[omm::TexelOffset::MAX_NUM];
-            omm::GatherTexCoord4(mode, int2(glm::floor(pixelOffset)), _size, coords);
+            omm::GatherTexCoord4(mode, false, int2(glm::floor(pixelOffset)), _size, coords);
 
             const float2 weight = glm::fract(pixelOffset);
             T2 a = (T2)Load(coords[omm::TexelOffset::I0x0]);

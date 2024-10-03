@@ -96,10 +96,19 @@ namespace omm
         float2 p1p0;
         float2 p2p1;
 #endif
-
         float2 aabb_s;     //< Start point of the aabb
         float2 aabb_e;     //< End point of the aabb
         WindingOrder _winding; //< This matters when calculating barycentrics during rasterization.
+    };
+
+    static float GetArea2D(const float2& p0, const float2& p1, const float2& p2) {
+        const float2 v0 = p2 - p0;
+        const float2 v1 = p1 - p0;
+        return 0.5f * length(cross(float3(v0, 0), float3(v1, 0)));
+    };
+
+    static float GetArea2D(const Triangle& uvTri) {
+        return GetArea2D(uvTri.p0, uvTri.p1, uvTri.p2);
     };
 
     template <class T>

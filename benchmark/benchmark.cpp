@@ -24,6 +24,8 @@ protected:
 		desc.messageInterface.messageCallback = [](omm::MessageSeverity severity, const char* message, void* userArg) {
 			if (severity > omm::MessageSeverity::PerfWarning)
 				std::cout << "[omm-sdk]: " << message << std::endl;
+			else
+				std::cout << "[omm-sdk]: " << message << std::endl;
 		};
 
 		omm::Result res = omm::CreateBaker(desc, &_baker);
@@ -48,8 +50,8 @@ protected:
 
 		res = omm::Cpu::GetDeserializedDesc(deserializedResult, &_desDesc);
 		assert(res == omm::Result::SUCCESS);
-		assert(desDesc->numInputDescs == 1);
-		assert(desDesc->numResultDescs == 0);
+		assert(_desDesc->numInputDescs == 1);
+		assert(_desDesc->numResultDescs == 0);
 	}
 
 	void TearDown(const ::benchmark::State& state) override {
@@ -132,7 +134,21 @@ BENCHMARK_DEFINE_F(OMMBake, StochasticClassification_EnableWrapping)(benchmark::
 	}
 }
 
+BENCHMARK_DEFINE_F(OMMBake, BakeOnlySmallest)(benchmark::State& st) {
+
+	omm::Cpu::BakeFlags BakeOnlySmallest = (omm::Cpu::BakeFlags)((1u << 14u));
+	for (auto s : st)
+	{
+		Run(st, BakeOnlySmallest);
+	}
+}
+
+
+#if 0
 BENCHMARK_REGISTER_F(OMMBake, Default)->Unit(benchmark::kSecond)->Name("Default");
+#endif
+
+BENCHMARK_REGISTER_F(OMMBake, BakeOnlySmallest)->Unit(benchmark::kSecond)->Name("BakeOnlySmallest");
 
 #if 0
 BENCHMARK_REGISTER_F(OMMBake, DisableFineClassification)->Unit(benchmark::kSecond)->Name("DisableFineClassification");

@@ -122,12 +122,12 @@ namespace Cpu
     private:
         ommResult ValidateDesc(const ommCpuBakeInputDesc& desc) const;
 
-        template<ommCpuTextureFormat format, TilingMode eTextureFormat, ommTextureAddressMode eTextureAddressMode, ommTextureFilterMode eFilterMode>
+        template<ommCpuTextureFormat format, TilingMode eTextureFormat, ommTextureAddressMode eTextureAddressMode, ommTextureFilterMode eFilterMode, bool bTexIsPow2>
         ommResult BakeImpl(const ommCpuBakeInputDesc& desc);
 
         template<class... TArgs>
         void RegisterDispatch(TArgs... args, std::function < ommResult(const ommCpuBakeInputDesc& desc)> fn);
-        map<std::tuple<ommCpuTextureFormat, TilingMode, ommTextureAddressMode, ommTextureFilterMode>, std::function<ommResult(const ommCpuBakeInputDesc& desc)>> bakeDispatchTable;
+        map<std::tuple<ommCpuTextureFormat, TilingMode, ommTextureAddressMode, ommTextureFilterMode, bool /*texIsPow2*/>, std::function<ommResult(const ommCpuBakeInputDesc& desc)>> bakeDispatchTable;
         ommResult InvokeDispatch(const ommCpuBakeInputDesc& desc);
     private:
         StdAllocator<uint8_t> m_stdAllocator;

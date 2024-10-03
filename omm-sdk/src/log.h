@@ -36,6 +36,12 @@ namespace omm
 			_Log(ommMessageSeverity_Info, msg);
 		}
 
+		template<int N = 256, typename... Args>
+		void Infof(const char* format, Args&&... args) const
+		{
+			_Logf<N>(ommMessageSeverity_Info, format, std::forward<Args>(args)...);
+		}
+
 		void PerfWarn(const char* msg) const
 		{
 			_Log(ommMessageSeverity_PerfWarning, msg);

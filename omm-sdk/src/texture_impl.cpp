@@ -95,6 +95,7 @@ namespace omm
             m_mips[mipIt].size = { desc.mips[mipIt].width, desc.mips[mipIt].height };
             m_mips[mipIt].sizeMinusOne = m_mips[mipIt].size - 1;
             m_mips[mipIt].rcpSize = 1.f / (float2)m_mips[mipIt].size;
+            m_mips[mipIt].sizeIsPow2 = omm::isPow2(m_mips[mipIt].size.x) && omm::isPow2(m_mips[mipIt].size.y);
             m_mips[mipIt].dataOffset = m_dataSize;
             m_mips[mipIt].dataOffsetSAT = m_dataSATSize;
 
@@ -258,7 +259,7 @@ namespace omm
         float2 pixel = p * (float2)(m_mips[mip].size)-0.5f;
         float2 pixelFloor = glm::floor(pixel);
         int2 coords[omm::TexelOffset::MAX_NUM];
-        omm::GatherTexCoord4(mode, int2(pixelFloor), m_mips[mip].size, coords);
+        omm::GatherTexCoord4(mode, m_mips[mip].sizeIsPow2, int2(pixelFloor), m_mips[mip].size, coords);
 
         float a = (float)Load(coords[omm::TexelOffset::I0x0], mip);
         float b = (float)Load(coords[omm::TexelOffset::I0x1], mip);

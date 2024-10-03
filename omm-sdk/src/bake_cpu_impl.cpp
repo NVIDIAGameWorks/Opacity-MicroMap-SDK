@@ -48,7 +48,8 @@ namespace Cpu
         EnableNearDuplicateDetectionBruteForce = 1u << 10,
         EnableWrapping                  = 1u << 11,
         EnableSnapping                  = 1u << 12,
-        enableStochasticClassification= 1u << 13
+        EnableStochasticClassification  = 1u << 13,
+        EnableBakeOnlySmallest          = 1u << 14
     };
 
     constexpr void ValidateInternalBakeFlags()
@@ -71,7 +72,8 @@ namespace Cpu
             enableNearDuplicateDetectionBruteForce(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableNearDuplicateDetectionBruteForce) == (uint32_t)BakeFlagsInternal::EnableNearDuplicateDetectionBruteForce),
             enableWrapping(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableWrapping) == (uint32_t)BakeFlagsInternal::EnableWrapping),
             enableSnapping(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableSnapping) == (uint32_t)BakeFlagsInternal::EnableSnapping),
-            enableStochasticClassification(((uint32_t)flags& (uint32_t)BakeFlagsInternal::enableStochasticClassification) == (uint32_t)BakeFlagsInternal::enableStochasticClassification),
+            enableStochasticClassification(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableStochasticClassification) == (uint32_t)BakeFlagsInternal::EnableStochasticClassification),
+            enableBakeOnlySmallest(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableBakeOnlySmallest) == (uint32_t)BakeFlagsInternal::EnableBakeOnlySmallest),
             enableWorkloadValidation(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableWorkloadValidation) == (uint32_t)BakeFlagsInternal::EnableWorkloadValidation),
             enableAABBTesting(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableAABBTesting) == (uint32_t)BakeFlagsInternal::EnableAABBTesting),
             disableRemovePoorQualityOMM(((uint32_t)flags& (uint32_t)BakeFlagsInternal::DisableRemovePoorQualityOMM) == (uint32_t)BakeFlagsInternal::DisableRemovePoorQualityOMM),
@@ -86,6 +88,7 @@ namespace Cpu
         const bool enableWrapping;
         const bool enableSnapping;
         const bool enableStochasticClassification;
+        const bool enableBakeOnlySmallest;
         const bool enableWorkloadValidation;
         const bool enableAABBTesting;
         const bool disableRemovePoorQualityOMM;
@@ -134,58 +137,107 @@ namespace Cpu
         m_bakeResult(stdAllocator),
         bakeDispatchTable(stdAllocator.GetInterface())
     {
-        #define REGISTER_DISPATCH(x, y, z, w)                                                                                               \
-        RegisterDispatch<decltype(x), decltype(y), decltype(z), decltype(w)>(x, y, z, w, [&](const ommCpuBakeInputDesc& desc)->ommResult {  \
-            return BakeImpl<x, y, z, w>(desc);                                                                                              \
+        #define REGISTER_DISPATCH(x, y, z, w, a)                                                                                               \
+        RegisterDispatch<decltype(x), decltype(y), decltype(z), decltype(w), decltype(a)>(x, y, z, w, a, [&](const ommCpuBakeInputDesc& desc)->ommResult {  \
+            return BakeImpl<x, y, z, w, a>(desc);                                                                                              \
         });                                                                                                                                 \
 
-        REGISTER_DISPATCH(ommCpuTextureFormat_FP32, TilingMode::Linear, ommTextureAddressMode_Wrap, ommTextureFilterMode_Linear);
-        REGISTER_DISPATCH(ommCpuTextureFormat_FP32, TilingMode::Linear, ommTextureAddressMode_Mirror, ommTextureFilterMode_Linear);
-        REGISTER_DISPATCH(ommCpuTextureFormat_FP32, TilingMode::Linear, ommTextureAddressMode_Clamp, ommTextureFilterMode_Linear);
-        REGISTER_DISPATCH(ommCpuTextureFormat_FP32, TilingMode::Linear, ommTextureAddressMode_Border, ommTextureFilterMode_Linear);
-        REGISTER_DISPATCH(ommCpuTextureFormat_FP32, TilingMode::Linear, ommTextureAddressMode_MirrorOnce, ommTextureFilterMode_Linear);
+        REGISTER_DISPATCH(ommCpuTextureFormat_FP32, TilingMode::Linear, ommTextureAddressMode_Wrap, ommTextureFilterMode_Linear, false);
+        REGISTER_DISPATCH(ommCpuTextureFormat_FP32, TilingMode::Linear, ommTextureAddressMode_Mirror, ommTextureFilterMode_Linear, false);
+        REGISTER_DISPATCH(ommCpuTextureFormat_FP32, TilingMode::Linear, ommTextureAddressMode_Clamp, ommTextureFilterMode_Linear, false);
+        REGISTER_DISPATCH(ommCpuTextureFormat_FP32, TilingMode::Linear, ommTextureAddressMode_Border, ommTextureFilterMode_Linear, false);
+        REGISTER_DISPATCH(ommCpuTextureFormat_FP32, TilingMode::Linear, ommTextureAddressMode_MirrorOnce, ommTextureFilterMode_Linear, false);
 
-        REGISTER_DISPATCH(ommCpuTextureFormat_FP32,TilingMode::MortonZ, ommTextureAddressMode_Wrap, ommTextureFilterMode_Linear);
-        REGISTER_DISPATCH(ommCpuTextureFormat_FP32,TilingMode::MortonZ, ommTextureAddressMode_Mirror, ommTextureFilterMode_Linear);
-        REGISTER_DISPATCH(ommCpuTextureFormat_FP32,TilingMode::MortonZ, ommTextureAddressMode_Clamp, ommTextureFilterMode_Linear);
-        REGISTER_DISPATCH(ommCpuTextureFormat_FP32,TilingMode::MortonZ, ommTextureAddressMode_Border, ommTextureFilterMode_Linear);
-        REGISTER_DISPATCH(ommCpuTextureFormat_FP32,TilingMode::MortonZ, ommTextureAddressMode_MirrorOnce, ommTextureFilterMode_Linear);
+        REGISTER_DISPATCH(ommCpuTextureFormat_FP32,TilingMode::MortonZ, ommTextureAddressMode_Wrap, ommTextureFilterMode_Linear, false);
+        REGISTER_DISPATCH(ommCpuTextureFormat_FP32,TilingMode::MortonZ, ommTextureAddressMode_Mirror, ommTextureFilterMode_Linear, false);
+        REGISTER_DISPATCH(ommCpuTextureFormat_FP32,TilingMode::MortonZ, ommTextureAddressMode_Clamp, ommTextureFilterMode_Linear, false);
+        REGISTER_DISPATCH(ommCpuTextureFormat_FP32,TilingMode::MortonZ, ommTextureAddressMode_Border, ommTextureFilterMode_Linear, false);
+        REGISTER_DISPATCH(ommCpuTextureFormat_FP32,TilingMode::MortonZ, ommTextureAddressMode_MirrorOnce, ommTextureFilterMode_Linear, false);
 
-        REGISTER_DISPATCH(ommCpuTextureFormat_FP32,TilingMode::Linear, ommTextureAddressMode_Wrap, ommTextureFilterMode_Nearest);
-        REGISTER_DISPATCH(ommCpuTextureFormat_FP32,TilingMode::Linear, ommTextureAddressMode_Mirror, ommTextureFilterMode_Nearest);
-        REGISTER_DISPATCH(ommCpuTextureFormat_FP32,TilingMode::Linear, ommTextureAddressMode_Clamp, ommTextureFilterMode_Nearest);
-        REGISTER_DISPATCH(ommCpuTextureFormat_FP32,TilingMode::Linear, ommTextureAddressMode_Border, ommTextureFilterMode_Nearest);
-        REGISTER_DISPATCH(ommCpuTextureFormat_FP32,TilingMode::Linear, ommTextureAddressMode_MirrorOnce, ommTextureFilterMode_Nearest);
+        REGISTER_DISPATCH(ommCpuTextureFormat_FP32,TilingMode::Linear, ommTextureAddressMode_Wrap, ommTextureFilterMode_Nearest, false);
+        REGISTER_DISPATCH(ommCpuTextureFormat_FP32,TilingMode::Linear, ommTextureAddressMode_Mirror, ommTextureFilterMode_Nearest, false);
+        REGISTER_DISPATCH(ommCpuTextureFormat_FP32,TilingMode::Linear, ommTextureAddressMode_Clamp, ommTextureFilterMode_Nearest, false);
+        REGISTER_DISPATCH(ommCpuTextureFormat_FP32,TilingMode::Linear, ommTextureAddressMode_Border, ommTextureFilterMode_Nearest, false);
+        REGISTER_DISPATCH(ommCpuTextureFormat_FP32,TilingMode::Linear, ommTextureAddressMode_MirrorOnce, ommTextureFilterMode_Nearest, false);
 
-        REGISTER_DISPATCH(ommCpuTextureFormat_FP32,TilingMode::MortonZ, ommTextureAddressMode_Wrap, ommTextureFilterMode_Nearest);
-        REGISTER_DISPATCH(ommCpuTextureFormat_FP32,TilingMode::MortonZ, ommTextureAddressMode_Mirror, ommTextureFilterMode_Nearest);
-        REGISTER_DISPATCH(ommCpuTextureFormat_FP32,TilingMode::MortonZ, ommTextureAddressMode_Clamp, ommTextureFilterMode_Nearest);
-        REGISTER_DISPATCH(ommCpuTextureFormat_FP32,TilingMode::MortonZ, ommTextureAddressMode_Border, ommTextureFilterMode_Nearest);
-        REGISTER_DISPATCH(ommCpuTextureFormat_FP32,TilingMode::MortonZ, ommTextureAddressMode_MirrorOnce, ommTextureFilterMode_Nearest);
+        REGISTER_DISPATCH(ommCpuTextureFormat_FP32,TilingMode::MortonZ, ommTextureAddressMode_Wrap, ommTextureFilterMode_Nearest, false);
+        REGISTER_DISPATCH(ommCpuTextureFormat_FP32,TilingMode::MortonZ, ommTextureAddressMode_Mirror, ommTextureFilterMode_Nearest, false);
+        REGISTER_DISPATCH(ommCpuTextureFormat_FP32,TilingMode::MortonZ, ommTextureAddressMode_Clamp, ommTextureFilterMode_Nearest, false);
+        REGISTER_DISPATCH(ommCpuTextureFormat_FP32,TilingMode::MortonZ, ommTextureAddressMode_Border, ommTextureFilterMode_Nearest, false);
+        REGISTER_DISPATCH(ommCpuTextureFormat_FP32,TilingMode::MortonZ, ommTextureAddressMode_MirrorOnce, ommTextureFilterMode_Nearest, false);
 
-        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8, TilingMode::Linear, ommTextureAddressMode_Wrap, ommTextureFilterMode_Linear);
-        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8, TilingMode::Linear, ommTextureAddressMode_Mirror, ommTextureFilterMode_Linear);
-        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8, TilingMode::Linear, ommTextureAddressMode_Clamp, ommTextureFilterMode_Linear);
-        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8, TilingMode::Linear, ommTextureAddressMode_Border, ommTextureFilterMode_Linear);
-        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8, TilingMode::Linear, ommTextureAddressMode_MirrorOnce, ommTextureFilterMode_Linear);
+        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8, TilingMode::Linear, ommTextureAddressMode_Wrap, ommTextureFilterMode_Linear, false);
+        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8, TilingMode::Linear, ommTextureAddressMode_Mirror, ommTextureFilterMode_Linear, false);
+        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8, TilingMode::Linear, ommTextureAddressMode_Clamp, ommTextureFilterMode_Linear, false);
+        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8, TilingMode::Linear, ommTextureAddressMode_Border, ommTextureFilterMode_Linear, false);
+        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8, TilingMode::Linear, ommTextureAddressMode_MirrorOnce, ommTextureFilterMode_Linear, false);
 
-        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8,TilingMode::MortonZ, ommTextureAddressMode_Wrap, ommTextureFilterMode_Linear);
-        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8,TilingMode::MortonZ, ommTextureAddressMode_Mirror, ommTextureFilterMode_Linear);
-        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8,TilingMode::MortonZ, ommTextureAddressMode_Clamp, ommTextureFilterMode_Linear);
-        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8,TilingMode::MortonZ, ommTextureAddressMode_Border, ommTextureFilterMode_Linear);
-        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8,TilingMode::MortonZ, ommTextureAddressMode_MirrorOnce, ommTextureFilterMode_Linear);
+        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8,TilingMode::MortonZ, ommTextureAddressMode_Wrap, ommTextureFilterMode_Linear, false);
+        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8,TilingMode::MortonZ, ommTextureAddressMode_Mirror, ommTextureFilterMode_Linear, false);
+        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8,TilingMode::MortonZ, ommTextureAddressMode_Clamp, ommTextureFilterMode_Linear, false);
+        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8,TilingMode::MortonZ, ommTextureAddressMode_Border, ommTextureFilterMode_Linear, false);
+        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8,TilingMode::MortonZ, ommTextureAddressMode_MirrorOnce, ommTextureFilterMode_Linear, false);
 
-        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8,TilingMode::Linear, ommTextureAddressMode_Wrap, ommTextureFilterMode_Nearest);
-        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8,TilingMode::Linear, ommTextureAddressMode_Mirror, ommTextureFilterMode_Nearest);
-        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8,TilingMode::Linear, ommTextureAddressMode_Clamp, ommTextureFilterMode_Nearest);
-        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8,TilingMode::Linear, ommTextureAddressMode_Border, ommTextureFilterMode_Nearest);
-        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8,TilingMode::Linear, ommTextureAddressMode_MirrorOnce, ommTextureFilterMode_Nearest);
+        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8,TilingMode::Linear, ommTextureAddressMode_Wrap, ommTextureFilterMode_Nearest, false);
+        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8,TilingMode::Linear, ommTextureAddressMode_Mirror, ommTextureFilterMode_Nearest, false);
+        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8,TilingMode::Linear, ommTextureAddressMode_Clamp, ommTextureFilterMode_Nearest, false);
+        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8,TilingMode::Linear, ommTextureAddressMode_Border, ommTextureFilterMode_Nearest, false);
+        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8,TilingMode::Linear, ommTextureAddressMode_MirrorOnce, ommTextureFilterMode_Nearest, false);
 
-        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8,TilingMode::MortonZ, ommTextureAddressMode_Wrap, ommTextureFilterMode_Nearest);
-        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8,TilingMode::MortonZ, ommTextureAddressMode_Mirror, ommTextureFilterMode_Nearest);
-        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8,TilingMode::MortonZ, ommTextureAddressMode_Clamp, ommTextureFilterMode_Nearest);
-        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8,TilingMode::MortonZ, ommTextureAddressMode_Border, ommTextureFilterMode_Nearest);
-        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8,TilingMode::MortonZ, ommTextureAddressMode_MirrorOnce, ommTextureFilterMode_Nearest);
+        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8,TilingMode::MortonZ, ommTextureAddressMode_Wrap, ommTextureFilterMode_Nearest, false);
+        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8,TilingMode::MortonZ, ommTextureAddressMode_Mirror, ommTextureFilterMode_Nearest, false);
+        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8,TilingMode::MortonZ, ommTextureAddressMode_Clamp, ommTextureFilterMode_Nearest, false);
+        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8,TilingMode::MortonZ, ommTextureAddressMode_Border, ommTextureFilterMode_Nearest, false);
+        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8,TilingMode::MortonZ, ommTextureAddressMode_MirrorOnce, ommTextureFilterMode_Nearest, false);
+
+
+        REGISTER_DISPATCH(ommCpuTextureFormat_FP32, TilingMode::Linear, ommTextureAddressMode_Wrap, ommTextureFilterMode_Linear, true);
+        REGISTER_DISPATCH(ommCpuTextureFormat_FP32, TilingMode::Linear, ommTextureAddressMode_Mirror, ommTextureFilterMode_Linear, true);
+        REGISTER_DISPATCH(ommCpuTextureFormat_FP32, TilingMode::Linear, ommTextureAddressMode_Clamp, ommTextureFilterMode_Linear, true);
+        REGISTER_DISPATCH(ommCpuTextureFormat_FP32, TilingMode::Linear, ommTextureAddressMode_Border, ommTextureFilterMode_Linear, true);
+        REGISTER_DISPATCH(ommCpuTextureFormat_FP32, TilingMode::Linear, ommTextureAddressMode_MirrorOnce, ommTextureFilterMode_Linear, true);
+
+        REGISTER_DISPATCH(ommCpuTextureFormat_FP32, TilingMode::MortonZ, ommTextureAddressMode_Wrap, ommTextureFilterMode_Linear, true);
+        REGISTER_DISPATCH(ommCpuTextureFormat_FP32, TilingMode::MortonZ, ommTextureAddressMode_Mirror, ommTextureFilterMode_Linear, true);
+        REGISTER_DISPATCH(ommCpuTextureFormat_FP32, TilingMode::MortonZ, ommTextureAddressMode_Clamp, ommTextureFilterMode_Linear, true);
+        REGISTER_DISPATCH(ommCpuTextureFormat_FP32, TilingMode::MortonZ, ommTextureAddressMode_Border, ommTextureFilterMode_Linear, true);
+        REGISTER_DISPATCH(ommCpuTextureFormat_FP32, TilingMode::MortonZ, ommTextureAddressMode_MirrorOnce, ommTextureFilterMode_Linear, true);
+
+        REGISTER_DISPATCH(ommCpuTextureFormat_FP32, TilingMode::Linear, ommTextureAddressMode_Wrap, ommTextureFilterMode_Nearest, true);
+        REGISTER_DISPATCH(ommCpuTextureFormat_FP32, TilingMode::Linear, ommTextureAddressMode_Mirror, ommTextureFilterMode_Nearest, true);
+        REGISTER_DISPATCH(ommCpuTextureFormat_FP32, TilingMode::Linear, ommTextureAddressMode_Clamp, ommTextureFilterMode_Nearest, true);
+        REGISTER_DISPATCH(ommCpuTextureFormat_FP32, TilingMode::Linear, ommTextureAddressMode_Border, ommTextureFilterMode_Nearest, true);
+        REGISTER_DISPATCH(ommCpuTextureFormat_FP32, TilingMode::Linear, ommTextureAddressMode_MirrorOnce, ommTextureFilterMode_Nearest, true);
+
+        REGISTER_DISPATCH(ommCpuTextureFormat_FP32, TilingMode::MortonZ, ommTextureAddressMode_Wrap, ommTextureFilterMode_Nearest, true);
+        REGISTER_DISPATCH(ommCpuTextureFormat_FP32, TilingMode::MortonZ, ommTextureAddressMode_Mirror, ommTextureFilterMode_Nearest, true);
+        REGISTER_DISPATCH(ommCpuTextureFormat_FP32, TilingMode::MortonZ, ommTextureAddressMode_Clamp, ommTextureFilterMode_Nearest, true);
+        REGISTER_DISPATCH(ommCpuTextureFormat_FP32, TilingMode::MortonZ, ommTextureAddressMode_Border, ommTextureFilterMode_Nearest, true);
+        REGISTER_DISPATCH(ommCpuTextureFormat_FP32, TilingMode::MortonZ, ommTextureAddressMode_MirrorOnce, ommTextureFilterMode_Nearest, true);
+
+        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8, TilingMode::Linear, ommTextureAddressMode_Wrap, ommTextureFilterMode_Linear, true);
+        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8, TilingMode::Linear, ommTextureAddressMode_Mirror, ommTextureFilterMode_Linear, true);
+        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8, TilingMode::Linear, ommTextureAddressMode_Clamp, ommTextureFilterMode_Linear, true);
+        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8, TilingMode::Linear, ommTextureAddressMode_Border, ommTextureFilterMode_Linear, true);
+        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8, TilingMode::Linear, ommTextureAddressMode_MirrorOnce, ommTextureFilterMode_Linear, true);
+
+        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8, TilingMode::MortonZ, ommTextureAddressMode_Wrap, ommTextureFilterMode_Linear, true);
+        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8, TilingMode::MortonZ, ommTextureAddressMode_Mirror, ommTextureFilterMode_Linear, true);
+        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8, TilingMode::MortonZ, ommTextureAddressMode_Clamp, ommTextureFilterMode_Linear, true);
+        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8, TilingMode::MortonZ, ommTextureAddressMode_Border, ommTextureFilterMode_Linear, true);
+        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8, TilingMode::MortonZ, ommTextureAddressMode_MirrorOnce, ommTextureFilterMode_Linear, true);
+
+        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8, TilingMode::Linear, ommTextureAddressMode_Wrap, ommTextureFilterMode_Nearest, true);
+        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8, TilingMode::Linear, ommTextureAddressMode_Mirror, ommTextureFilterMode_Nearest, true);
+        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8, TilingMode::Linear, ommTextureAddressMode_Clamp, ommTextureFilterMode_Nearest, true);
+        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8, TilingMode::Linear, ommTextureAddressMode_Border, ommTextureFilterMode_Nearest, true);
+        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8, TilingMode::Linear, ommTextureAddressMode_MirrorOnce, ommTextureFilterMode_Nearest, true);
+
+        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8, TilingMode::MortonZ, ommTextureAddressMode_Wrap, ommTextureFilterMode_Nearest, true);
+        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8, TilingMode::MortonZ, ommTextureAddressMode_Mirror, ommTextureFilterMode_Nearest, true);
+        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8, TilingMode::MortonZ, ommTextureAddressMode_Clamp, ommTextureFilterMode_Nearest, true);
+        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8, TilingMode::MortonZ, ommTextureAddressMode_Border, ommTextureFilterMode_Nearest, true);
+        REGISTER_DISPATCH(ommCpuTextureFormat_UNORM8, TilingMode::MortonZ, ommTextureAddressMode_MirrorOnce, ommTextureFilterMode_Nearest, true);
     }
 
     BakeOutputImpl::~BakeOutputImpl()
@@ -256,7 +308,8 @@ namespace Cpu
 
     ommResult BakeOutputImpl::InvokeDispatch(const ommCpuBakeInputDesc& desc) {
         TextureImpl* texture = GetHandleImpl<TextureImpl>(desc.texture);
-        auto it = bakeDispatchTable.find(std::make_tuple(texture->GetTextureFormat(), texture->GetTilingMode(), desc.runtimeSamplerDesc.addressingMode, desc.runtimeSamplerDesc.filter));
+        bool sizeIsPow2 = texture->SizeIsPow2();
+        auto it = bakeDispatchTable.find(std::make_tuple(texture->GetTextureFormat(), texture->GetTilingMode(), desc.runtimeSamplerDesc.addressingMode, desc.runtimeSamplerDesc.filter, sizeIsPow2));
         if (it == bakeDispatchTable.end())
             return ommResult_FAILURE;
         return it->second(desc);
@@ -428,16 +481,6 @@ namespace Cpu
         OmmArrayDataVector vmStates;
     };
 
-    static float GetArea2D(const float2& p0, const float2& p1, const float2& p2) {
-        const float2 v0 = p2 - p0;
-        const float2 v1 = p1 - p0;
-        return 0.5f * length(cross(float3(v0, 0), float3(v1, 0)));
-    };
-
-    static float GetArea2D(const Triangle& uvTri) {
-        return GetArea2D(uvTri.p0, uvTri.p1, uvTri.p2);
-    };
-
     static const uint32_t CalculateSuitableSubdivisionLevel(const ommCpuBakeInputDesc& desc, const Triangle& uvTri, uint2 texSize)
     {
         auto GetNextPow2 = [](uint v)->uint
@@ -514,6 +557,43 @@ namespace Cpu
 
     namespace impl
     {
+        static uint64_t ComputeWorkloadSize(const ommCpuBakeInputDesc& desc, OmmWorkItem& workItem)
+        {
+            const TextureImpl* texture = GetHandleImpl<TextureImpl>(desc.texture);
+
+            // Approximate the workload size. 
+            // The workload metric is the accumulated count of the number of texels in total that needs to be processed.
+            // So where is the cutoff point? Hard to say. But if the workload 
+            const uint64_t texelCount = (uint64_t)texture->GetSize(0 /*mip*/).x * (uint64_t)texture->GetSize(0 /*mip*/).y;
+            const float2 sizef = (float2)texture->GetSize(0 /*mip*/);
+            uint64_t workloadSize = 0;
+
+            const int2 aabb = int2((workItem.uvTri.aabb_e - workItem.uvTri.aabb_s) * sizef);
+            workloadSize += uint64_t(aabb.x * aabb.y);
+
+            return workloadSize;
+        }
+
+        static uint64_t ComputeWorkloadSize(const ommCpuBakeInputDesc& desc, vector<OmmWorkItem>& vmWorkItems)
+        {
+            const TextureImpl* texture = GetHandleImpl<TextureImpl>(desc.texture);
+
+            // Approximate the workload size. 
+            // The workload metric is the accumulated count of the number of texels in total that needs to be processed.
+            // So where is the cutoff point? Hard to say. But if the workload 
+            const uint64_t texelCount = (uint64_t)texture->GetSize(0 /*mip*/).x * (uint64_t)texture->GetSize(0 /*mip*/).y;
+            const float2 sizef = (float2)texture->GetSize(0 /*mip*/);
+            uint64_t workloadSize = 0;
+
+            for (const OmmWorkItem& workItem : vmWorkItems)
+            {
+                const int2 aabb = int2((workItem.uvTri.aabb_e - workItem.uvTri.aabb_s) * sizef);
+                workloadSize += uint64_t(aabb.x * aabb.y);
+            }
+
+            return workloadSize;
+        }
+
         static ommResult SetupWorkItems(
             const StdAllocator<uint8_t>& allocator, const Logger& log, const ommCpuBakeInputDesc& desc, const Options& options, 
             vector<OmmWorkItem>& vmWorkItems)
@@ -602,34 +682,60 @@ namespace Cpu
                         uint32_t workItemIdx = (uint32_t)vmWorkItems.size();
                         // Temporarily set the triangle->vm desc mapping like this.
                         triangleIDToWorkItem.insert(std::make_pair(vmId, workItemIdx));
-                        vmWorkItems.emplace_back(allocator, ommFormat, subdivisionLevel, i, uvTri);
+                        vmWorkItems.emplace_back(allocator, ommFormat, subdivisionLevel, i, uvTri);                       
                     }
                     else {
                         vmWorkItems[it->second].primitiveIndices.push_back(i);
                     }
                 }
             }
-            return ommResult_SUCCESS;
-        }
 
-        static uint64_t ComputeWorkloadSize(const ommCpuBakeInputDesc& desc, vector<OmmWorkItem>& vmWorkItems)
-        {
-            const TextureImpl* texture = GetHandleImpl<TextureImpl>(desc.texture);
-
-            // Approximate the workload size. 
-            // The workload metric is the accumulated count of the number of texels in total that needs to be processed.
-            // So where is the cutoff point? Hard to say. But if the workload 
-            const uint64_t texelCount = (uint64_t)texture->GetSize(0 /*mip*/).x * (uint64_t)texture->GetSize(0 /*mip*/).y;
-            const float2 sizef = (float2)texture->GetSize(0 /*mip*/);
-            uint64_t workloadSize = 0;
-
-            for (const OmmWorkItem& workItem : vmWorkItems)
+            if (options.enableBakeOnlySmallest)
             {
-                const int2 aabb = int2((workItem.uvTri.aabb_e - workItem.uvTri.aabb_s) * sizef);
-                workloadSize += uint64_t(aabb.x * aabb.y);
+                std::sort(vmWorkItems.begin(), vmWorkItems.end(), [](const OmmWorkItem& a, const OmmWorkItem& b)->bool {
+                    const float areaA = GetArea2D(a.uvTri);
+                    const float areaB = GetArea2D(b.uvTri);
+
+                    return areaA < areaB;
+                });
+
+                uint64_t totMicroTri = 0;
+                uint64_t totWorkloadSize = 0;
+                for (OmmWorkItem& a : vmWorkItems)
+                {
+                    uint64_t workloadSize = ComputeWorkloadSize(desc, a);
+                    totWorkloadSize += workloadSize;
+                    const uint32_t numMicroTriangles = omm::bird::GetNumMicroTriangles(a.subdivisionLevel);
+                    totMicroTri += numMicroTriangles;
+                }
+
+                uint64_t totMicroTriSoFar = 0;
+                uint64_t totWorkloadSizeSoFar = 0;
+
+                for (OmmWorkItem& a : vmWorkItems)
+                {
+                    uint64_t workloadSize = ComputeWorkloadSize(desc, a);
+                    totWorkloadSizeSoFar += workloadSize;
+
+                    const uint32_t numMicroTriangles = omm::bird::GetNumMicroTriangles(a.subdivisionLevel);
+                    totMicroTriSoFar += numMicroTriangles;
+
+                    const bool willBake = totWorkloadSizeSoFar < totWorkloadSize / 2;
+
+                    if (!willBake)
+                    {
+                        for (uint32_t i = 0; i < numMicroTriangles; ++i)
+                        {
+                            a.vmStates.SetState(i, ommOpacityState_UnknownOpaque);
+                        }
+                    }
+
+                    const float area = GetArea2D(a.uvTri);
+                    log.Infof("%.5f - %d - %d", area, willBake, a.subdivisionLevel);
+                }
             }
 
-            return workloadSize;
+            return ommResult_SUCCESS;
         }
 
         static ommResult ValidateWorkloadSize(
@@ -665,7 +771,7 @@ namespace Cpu
             return ommResult_SUCCESS;
         }
 
-        template<ommCpuTextureFormat eFormat, TilingMode eTilingMode, ommTextureAddressMode eTextureAddressMode, ommTextureFilterMode eFilterMode>
+        template<ommCpuTextureFormat eFormat, TilingMode eTilingMode, ommTextureAddressMode eTextureAddressMode, ommTextureFilterMode eFilterMode, bool bTexIsPow2>
         static ommResult ResampleCoarse(const ommCpuBakeInputDesc& desc, const Logger& log, const Options& options, vector<OmmWorkItem>& vmWorkItems)
         {
             if (options.enableAABBTesting && !options.disableLevelLineIntersection)
@@ -704,6 +810,9 @@ namespace Cpu
                                 // Run conservative rasterization on the micro triangle
                                 for (uint32_t uTriIt = 0; uTriIt < numMicroTriangles; ++uTriIt)
                                 {
+                                    if (workItem.vmStates.IsStateSet(uTriIt))
+                                        continue;
+
                                     const Triangle subTri = omm::bird::GetMicroTriangle(workItem.uvTri, uTriIt, workItem.subdivisionLevel);
 
                                     const int32_t Sx = (int32_t)subTri.aabb_s.x;
@@ -722,10 +831,10 @@ namespace Cpu
                                     const float2 faabb_s = (subTri.aabb_s * (float2)texture->GetSize(mip)) - 0.5f;
                                     const float2 faabb_e = (subTri.aabb_e * (float2)texture->GetSize(mip)) - 0.5f;
                                     int2 iaabb_s[TexelOffset::MAX_NUM];
-                                    omm::GatherTexCoord4<eTextureAddressMode>(glm::floor(faabb_s), texture->GetSize(mip), iaabb_s);
+                                    omm::GatherTexCoord4<eTextureAddressMode, bTexIsPow2>(glm::floor(faabb_s), texture->GetSize(mip), iaabb_s);
 
                                     int2 iaabb_e[TexelOffset::MAX_NUM];
-                                    omm::GatherTexCoord4<eTextureAddressMode>(glm::floor(faabb_e), texture->GetSize(mip), iaabb_e);
+                                    omm::GatherTexCoord4<eTextureAddressMode, bTexIsPow2>(glm::floor(faabb_e), texture->GetSize(mip), iaabb_e);
 
                                     const int2 aabb_s = iaabb_s[TexelOffset::I0x0];
                                     const int2 aabb_e = iaabb_e[TexelOffset::I1x1];
@@ -775,7 +884,7 @@ namespace Cpu
             return ommResult_SUCCESS;
         }
 
-        template<ommCpuTextureFormat eFormat, TilingMode eTilingMode, ommTextureAddressMode eTextureAddressMode, ommTextureFilterMode eFilterMode>
+        template<ommCpuTextureFormat eFormat, TilingMode eTilingMode, ommTextureAddressMode eTextureAddressMode, ommTextureFilterMode eFilterMode, bool bTexIsPow2>
         static ommResult ResampleStochastic(const ommCpuBakeInputDesc& desc, const Logger& log, const Options& options, vector<OmmWorkItem>& vmWorkItems)
         {
             if (options.enableAABBTesting && !options.disableLevelLineIntersection)
@@ -808,7 +917,7 @@ namespace Cpu
                         const Triangle subTri = omm::bird::GetMicroTriangle(workItem.uvTri, uTriIt, workItem.subdivisionLevel);
 
                         auto TestPoint = [&desc, &vmCoverage, &texture, &mipIt](float2 p) {
-                            if (desc.alphaCutoff < texture->Bilinear(eTextureAddressMode, p, mipIt))
+                            if (desc.alphaCutoff < texture->Bilinear<eFormat, eTilingMode, eTextureAddressMode, bTexIsPow2>(p, mipIt))
                                 vmCoverage.numBelowAlpha++;
                             else
                                 vmCoverage.numAboveAlpha++;
@@ -823,6 +932,7 @@ namespace Cpu
                             TestPoint(p);
                         }
                         
+#if 0
                         {
                             const float2 p = (subTri.p0 + 0.25f * (subTri.p1 - subTri.p0) + 0.25f * (subTri.p2 - subTri.p0));
                             TestPoint(p);
@@ -842,6 +952,7 @@ namespace Cpu
                             const float2 p = (subTri.p0 + 0.75f * (subTri.p1 - subTri.p0) + 0.75f * (subTri.p2 - subTri.p0));
                             TestPoint(p);
                         }
+#endif
 
                         const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGreater, desc.alphaCutoffLessEqual, vmCoverage);
                         if (IsUnknown(state))
@@ -856,7 +967,7 @@ namespace Cpu
             return ommResult_SUCCESS;
         }
 
-        template<ommCpuTextureFormat eFormat, TilingMode eTilingMode, ommTextureAddressMode eTextureAddressMode, ommTextureFilterMode eFilterMode>
+        template<ommCpuTextureFormat eFormat, TilingMode eTilingMode, ommTextureAddressMode eTextureAddressMode, ommTextureFilterMode eFilterMode, bool bTexIsPow2>
         static ommResult ResampleFine(const ommCpuBakeInputDesc& desc, const Logger& log, const Options& options, vector<OmmWorkItem>& vmWorkItems)
         {
             if (options.enableAABBTesting && !options.disableLevelLineIntersection)
@@ -912,7 +1023,6 @@ namespace Cpu
                                             // this way we get a single pixel kernel execution per alpha texture texel.
                                             const int2 rasterSize = texture->GetSize(mipIt);
 
-
                                             LevelLineIntersectionKernel::Params params = { &vmCoverage,  &subTri, texture->GetRcpSize(mipIt), rasterSize, texture, desc.alphaCutoff, desc.runtimeSamplerDesc.borderAlpha, mipIt };
 
                                             // This offset (in pixel units) will be applied to the triangle,
@@ -921,12 +1031,12 @@ namespace Cpu
                                             // This is only correct for bilinear version, nearest sampling should map exactly to the source alpha texture.
                                             float2 pixelOffset = -float2(0.5, 0.5);
 
-                                            if (desc.alphaCutoff < texture->Bilinear(eTextureAddressMode, subTri.p0, mipIt))
+                                            if (desc.alphaCutoff < texture->Bilinear<eFormat, eTilingMode, eTextureAddressMode, bTexIsPow2>(subTri.p0, mipIt))
                                                 vmCoverage.numAboveAlpha++;
                                             else
                                                 vmCoverage.numBelowAlpha++;
 
-                                            auto kernel = &LevelLineIntersectionKernel::run<eFormat, eTextureAddressMode, eTilingMode>;
+                                            auto kernel = &LevelLineIntersectionKernel::run<eFormat, eTextureAddressMode, eTilingMode, bTexIsPow2>;
                                             RasterizeConservativeSerialWithOffsetCoverage(subTri, rasterSize, pixelOffset, kernel, &params);
 
                                             OMM_ASSERT(vmCoverage.numAboveAlpha != 0 || vmCoverage.numBelowAlpha != 0);
@@ -955,7 +1065,7 @@ namespace Cpu
 
                                         Triangle subTri0 = Triangle(subTri.aabb_s, float2(subTri.aabb_e.x, subTri.aabb_s.y), float2(subTri.aabb_s.x, subTri.aabb_e.y));
                                         Triangle subTri1 = Triangle(subTri.aabb_e, float2(subTri.aabb_e.x, subTri.aabb_s.y), float2(subTri.aabb_s.x, subTri.aabb_e.y));
-                                        auto kernel = &ConservativeBilinearKernel::run<eFormat, eTextureAddressMode, eTilingMode>;
+                                        auto kernel = &ConservativeBilinearKernel::run<eFormat, eTextureAddressMode, eTilingMode, bTexIsPow2>;
                                         RasterizeConservativeSerialWithOffsetCoverage(subTri0, rasterSize, pixelOffset, kernel, &params);
                                         RasterizeConservativeSerialWithOffsetCoverage(subTri1, rasterSize, pixelOffset, kernel, &params);
 
@@ -980,7 +1090,7 @@ namespace Cpu
                                         OmmCoverage vmCoverage = { 0, };
                                         ConservativeBilinearKernel::Params params = { &vmCoverage,  texture->GetRcpSize(mip), rasterSize, texture, desc.alphaCutoff, desc.runtimeSamplerDesc.borderAlpha, mip };
 
-                                        auto kernel = &ConservativeBilinearKernel::run<eFormat, eTextureAddressMode, eTilingMode>;
+                                        auto kernel = &ConservativeBilinearKernel::run<eFormat, eTextureAddressMode, eTilingMode, bTexIsPow2>;
                                         RasterizeConservativeSerialWithOffsetCoverage(subTri, rasterSize, pixelOffset, kernel, &params);
 
                                         OMM_ASSERT(vmCoverage.numBelowAlpha != 0 || vmCoverage.numAboveAlpha != 0);
@@ -1018,7 +1128,7 @@ namespace Cpu
                                         {
                                             KernelParams* p = (KernelParams*)ctx;
 
-                                            const int2 coord = omm::GetTexCoord<eTextureAddressMode>(pixel, p->size);
+                                            const int2 coord = omm::GetTexCoord<eTextureAddressMode, bTexIsPow2>(pixel, p->size);
 
                                             const bool isBorder = eTextureAddressMode == ommTextureAddressMode_Border && (coord.x == kTexCoordBorder || coord.y == kTexCoordBorder);
                                             const float alpha = isBorder ? p->borderAlpha : p->texture->template Load<eFormat, eTilingMode>(coord, p->mipIt);
@@ -1491,8 +1601,25 @@ namespace Cpu
             return ommResult_SUCCESS;
         }
 
-        static ommResult CreateUsageHistograms(vector<OmmWorkItem>& vmWorkItems, VisibilityMapUsageHistogram& arrayHistogram, VisibilityMapUsageHistogram& indexHistogram)
+        static ommResult CreateUsageHistograms(vector<OmmWorkItem>& vmWorkItems, const Logger& log, VisibilityMapUsageHistogram& arrayHistogram, VisibilityMapUsageHistogram& indexHistogram)
         {
+            for (OmmWorkItem& a : vmWorkItems)
+            {
+                const float area = GetArea2D(a.uvTri);
+
+                const bool willBake = area < 1.f;
+
+                const uint32_t numMicroTriangles = omm::bird::GetNumMicroTriangles(a.subdivisionLevel);
+
+                // omm::debu
+                log.Infof("%.2f - willBake:%d, lvl:%d", area, willBake, a.subdivisionLevel);
+
+               //for (uint32_t i = 0; i < numMicroTriangles; ++i)
+               //{
+               //    log.Infof("%.2f - willBake:%d, lvl:%d", area, willBake, a.subdivisionLevel);
+               //}
+            }
+
             // Collect raster output to a final VM state.
             for (int32_t workItemIt = 0; workItemIt < vmWorkItems.size(); ++workItemIt)
             {
@@ -1538,7 +1665,7 @@ namespace Cpu
                         constexpr const uint32_t k = 13;
                         const int2 qSize = int2(1u << k, 1u << k);
                         const int2 qUV = int2(float2(qSize) * ((vm.uvTri.p0 + vm.uvTri.p1 + vm.uvTri.p2) / 3.f));
-                        const int2 qPosMirrored = GetTexCoord<ommTextureAddressMode_MirrorOnce>(qUV, qSize);
+                        const int2 qPosMirrored = GetTexCoord<ommTextureAddressMode_MirrorOnce, false>(qUV, qSize);
                         OMM_ASSERT(qPosMirrored.x >= 0 && qPosMirrored.y >= 0);
                         const uint64_t mCode = xy_to_morton(qPosMirrored.x, qPosMirrored.y);
                         OMM_ASSERT(mCode < (1ull << (k << 1ull)));
@@ -1698,7 +1825,7 @@ namespace Cpu
         }
     } // namespace impl
 
-    template<ommCpuTextureFormat eFormat, TilingMode eTilingMode, ommTextureAddressMode eTextureAddressMode, ommTextureFilterMode eFilterMode>
+    template<ommCpuTextureFormat eFormat, TilingMode eTilingMode, ommTextureAddressMode eTextureAddressMode, ommTextureFilterMode eFilterMode, bool bTexIsPow2>
     ommResult BakeOutputImpl::BakeImpl(const ommCpuBakeInputDesc& desc)
     {
         RETURN_STATUS_IF_FAILED(ValidateDesc(desc));
@@ -1708,15 +1835,15 @@ namespace Cpu
         m_bakeInputDesc = desc;
 
         auto impl__ResampleCoarse = [](const ommCpuBakeInputDesc& desc, const Logger& log, const Options& options, vector<OmmWorkItem>& vmWorkItems) {
-            return impl::ResampleCoarse<eFormat, eTilingMode, eTextureAddressMode, eFilterMode>(desc, log, options, vmWorkItems);
+            return impl::ResampleCoarse<eFormat, eTilingMode, eTextureAddressMode, eFilterMode, bTexIsPow2>(desc, log, options, vmWorkItems);
         };
 
         auto impl__ResampleStochastic = [](const ommCpuBakeInputDesc& desc, const Logger& log, const Options& options, vector<OmmWorkItem>& vmWorkItems) {
-            return impl::ResampleStochastic<eFormat, eTilingMode, eTextureAddressMode, eFilterMode>(desc, log, options, vmWorkItems);
+            return impl::ResampleStochastic<eFormat, eTilingMode, eTextureAddressMode, eFilterMode, bTexIsPow2>(desc, log, options, vmWorkItems);
             };
 
         auto impl__ResampleFine = [](const ommCpuBakeInputDesc& desc, const Logger& log, const Options& options, vector<OmmWorkItem>& vmWorkItems) {
-            return impl::ResampleFine<eFormat, eTilingMode, eTextureAddressMode, eFilterMode>(desc, log, options, vmWorkItems);
+            return impl::ResampleFine<eFormat, eTilingMode, eTextureAddressMode, eFilterMode, bTexIsPow2>(desc, log, options, vmWorkItems);
         };
 
         {
@@ -1744,7 +1871,7 @@ namespace Cpu
 
             VisibilityMapUsageHistogram arrayHistogram;
             VisibilityMapUsageHistogram indexHistogram;
-            RETURN_STATUS_IF_FAILED(impl::CreateUsageHistograms(vmWorkItems, arrayHistogram, indexHistogram));
+            RETURN_STATUS_IF_FAILED(impl::CreateUsageHistograms(vmWorkItems, m_log, arrayHistogram, indexHistogram));
 
             vector<std::pair<uint64_t, uint32_t>> sortKeys(m_stdAllocator.GetInterface());
             RETURN_STATUS_IF_FAILED(impl::MicromapSpatialSort(m_stdAllocator, options, vmWorkItems, sortKeys));

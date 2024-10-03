@@ -30,12 +30,20 @@ namespace omm
         MAX_NUM,
     };
 
-    template<ommTextureAddressMode eAddressMode>
+    template<ommTextureAddressMode eAddressMode, bool bTexSizeIsPow2>
     __forceinline static inline int2 GetTexCoord(const int2& texCoord, const int2& texSize) {
         switch (eAddressMode)
         {
         case ommTextureAddressMode_Wrap: {
-            return int2(uint2(texCoord) % uint2(texSize));
+
+            if constexpr (bTexSizeIsPow2)
+            {
+                return uint2(texCoord) & (uint2(texSize - 1));
+            }
+            else
+            {
+                return int2(uint2(texCoord) % uint2(texSize));
+            }
         }
         case ommTextureAddressMode_Mirror: {
             const int2 texCoordAbs = (int2)glm::abs((float2)texCoord + 0.5f);
@@ -65,23 +73,23 @@ namespace omm
         }
     }
 
-    static inline int2 GetTexCoord(ommTextureAddressMode addressingMode, const int2& texCoord, const int2& texSize) {
+    static inline int2 GetTexCoord(ommTextureAddressMode addressingMode, bool isLog2, const int2& texCoord, const int2& texSize) {
         switch (addressingMode)
         {
         case ommTextureAddressMode_Wrap: {
-            return GetTexCoord<ommTextureAddressMode_Wrap>(texCoord, texSize);
+            return isLog2 ? GetTexCoord<ommTextureAddressMode_Wrap, true>(texCoord, texSize) : GetTexCoord<ommTextureAddressMode_Wrap, false>(texCoord, texSize);
         }
         case ommTextureAddressMode_Mirror: {
-            return GetTexCoord<ommTextureAddressMode_Mirror>(texCoord, texSize);
+            return isLog2 ? GetTexCoord<ommTextureAddressMode_Mirror, true>(texCoord, texSize) : GetTexCoord<ommTextureAddressMode_Mirror, false>(texCoord, texSize);
         }
         case ommTextureAddressMode_Clamp: {
-            return GetTexCoord<ommTextureAddressMode_Clamp>(texCoord, texSize);
+            return isLog2 ? GetTexCoord<ommTextureAddressMode_Clamp, true>(texCoord, texSize) : GetTexCoord<ommTextureAddressMode_Clamp, false>(texCoord, texSize);
         }
         case ommTextureAddressMode_Border: {
-            return GetTexCoord<ommTextureAddressMode_Border>(texCoord, texSize);
+            return isLog2 ? GetTexCoord<ommTextureAddressMode_Border, true>(texCoord, texSize) : GetTexCoord<ommTextureAddressMode_Border, false>(texCoord, texSize);
         }
         case ommTextureAddressMode_MirrorOnce: {
-            return GetTexCoord<ommTextureAddressMode_MirrorOnce>(texCoord, texSize);
+            return isLog2 ? GetTexCoord<ommTextureAddressMode_MirrorOnce, true>(texCoord, texSize) : GetTexCoord<ommTextureAddressMode_MirrorOnce, false>(texCoord, texSize);
         }
         default: {
             return kTexCoordInvalid2;
@@ -89,29 +97,39 @@ namespace omm
         }
     }
 
-    __forceinline static int2 GetTexCoord(omm::TextureAddressMode addressingMode, const int2& texCoord, const int2& texSize) {
-        return GetTexCoord((ommTextureAddressMode)addressingMode, texCoord, texSize);
+    __forceinline static int2 GetTexCoord(omm::TextureAddressMode addressingMode, bool texSizeIsLog2, const int2& texCoord, const int2& texSize) {
+        return GetTexCoord((ommTextureAddressMode)addressingMode, texSizeIsLog2, texCoord, texSize);
     }
 
-    static inline void GatherTexCoord4(ommTextureAddressMode addressingMode, const int2& texCoord, const int2& texSize, int2* coords) {
-        const int2 offset   = GetTexCoord(addressingMode, texCoord, texSize);
-        const int2 offset11 = GetTexCoord(addressingMode, texCoord + int2{ 1, 1 }, texSize);
+    static inline void GatherTexCoord4(ommTextureAddressMode addressingMode, bool texSizeIsLog2, const int2& texCoord, const int2& texSize, int2* coords) {
+        const int2 offset   = GetTexCoord(addressingMode, texSizeIsLog2, texCoord, texSize);
+        const int2 offset11 = GetTexCoord(addressingMode, texSizeIsLog2, texCoord + int2{ 1, 1 }, texSize);
         coords[TexelOffset::I0x0] = { offset.x,     offset.y };
         coords[TexelOffset::I1x0] = { offset11.x,   offset.y };
         coords[TexelOffset::I0x1] = { offset.x,     offset11.y };
         coords[TexelOffset::I1x1] = { offset11.x,   offset11.y };
     }
 
-    template<ommTextureAddressMode eAddressMode>
+    template<ommTextureAddressMode eAddressMode, bool bTexSizeIsPow2>
     __forceinline static inline void GatherTexCoord4(const int2& texCoord, const int2& texSize, int2* __restrict coords) {
-        const int2 offset = GetTexCoord<eAddressMode>(texCoord, texSize);
-        const int2 offset11 = GetTexCoord<eAddressMode>(texCoord + int2{ 1, 1 }, texSize);
+        const int2 offset = GetTexCoord<eAddressMode, bTexSizeIsPow2>(texCoord, texSize);
+        const int2 offset11 = GetTexCoord<eAddressMode, bTexSizeIsPow2>(texCoord + int2{ 1, 1 }, texSize);
         coords[TexelOffset::I0x0] = { offset.x,     offset.y };
         coords[TexelOffset::I1x0] = { offset11.x,   offset.y };
         coords[TexelOffset::I0x1] = { offset.x,     offset11.y };
         coords[TexelOffset::I1x1] = { offset11.x,   offset11.y };
     }
-   
+
+    template<ommTextureAddressMode eAddressMode, bool bTexSizeIsPow2>
+    __forceinline static inline void GatherTexCoord4(const int2& texCoord, const int2& texSize, int2& out00, int2& out10, int2& out01, int2& out11) {
+        const int2 offset = GetTexCoord<eAddressMode, bTexSizeIsPow2>(texCoord, texSize);
+        const int2 offset11 = GetTexCoord<eAddressMode, bTexSizeIsPow2>(texCoord + int2{ 1, 1 }, texSize);
+        out00 = { offset.x,     offset.y };
+        out10 = { offset11.x,   offset.y };
+        out01 = { offset.x,     offset11.y };
+        out11 = { offset11.x,   offset11.y };
+    }
+
     static inline uint32_t GetTexCoordFormatSize(ommTexCoordFormat format) {
         switch (format) {
         case ommTexCoordFormat_UV16_UNORM:

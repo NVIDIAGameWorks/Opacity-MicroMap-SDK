@@ -44,6 +44,9 @@ namespace omm
 
         float Load(const int2& texCoord, int32_t mip) const;
 
+        template<ommCpuTextureFormat eFormat, TilingMode eTilingMode, ommTextureAddressMode eMode, bool bTexIsPow2>
+        float Bilinear(const float2& p, int32_t mip) const;
+
         float Bilinear(ommTextureAddressMode mode, const float2& p, int32_t mip) const;
 
         TilingMode GetTilingMode() const {
@@ -56,6 +59,10 @@ namespace omm
 
         int2 GetSize(int32_t mip) const {
             return m_mips[mip].size;
+        }
+
+        bool SizeIsPow2() const {
+            return m_mips[0].sizeIsPow2;
         }
 
         float2 GetRcpSize(int32_t mip) const {
@@ -91,7 +98,6 @@ namespace omm
         {
             OMM_ASSERT(InTexture(s, mip));
             OMM_ASSERT(InTexture(e, mip));
-#if 1
             uint32_t* dataSAT = (uint32_t*)(m_dataSAT + m_mips[mip].dataOffsetSAT);
 
             int32_t s_x_minus_one = (s.x - 1);
@@ -103,19 +109,6 @@ namespace omm
             const uint32_t D = dataSAT[e.x + (e.y) * m_mips[mip].size.x];
             int32_t sum = D + A - B - C;
             return sum;
-#else
-
-            uint32_t sumTrue = 0;
-            for (int j = s.y; j <= e.y; ++j)
-            {
-                for (int i = s.x; i <= e.x; ++i)
-                {
-                    const float val = Load(int2(i, j), mip);
-                    sumTrue += val > m_alphaCutoff;
-                }
-            }
-            return sumTrue;
-#endif
         }
 
         template<class TMemoryStreamBuf>
@@ -142,6 +135,7 @@ namespace omm
         struct Mips
         {
             int2 size;
+            bool sizeIsPow2;
             float2 rcpSize;
             int2 sizeMinusOne;
             uintptr_t dataOffset;
@@ -168,6 +162,7 @@ namespace omm
         OMM_ASSERT(texCoord.y >= 0);
         OMM_ASSERT(texCoord.x < m_mips[mip].size.x);
         OMM_ASSERT(texCoord.y < m_mips[mip].size.y);
+        OMM_ASSERT(texCoord.y < m_mips[mip].size.y);
         OMM_ASSERT(glm::all(glm::notEqual(texCoord, kTexCoordBorder2)));
         OMM_ASSERT(glm::all(glm::notEqual(texCoord, kTexCoordInvalid2)));
         const uint64_t idx = From2Dto1D<eTilingMode>(texCoord, m_mips[mip].size);
@@ -182,6 +177,26 @@ namespace omm
             assert(false);
             return 0;
         }
+    }
+
+    template<ommCpuTextureFormat eFormat, TilingMode eTilingMode, ommTextureAddressMode eMode, bool bTexIsPow2>
+    float TextureImpl::Bilinear(const float2& p, int32_t mip) const
+    {
+        float2 pixel = p * (float2)(m_mips[mip].size) - 0.5f;
+        float2 pixelFloor = glm::floor(pixel);
+        int2 coords[omm::TexelOffset::MAX_NUM];
+        omm::GatherTexCoord4<eMode, bTexIsPow2>(int2(pixelFloor), m_mips[mip].size, coords);
+
+        float a = Load<eFormat, eTilingMode>(coords[omm::TexelOffset::I0x0], mip);
+        float b = Load<eFormat, eTilingMode>(coords[omm::TexelOffset::I0x1], mip);
+        float c = Load<eFormat, eTilingMode>(coords[omm::TexelOffset::I1x0], mip);
+        float d = Load<eFormat, eTilingMode>(coords[omm::TexelOffset::I1x1], mip);
+
+        const float2 weight = glm::fract(pixel);
+        float ac = glm::lerp<float>(a, c, weight.x);
+        float bd = glm::lerp<float>(b, d, weight.x);
+        float bilinearValue = glm::lerp(ac, bd, weight.y);
+        return bilinearValue;
     }
 
    	template<> uint64_t TextureImpl::From2Dto1D<TilingMode::Linear>(const int2& idx, const int2& size);
@@ -248,6 +263,8 @@ namespace omm
                 os.read(reinterpret_cast<char*>(&mip.dataOffset), sizeof(mip.dataOffset));
                 os.read(reinterpret_cast<char*>(&mip.numElements), sizeof(mip.numElements));
                 os.read(reinterpret_cast<char*>(&mip.dataOffsetSAT), sizeof(mip.dataOffsetSAT));
+
+                mip.sizeIsPow2 = isPow2(mip.size.x) && isPow2(mip.size.y);
             }
         }
 

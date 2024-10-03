@@ -240,26 +240,37 @@ private:
     }
 public:
 
-    template<ommCpuTextureFormat eFormat, ommTextureAddressMode eTextureAddressMode, TilingMode eTilingMode>
+    template<ommCpuTextureFormat eFormat, ommTextureAddressMode eTextureAddressMode, TilingMode eTilingMode, bool bTexIsPow2>
     static void run(int2 pixel, float3* bc, Coverage coverage, void* ctx)
     {
+        const Params* p = (const Params*)ctx;
+
         // We add +0.5 here in order to compensate for the raster offset.
         const float2 pixelf = (float2)pixel + 0.5f;
+        const float2 invPixelf = pixelf * p->invSize;
 
-        Params* p = (Params*)ctx;
-        int2 coord[TexelOffset::MAX_NUM];
-        omm::GatherTexCoord4<eTextureAddressMode>(glm::floor(pixelf), p->size, coord);
+        int2 coord00, coord10, coord01, coord11;
+        omm::GatherTexCoord4<eTextureAddressMode, bTexIsPow2>(glm::floor(pixelf), p->size, coord00, coord10, coord01, coord11);
 
         auto IsBorder = [](int2 coord) {
-            return eTextureAddressMode == ommTextureAddressMode_Border && (coord.x == kTexCoordBorder || coord.y == kTexCoordBorder);
+            return (coord.x == kTexCoordBorder || coord.y == kTexCoordBorder);
         };
 
         float4 gatherRed;
-        gatherRed.x = IsBorder(coord[TexelOffset::I0x0]) ? p->borderAlpha : p->texture->Load<eFormat, eTilingMode>(coord[TexelOffset::I0x0], p->mipLevel);
-        gatherRed.y = IsBorder(coord[TexelOffset::I0x1]) ? p->borderAlpha : p->texture->Load<eFormat, eTilingMode>(coord[TexelOffset::I0x1], p->mipLevel);
-        gatherRed.z = IsBorder(coord[TexelOffset::I1x1]) ? p->borderAlpha : p->texture->Load<eFormat, eTilingMode>(coord[TexelOffset::I1x1], p->mipLevel);
-        gatherRed.w = IsBorder(coord[TexelOffset::I1x0]) ? p->borderAlpha : p->texture->Load<eFormat, eTilingMode>(coord[TexelOffset::I1x0], p->mipLevel);
-
+        if constexpr (eTextureAddressMode == ommTextureAddressMode_Border)
+        {
+            gatherRed.x = IsBorder(coord00) ? p->borderAlpha : p->texture->Load<eFormat, eTilingMode>(coord00, p->mipLevel);
+            gatherRed.y = IsBorder(coord01) ? p->borderAlpha : p->texture->Load<eFormat, eTilingMode>(coord01, p->mipLevel);
+            gatherRed.z = IsBorder(coord11) ? p->borderAlpha : p->texture->Load<eFormat, eTilingMode>(coord11, p->mipLevel);
+            gatherRed.w = IsBorder(coord10) ? p->borderAlpha : p->texture->Load<eFormat, eTilingMode>(coord10, p->mipLevel);
+        }
+        else
+        {
+            gatherRed.x = p->texture->Load<eFormat, eTilingMode>(coord00, p->mipLevel);
+            gatherRed.y = p->texture->Load<eFormat, eTilingMode>(coord01, p->mipLevel);
+            gatherRed.z = p->texture->Load<eFormat, eTilingMode>(coord11, p->mipLevel);
+            gatherRed.w = p->texture->Load<eFormat, eTilingMode>(coord10, p->mipLevel);
+        }
 
         // ~~~ Look for internal extremes ~~~ 
         {
@@ -268,10 +279,10 @@ public:
             const bool IsOpaque2 = p->alphaCutoff < gatherRed.z;
             const bool IsOpaque3 = p->alphaCutoff < gatherRed.w;
 
-            const float2 p0x0 = p->invSize * (pixelf + float2(0.0f, 0.0f));
-            const float2 p0x1 = p->invSize * (pixelf + float2(0.0f, 1.0f));
-            const float2 p1x1 = p->invSize * (pixelf + float2(1.0f, 1.0f));
-            const float2 p1x0 = p->invSize * (pixelf + float2(1.0f, 0.0f));
+            const float2 p0x0 = invPixelf;
+            const float2 p0x1 = invPixelf + float2(0.0f, p->invSize.y);
+            const float2 p1x1 = invPixelf + p->invSize;
+            const float2 p1x0 = invPixelf + float2(p->invSize.x, 0.0f);
 
             bool IsInside0 = true;
             bool IsInside1 = true;
@@ -379,7 +390,7 @@ struct ConservativeBilinearKernel
         uint32_t                mipLevel;
     };
 
-    template<ommCpuTextureFormat eFormat, ommTextureAddressMode eTextureAddressMode, TilingMode eTilingMode>
+    template<ommCpuTextureFormat eFormat, ommTextureAddressMode eTextureAddressMode, TilingMode eTilingMode, bool bTexIsPow2>
     static void run(int2 pixel, float3* bc, Coverage coverage, void* ctx)
     {
         // We add +0.5 here in order to compensate for the raster offset.
@@ -387,17 +398,7 @@ struct ConservativeBilinearKernel
 
         Params* p = (Params*)ctx;
         int2 coord[TexelOffset::MAX_NUM];
-        omm::GatherTexCoord4<eTextureAddressMode>(glm::floor(pixelf), p->size, coord);
-
-        static_assert(GLM_CONFIG_CTOR_INIT == GLM_CTOR_INIT_DISABLE);
-#if GLM_HAS_ALIGNOF && (GLM_LANG & GLM_LANG_CXXMS_FLAG) && (GLM_ARCH & GLM_ARCH_SIMD_BIT)
-#	define GLM_CONFIG_SIMD GLM_ENABLE
-#else
-#	define GLM_CONFIG_SIMD GLM_DISABLE
-#endif
-        //static_assert(GLM_HAS_ALIGNOF);
-        //static_assert(GLM_FORCE_XYZW_ONLY);
-        //static_assert(GLM_CONFIG_SIMD == GLM_ENABLE);
+        omm::GatherTexCoord4<eTextureAddressMode, bTexIsPow2>(int2(pixelf), p->size, coord);
 
         auto IsBorder = [](int2 coord) {
             return eTextureAddressMode == ommTextureAddressMode_Border && (coord.x == kTexCoordBorder || coord.y == kTexCoordBorder);

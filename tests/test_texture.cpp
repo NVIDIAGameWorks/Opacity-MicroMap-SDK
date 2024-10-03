@@ -32,7 +32,7 @@ namespace {
 	}
 
 	void TexCoordTest(omm::TextureAddressMode mode, int2 texCoord, int2 size, int2 expectedValue) {
-		int2 modifiedTex = omm::GetTexCoord(mode, texCoord, size);
+		int2 modifiedTex = omm::GetTexCoord(mode, false, texCoord, size);
 		EXPECT_EQ(modifiedTex, expectedValue) << "Input:[" << texCoord.x << "," << texCoord.y << "],Expected:[" << expectedValue.x << "," << expectedValue.y
 			<< "],Was:[" << modifiedTex.x << "," << modifiedTex.y << "] Mode:" << GetName(mode);
 	}
