@@ -127,7 +127,7 @@ namespace Cpu
         }
 
         os.write(reinterpret_cast<const char*>(&inputDesc.unknownStatePromotion), sizeof(inputDesc.unknownStatePromotion));
-        os.write(reinterpret_cast<const char*>(&inputDesc.degenerateTriangleState), sizeof(inputDesc.degenerateTriangleState));
+        os.write(reinterpret_cast<const char*>(&inputDesc.degenTriState), sizeof(inputDesc.degenTriState));
         os.write(reinterpret_cast<const char*>(&inputDesc.maxSubdivisionLevel), sizeof(inputDesc.maxSubdivisionLevel));
 
         size_t numSubdivLvls = inputDesc.subdivisionLevels == nullptr ? 0 : inputDesc.indexCount;
@@ -418,7 +418,7 @@ namespace Cpu
         os.read(reinterpret_cast<char*>(&inputDesc.unknownStatePromotion), sizeof(inputDesc.unknownStatePromotion));
         if (header.inputDescVersion >= 2)
         {
-            os.read(reinterpret_cast<char*>(&inputDesc.degenerateTriangleState), sizeof(inputDesc.degenerateTriangleState));
+            os.read(reinterpret_cast<char*>(&inputDesc.degenTriState), sizeof(inputDesc.degenTriState));
         }
         os.read(reinterpret_cast<char*>(&inputDesc.maxSubdivisionLevel), sizeof(inputDesc.maxSubdivisionLevel));
 
@@ -510,14 +510,14 @@ namespace Cpu
         Header header;
         RETURN_STATUS_IF_FAILED(_Deserialize(header, hash, buf));
         
-        size_t headerSize = 0;
+        int headerSize = 0;
         RETURN_STATUS_IF_FAILED(GetHeaderSize(header.inputDescVersion, headerSize));
 
         if (header.decompressedSize != 0)
         {
             m_deserializedData.resize(header.decompressedSize);
 
-            int resLz4 = LZ4_decompress_safe((const char*)desc.data + headerSize, (char*)m_deserializedData.data(), desc.size - headerSize, header.decompressedSize);
+            int resLz4 = LZ4_decompress_safe((const char*)desc.data + headerSize, (char*)m_deserializedData.data(), (int)desc.size - headerSize, header.decompressedSize);
 
             if (resLz4 < 0)
             {

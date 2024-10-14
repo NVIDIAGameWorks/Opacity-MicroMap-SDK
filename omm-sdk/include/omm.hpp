@@ -314,7 +314,7 @@ namespace omm
          // Determines how to promote mixed states
          UnknownStatePromotion unknownStatePromotion         = UnknownStatePromotion::ForceOpaque;
          // Determines the state of unresolvable/degenerate triangles (nan/inf or zeroa area UV-triangles)
-         SpecialIndex          degenerateTriangleState       = SpecialIndex::FullyUnknownOpaque;
+         SpecialIndex          degenTriState                 = SpecialIndex::FullyUnknownOpaque;
          // Micro triangle count is 4^N, where N is the subdivision level.
          // maxSubdivisionLevel level must be in range [0, 12].
          // When dynamicSubdivisionScale is enabled maxSubdivisionLevel is the max subdivision level allowed.

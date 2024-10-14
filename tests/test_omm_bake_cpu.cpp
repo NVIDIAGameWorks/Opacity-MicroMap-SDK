@@ -56,7 +56,22 @@ namespace {
 		bool forceCorruptedBlob = false;
 		bool forceSerializedOutput = false;
 		bool serializeCompress = false;
+		omm::SpecialIndex degenTriState = omm::SpecialIndex::FullyUnknownOpaque;
 	};
+
+	static float StandardCircle(int i, int j, int w, int h, int mip)
+	{
+		if (i == 0 && j == 0)
+			return 0.6f;
+
+		const float r = 0.4f;
+
+		const int2 idx = int2(i, j);
+		const float2 uv = float2(idx) / float2((float)w);
+		if (glm::length(uv - 0.5f) < r)
+			return 0.f;
+		return 1.f;
+	}
 
 	class OMMBakeTestCPU : public ::testing::TestWithParam<TestSuiteConfig> {
 	protected:
@@ -179,7 +194,7 @@ namespace {
 			desc.unknownStatePromotion = opt.unknownStatePromotion;
 			desc.bakeFlags = (omm::Cpu::BakeFlags)((uint32_t)omm::Cpu::BakeFlags::EnableInternalThreads);
 			desc.maxWorkloadSize = opt.maxWorkloadSize;
-
+			desc.degenTriState = opt.degenTriState;
 			if (opt.mergeSimilar)
 				desc.bakeFlags = (omm::Cpu::BakeFlags)((uint32_t)desc.bakeFlags | (uint32_t)omm::Cpu::BakeFlags::EnableNearDuplicateDetection);
 			if (Force32BitIndices())
@@ -744,18 +759,7 @@ namespace {
 			uint32_t subdivisionLevel = 4;
 			uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-			BakeOutput output = GetOmmBakeOutputFP32(0.5f, subdivisionLevel, { 8, 8 }, [](int i, int j, int w, int h, int mip)->float {
-				if (i == 0 && j == 0)
-					return 0.6f;
-
-				const float r = 0.4f;
-
-				const int2 idx = int2(i, j);
-				const float2 uv = float2(idx) / float2((float)w);
-				if (glm::length(uv - 0.5f) < r)
-					return 0.f;
-				return 1.f;
-				}, { .forceSerializedOutput = true, .serializeCompress = compress });
+			BakeOutput output = GetOmmBakeOutputFP32(0.5f, subdivisionLevel, { 8, 8 }, &StandardCircle, { .forceSerializedOutput = true, .serializeCompress = compress });
 
 			if (inputStr)
 				binaryToHex(inputStr, output.serializedInput);
@@ -947,18 +951,7 @@ namespace {
 		uint32_t subdivisionLevel = 4;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
-			if (i == 0 && j == 0)
-				return 0.6f;
-
-			const float r = 0.4f;
-
-			const int2 idx = int2(i, j);
-			const float2 uv = float2(idx) / float2((float)w);
-			if (glm::length(uv - 0.5f) < r)
-				return 0.f;
-			return 1.f;
-			});
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, { 1024, 1024 }, &StandardCircle);
 
 		ExpectEqual(stats, {
 			.totalOpaque = 204,
@@ -973,18 +966,7 @@ namespace {
 		uint32_t subdivisionLevel = 4;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
-			if (i == 0 && j == 0)
-				return 0.6f;
-
-			const float r = 0.4f;
-
-			const int2 idx = int2(i, j);
-			const float2 uv = float2(idx) / float2((float)w);
-			if (glm::length(uv - 0.5f) < r)
-				return 0.f;
-			return 1.f;
-			}, { .mergeSimilar = true });
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, { 1024, 1024 }, &StandardCircle, { .mergeSimilar = true });
 
 		ExpectEqual(stats, {
 			.totalOpaque = 200,
@@ -999,18 +981,7 @@ namespace {
 		uint32_t subdivisionLevel = 4;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
-			if (i == 0 && j == 0)
-				return 0.6f;
-
-			const float r = 0.4f;
-
-			const int2 idx = int2(i, j);
-			const float2 uv = float2(idx) / float2((float)w);
-			if (glm::length(uv - 0.5f) < r)
-				return 0.f;
-			return 1.f;
-			}, { .format = omm::Format::OC1_2_State });
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, { 1024, 1024 }, &StandardCircle, { .format = omm::Format::OC1_2_State });
 
 		ExpectEqual(stats, {
 			.totalOpaque = 254,
@@ -2269,6 +2240,35 @@ namespace {
 			.totalTransparent = 232,
 			.totalUnknownTransparent = 70,
 			.totalUnknownOpaque = 58,
+			});
+	}
+
+	TEST_P(OMMBakeTestCPU, Degen_Default) {
+
+		uint32_t triangleIndices[3] = { 0, 1, 2, };
+		float texCoords[8] = {  0.f, 0.f, 
+								0.f, 0.437582970f,	
+								0.f, 0.221271083f };
+
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, 4, { 1024, 1024 }, 3, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, &StandardCircle);
+
+		ExpectEqual(stats, {
+			.totalFullyUnknownOpaque = 1,
+		});
+	}
+
+	TEST_P(OMMBakeTestCPU, Degen_FullyUnknownTransparent) {
+
+		uint32_t triangleIndices[3] = { 0, 1, 2, };
+		float texCoords[8] = { 0.f, 0.f,
+								0.f, 0.437582970f,
+								0.f, 0.221271083f };
+
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, 4, { 1024, 1024 }, 3, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords,
+			&StandardCircle, { .degenTriState = omm::SpecialIndex::FullyUnknownTransparent });
+
+		ExpectEqual(stats, {
+			.totalFullyUnknownTransparent = 1,
 			});
 	}
 

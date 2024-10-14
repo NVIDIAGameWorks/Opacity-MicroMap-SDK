@@ -56,12 +56,12 @@ namespace Cpu
     };
 
 
-    static inline constexpr size_t HeaderSizeV1 = sizeof(XXH64_hash_t) + 5 * sizeof(int);
-    static inline constexpr size_t HeaderSizeV2 = sizeof(XXH64_hash_t) + 6 * sizeof(int);
+    static inline constexpr int HeaderSizeV1 = sizeof(XXH64_hash_t) + 5 * sizeof(int);
+    static inline constexpr int HeaderSizeV2 = sizeof(XXH64_hash_t) + 6 * sizeof(int);
 
-    static inline constexpr size_t HeaderSize[VERSION] = { HeaderSizeV1, HeaderSizeV2 };
+    static inline constexpr int HeaderSize[VERSION] = { HeaderSizeV1, HeaderSizeV2 };
 
-    static ommResult GetHeaderSize(int version, size_t& outSize)
+    static ommResult GetHeaderSize(int version, int& outSize)
     {
         if (version > VERSION)
             return ommResult_FAILURE;
