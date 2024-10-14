@@ -18,6 +18,18 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 namespace omm
 {
+	static const char* ToString(ommSpecialIndex specialIndex)
+	{
+		switch (specialIndex)
+		{
+		case ommSpecialIndex_FullyTransparent:			return "Fully Transparent";
+		case ommSpecialIndex_FullyOpaque:				return "Fully Opaque";
+		case ommSpecialIndex_FullyUnknownTransparent:	return "Fully Unknown Transparent";
+		case ommSpecialIndex_FullyUnknownOpaque:		return "Fully Unknown Opaque";
+		default: return "Unknown State";
+		}
+	}
+
 	class Logger
 	{
 	public:
@@ -34,6 +46,12 @@ namespace omm
 		void Info(const char* msg) const
 		{
 			_Log(ommMessageSeverity_Info, msg);
+		}
+
+		template<int N = 256, typename... Args>
+		void Infof(const char* format, Args&&... args) const
+		{
+			_Logf<N>(ommMessageSeverity_Info, format, std::forward<Args>(args)...);
 		}
 
 		void PerfWarn(const char* msg) const

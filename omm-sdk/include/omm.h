@@ -15,7 +15,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include <stddef.h>
 
 #define OMM_VERSION_MAJOR 1
-#define OMM_VERSION_MINOR 4
+#define OMM_VERSION_MINOR 5
 #define OMM_VERSION_BUILD 0
 
 #define OMM_MAX_TRANSIENT_POOL_BUFFERS 8
@@ -321,8 +321,11 @@ typedef enum ommCpuBakeFlags
    ommCpuBakeFlags_EnableNearDuplicateDetection = 1u << 4,
 
    // Enable additional validation, when enabled additional processing is performed to validate quality and sanity of input data
-   // which may help diagnose longer than expected bake time.
-   ommCpuBakeFlags_EnableWorkloadValidation     = 1u << 5,
+   // which may help diagnose omm bake result or longer than expected bake times.
+   // *** NOTE messageInterface must be set when using this flag *** 
+   ommCpuBakeFlags_EnableValidation             = 1u << 5,
+
+   ommCpuBakeFlags_EnableWorkloadValidation OMM_DEPRECATED_MSG("EnableWorkloadValidation is deprecated, use EnableValidation instead") = 1u << 5,
 
 } ommCpuBakeFlags;
 OMM_DEFINE_ENUM_FLAG_OPERATORS(ommCpuBakeFlags);
@@ -417,6 +420,8 @@ typedef struct ommCpuBakeInputDesc
    const ommFormat*         formats;
    // Determines how to promote mixed states
    ommUnknownStatePromotion unknownStatePromotion;
+   // Determines the state of unresolvable/degenerate triangles (nan/inf or zeroa area UV-triangles)
+   ommSpecialIndex          degenTriState;
    // Micro triangle count is 4^N, where N is the subdivision level.
    // maxSubdivisionLevel level must be in range [0, 12].
    // When dynamicSubdivisionScale is enabled maxSubdivisionLevel is the max subdivision level allowed.
@@ -461,6 +466,7 @@ inline ommCpuBakeInputDesc ommCpuBakeInputDescDefault()
    v.format                        = ommFormat_OC1_4_State;
    v.formats                       = NULL;
    v.unknownStatePromotion         = ommUnknownStatePromotion_ForceOpaque;
+   v.degenTriState                 = ommSpecialIndex_FullyUnknownOpaque;
    v.maxSubdivisionLevel           = 8;
    v.subdivisionLevels             = NULL;
    v.maxWorkloadSize               = 0;
