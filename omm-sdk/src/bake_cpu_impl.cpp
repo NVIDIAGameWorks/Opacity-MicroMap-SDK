@@ -1503,7 +1503,7 @@ namespace Cpu
             // Set special indices...
             {
                 res.ommIndexBuffer.resize(triangleCount);
-                std::fill(res.ommIndexBuffer.begin(), res.ommIndexBuffer.end(), (int32_t)ommSpecialIndex_FullyUnknownOpaque);
+                std::fill(res.ommIndexBuffer.begin(), res.ommIndexBuffer.end(), (int32_t)desc.degenerateTriangleState);
                 for (const OmmWorkItem& vm : vmWorkItems) 
 				{
                     for (uint32_t primitiveIndex : vm.primitiveIndices)
