@@ -11,7 +11,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include "omm_handle.h"
 #include "serialize_impl.h"
 #include <xxhash.h>
-#define LZ4_DEBUG (4)
+#include <cstring>
 #include <lz4.h>
 
 namespace omm
