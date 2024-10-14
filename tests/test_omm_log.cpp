@@ -54,7 +54,7 @@ namespace {
 			return tex;
 		}
 
-		omm::Cpu::BakeInputDesc CreateDefaultBakeInputDesc(uint32_t triangleCount = 256, const float alphaCutoff = 0.3f) {
+		omm::Cpu::BakeInputDesc CreateDefaultBakeInputDesc(uint32_t triangleCount = 256, const float alphaCutoff = 0.3f, bool forceDegenTris = false) {
 
 			vmtest::TextureFP32 texture(1024, 1024, 1, false, alphaCutoff, [](int i, int j, int w, int h, int mip) {
 				if ((i) % 2 != (j) % 2)
@@ -76,6 +76,8 @@ namespace {
 				for (uint32_t j = 0; j < 3; ++j) {
 					_indices[3 * i + j] = 3 * i + j;
 					_texCoords[3 * i + j] = float2(distr(eng), distr(eng));
+					if (forceDegenTris)
+						_texCoords[3 * i + j].x = 0.f;
 				}
 			}
 
@@ -92,7 +94,7 @@ namespace {
 			desc.maxSubdivisionLevel = 4;
 			desc.alphaCutoff = alphaCutoff;
 			desc.bakeFlags = (omm::Cpu::BakeFlags)(
-				(uint32_t)omm::Cpu::BakeFlags::EnableWorkloadValidation |
+				(uint32_t)omm::Cpu::BakeFlags::EnableValidation |
 				(uint32_t)omm::Cpu::BakeFlags::DisableSpecialIndices |
 				(uint32_t)omm::Cpu::BakeFlags::DisableDuplicateDetection);
 
@@ -190,6 +192,13 @@ namespace {
 		omm::Cpu::BakeInputDesc desc = CreateDefaultBakeInputDesc(511);
 		Bake(desc, { "[Perf Warning] - The workload consists of 137972015 work items (number of texels to classify), which corresponds to roughly 131 1024x1024 textures."
 					 " This is unusually large and may result in long bake times." }, omm::Result::SUCCESS);
+	}
+
+	TEST_F(LogTest, Validation_DegenerateTriangles)
+	{
+		InitBaker(true /*set callback*/);
+		omm::Cpu::BakeInputDesc desc = CreateDefaultBakeInputDesc(256, 0.5f, true /*forceDegen*/);
+		Bake(desc, { "[Info] - The workload consists of 256 degenerate triangles, these will be classified as Fully Unknown Opaque (this behaviour can be changed by degenTriState)." }, omm::Result::SUCCESS);
 	}
 
 	TEST_F(LogTest, InvalidParameter_ValidationWithoutLog)
