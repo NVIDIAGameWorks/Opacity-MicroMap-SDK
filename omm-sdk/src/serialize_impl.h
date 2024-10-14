@@ -30,14 +30,49 @@ namespace omm
 {
 namespace Cpu
 {
+    // struct Header_V1
+    // {
+    //     XXH64_hash_t storedHash;
+    //     int major = 0;
+    //     int minor = 0;
+    //     int patch = 0;
+    //     int inputDescVersion = 0;
+    //     ommCpuSerializeFlags flags = ommCpuSerializeFlags_None;
+    // };
+
+    struct Header
+    {
+        XXH64_hash_t storedHash;
+        int major = 0;
+        int minor = 0;
+        int patch = 0;
+        int inputDescVersion = 0;
+        int flags = ommCpuSerializeFlags_None;
+        int decompressedSize = 0;
+    };
+
+    enum Serialize {
+        VERSION = 2
+    };
+
+
+    static inline constexpr int HeaderSizeV1 = sizeof(XXH64_hash_t) + 5 * sizeof(int);
+    static inline constexpr int HeaderSizeV2 = sizeof(XXH64_hash_t) + 6 * sizeof(int);
+
+    static inline constexpr int HeaderSize[VERSION] = { HeaderSizeV1, HeaderSizeV2 };
+
+    static ommResult GetHeaderSize(int version, int& outSize)
+    {
+        if (version > VERSION)
+            return ommResult_FAILURE;
+        outSize = HeaderSize[version - 1];
+        return ommResult_SUCCESS;
+    }
+
     class SerializeResultImpl
     {
     public:
         static inline constexpr HandleType kHandleType = HandleType::SerializeResult;
-
-        enum {
-            VERSION = 1
-        };
 
         SerializeResultImpl(const StdAllocator<uint8_t>& stdAllocator, const Logger& log);
         ~SerializeResultImpl();
@@ -62,11 +97,36 @@ namespace Cpu
         template<class TMemoryStreamBuf>
         ommResult _Serialize(const ommCpuBakeResultDesc& resultDesc, TMemoryStreamBuf& buffer);
         template<class TMemoryStreamBuf>
-        ommResult _Serialize(const ommCpuDeserializedDesc& desc, TMemoryStreamBuf& buffer);
+        ommResult _Serialize(const ommCpuDeserializedDesc& desc, int compressionEnabled, TMemoryStreamBuf& buffer);
 
         StdAllocator<uint8_t> m_stdAllocator;
         const Logger& m_log;
         ommCpuBlobDesc m_desc;
+    };
+
+    class MemoryStreamBuf : public std::streambuf {
+    public:
+        MemoryStreamBuf(uint8_t* data, size_t size) {
+            setg((char*)data, (char*)data, (char*)data + size);
+            setp((char*)data, (char*)data + size);
+        }
+    };
+
+    class PassthroughStreamBuf : public std::streambuf {
+    public:
+        PassthroughStreamBuf() { }
+
+        std::streamsize GetWrittenSize() const
+        {
+            return written_size;
+        }
+
+        std::streamsize xsputn(const char* s, std::streamsize n) override {
+            written_size += n;
+            return n;
+        }
+    private:
+        std::streamsize written_size = 0;
     };
 
     class DeserializedResultImpl
@@ -91,16 +151,15 @@ namespace Cpu
 
     private:
 
-        template<class TMemoryStreamBuf>
-        ommResult _Deserialize(ommCpuBakeInputDesc& inputDesc, TMemoryStreamBuf& buffer);
-        template<class TMemoryStreamBuf>
-        ommResult _Deserialize(ommCpuBakeResultDesc& resultDesc, TMemoryStreamBuf& buffer);
-        template<class TMemoryStreamBuf>
-        ommResult _Deserialize(XXH64_hash_t hash, ommCpuDeserializedDesc& desc, TMemoryStreamBuf& buffer);
+        ommResult _Deserialize(Header& header, XXH64_hash_t hash, MemoryStreamBuf& buffer);
+        ommResult _Deserialize(ommCpuBakeInputDesc& inputDesc, const Header& header, MemoryStreamBuf& buffer);
+        ommResult _Deserialize(ommCpuBakeResultDesc& resultDesc, const Header& header, MemoryStreamBuf& buffer);
+        ommResult _Deserialize(ommCpuDeserializedDesc& desc, const Header& header, MemoryStreamBuf& buffer);
 
         StdAllocator<uint8_t> m_stdAllocator;
         const Logger& m_log;
         ommCpuDeserializedDesc m_inputDesc;
+        vector<uint8_t> m_deserializedData;
     };
 } // namespace Cpu
 } // namespace omm
