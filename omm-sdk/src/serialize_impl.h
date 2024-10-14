@@ -36,7 +36,7 @@ namespace Cpu
         static inline constexpr HandleType kHandleType = HandleType::SerializeResult;
 
         enum {
-            VERSION = 1
+            VERSION = 2
         };
 
         SerializeResultImpl(const StdAllocator<uint8_t>& stdAllocator, const Logger& log);
@@ -92,7 +92,7 @@ namespace Cpu
     private:
 
         template<class TMemoryStreamBuf>
-        ommResult _Deserialize(ommCpuBakeInputDesc& inputDesc, TMemoryStreamBuf& buffer);
+        ommResult _Deserialize(ommCpuBakeInputDesc& inputDesc, int inputDescVersion, TMemoryStreamBuf& buffer);
         template<class TMemoryStreamBuf>
         ommResult _Deserialize(ommCpuBakeResultDesc& resultDesc, TMemoryStreamBuf& buffer);
         template<class TMemoryStreamBuf>

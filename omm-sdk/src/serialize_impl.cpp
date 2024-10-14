@@ -104,7 +104,7 @@ namespace Cpu
     {
         std::ostream os(&buffer);
 
-        static_assert(sizeof(ommCpuBakeInputDesc) == 128);
+        static_assert(sizeof(ommCpuBakeInputDesc) == 136);
 
         os.write(reinterpret_cast<const char*>(&inputDesc.bakeFlags), sizeof(inputDesc.bakeFlags));
 
@@ -148,6 +148,7 @@ namespace Cpu
         }
 
         os.write(reinterpret_cast<const char*>(&inputDesc.unknownStatePromotion), sizeof(inputDesc.unknownStatePromotion));
+        os.write(reinterpret_cast<const char*>(&inputDesc.degenerateTriangleState), sizeof(inputDesc.degenerateTriangleState));
         os.write(reinterpret_cast<const char*>(&inputDesc.maxSubdivisionLevel), sizeof(inputDesc.maxSubdivisionLevel));
 
         size_t numSubdivLvls = inputDesc.subdivisionLevels == nullptr ? 0 : inputDesc.indexCount;
@@ -316,11 +317,11 @@ namespace Cpu
     }
 
     template<class TMemoryStreamBuf>
-    ommResult DeserializedResultImpl::_Deserialize(ommCpuBakeInputDesc& inputDesc, TMemoryStreamBuf& buffer)
+    ommResult DeserializedResultImpl::_Deserialize(ommCpuBakeInputDesc& inputDesc, int inputDescVersion, TMemoryStreamBuf& buffer)
     {
         std::istream os(&buffer);
 
-        static_assert(sizeof(ommCpuBakeInputDesc) == 128);
+        static_assert(sizeof(ommCpuBakeInputDesc) == 136);
 
         os.read(reinterpret_cast<char*>(&inputDesc.bakeFlags), sizeof(inputDesc.bakeFlags));
 
@@ -372,6 +373,10 @@ namespace Cpu
         }
 
         os.read(reinterpret_cast<char*>(&inputDesc.unknownStatePromotion), sizeof(inputDesc.unknownStatePromotion));
+        if (inputDescVersion >= 2)
+        {
+            os.read(reinterpret_cast<char*>(&inputDesc.degenerateTriangleState), sizeof(inputDesc.degenerateTriangleState));
+        }
         os.read(reinterpret_cast<char*>(&inputDesc.maxSubdivisionLevel), sizeof(inputDesc.maxSubdivisionLevel));
 
         size_t numSubdivLvls = 0;
@@ -441,7 +446,7 @@ namespace Cpu
         os.read(reinterpret_cast<char*>(&inputDescVersion), sizeof(inputDescVersion));
         // END HEADER
 
-        if (inputDescVersion != SerializeResultImpl::VERSION)
+        if (inputDescVersion > SerializeResultImpl::VERSION)
         {
             return m_log.InvalidArgf("The serialized blob appears to be generated from an incompatible version of the SDK (%d.%d.%d:%d)", major, minor, patch, inputDescVersion);
         }
@@ -455,7 +460,7 @@ namespace Cpu
             for (int i = 0; i < desc.numInputDescs; ++i)
             {
                 inputDescs[i] = ommCpuBakeInputDescDefault();
-                _Deserialize(inputDescs[i], buffer);
+                _Deserialize(inputDescs[i], inputDescVersion, buffer);
             }
             desc.inputDescs = inputDescs;
         }
@@ -466,7 +471,6 @@ namespace Cpu
             ommCpuBakeResultDesc* resultDescs = AllocateArray<ommCpuBakeResultDesc>(m_stdAllocator, desc.numResultDescs);
             for (int i = 0; i < desc.numResultDescs; ++i)
             {
-               // resultDescs[i] = ommCpuBakeResultDescDefault();
                 _Deserialize(resultDescs[i], buffer);
             }
             desc.resultDescs = resultDescs;

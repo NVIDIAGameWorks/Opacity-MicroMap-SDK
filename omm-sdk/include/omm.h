@@ -15,7 +15,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include <stddef.h>
 
 #define OMM_VERSION_MAJOR 1
-#define OMM_VERSION_MINOR 4
+#define OMM_VERSION_MINOR 5
 #define OMM_VERSION_BUILD 0
 
 #define OMM_MAX_TRANSIENT_POOL_BUFFERS 8
@@ -417,6 +417,8 @@ typedef struct ommCpuBakeInputDesc
    const ommFormat*         formats;
    // Determines how to promote mixed states
    ommUnknownStatePromotion unknownStatePromotion;
+   // Determines the state of unresolvable/degenerate triangles (nan/inf or zeroa area UV-triangles)
+   ommSpecialIndex          degenerateTriangleState;
    // Micro triangle count is 4^N, where N is the subdivision level.
    // maxSubdivisionLevel level must be in range [0, 12].
    // When dynamicSubdivisionScale is enabled maxSubdivisionLevel is the max subdivision level allowed.
@@ -461,6 +463,7 @@ inline ommCpuBakeInputDesc ommCpuBakeInputDescDefault()
    v.format                        = ommFormat_OC1_4_State;
    v.formats                       = NULL;
    v.unknownStatePromotion         = ommUnknownStatePromotion_ForceOpaque;
+   v.degenerateTriangleState       = ommSpecialIndex_FullyUnknownOpaque;
    v.maxSubdivisionLevel           = 8;
    v.subdivisionLevels             = NULL;
    v.maxWorkloadSize               = 0;
