@@ -685,7 +685,7 @@ namespace Cpu
                         uint32_t workItemIdx = (uint32_t)vmWorkItems.size();
                         // Temporarily set the triangle->vm desc mapping like this.
                         triangleIDToWorkItem.insert(std::make_pair(vmId, workItemIdx));
-                        vmWorkItems.emplace_back(allocator, ommFormat, subdivisionLevel, i, uvTri);                       
+                        vmWorkItems.emplace_back(allocator, ommFormat, subdivisionLevel, i, uvTri);
                     }
                     else {
                         vmWorkItems[it->second].primitiveIndices.push_back(i);
@@ -699,52 +699,6 @@ namespace Cpu
                         numDegenTri, specialIndex);
                 }
             }
-
-            if (options.enableBakeOnlySmallest)
-            {
-                std::sort(vmWorkItems.begin(), vmWorkItems.end(), [](const OmmWorkItem& a, const OmmWorkItem& b)->bool {
-                    const float areaA = GetArea2D(a.uvTri);
-                    const float areaB = GetArea2D(b.uvTri);
-
-                    return areaA < areaB;
-                });
-
-                uint64_t totMicroTri = 0;
-                uint64_t totWorkloadSize = 0;
-                for (OmmWorkItem& a : vmWorkItems)
-                {
-                    uint64_t workloadSize = ComputeWorkloadSize(desc, a);
-                    totWorkloadSize += workloadSize;
-                    const uint32_t numMicroTriangles = omm::bird::GetNumMicroTriangles(a.subdivisionLevel);
-                    totMicroTri += numMicroTriangles;
-                }
-
-                uint64_t totMicroTriSoFar = 0;
-                uint64_t totWorkloadSizeSoFar = 0;
-
-                for (OmmWorkItem& a : vmWorkItems)
-                {
-                    uint64_t workloadSize = ComputeWorkloadSize(desc, a);
-                    totWorkloadSizeSoFar += workloadSize;
-
-                    const uint32_t numMicroTriangles = omm::bird::GetNumMicroTriangles(a.subdivisionLevel);
-                    totMicroTriSoFar += numMicroTriangles;
-
-                    const bool willBake = totWorkloadSizeSoFar < totWorkloadSize / 2;
-
-                    if (!willBake)
-                    {
-                        for (uint32_t i = 0; i < numMicroTriangles; ++i)
-                        {
-                            a.vmStates.SetState(i, ommOpacityState_UnknownOpaque);
-                        }
-                    }
-
-                    const float area = GetArea2D(a.uvTri);
-                    log.Infof("%.5f - %d - %d", area, willBake, a.subdivisionLevel);
-                }
-            }
-
             return ommResult_SUCCESS;
         }
 
@@ -895,89 +849,6 @@ namespace Cpu
         }
 
         template<ommCpuTextureFormat eFormat, TilingMode eTilingMode, ommTextureAddressMode eTextureAddressMode, ommTextureFilterMode eFilterMode, bool bTexIsPow2>
-        static ommResult ResampleStochastic(const ommCpuBakeInputDesc& desc, const Logger& log, const Options& options, vector<OmmWorkItem>& vmWorkItems)
-        {
-            if (options.enableAABBTesting && !options.disableLevelLineIntersection)
-                return log.InvalidArg("[Invalid Arg] - EnableAABBTesting can't be used without also setting DisableLevelLineIntersection");
-
-            if (!options.enableStochasticClassification)
-                return ommResult_SUCCESS;
-
-            const TextureImpl* texture = GetHandleImpl<TextureImpl>(desc.texture);
-
-            const int32_t numWorkItems = (int32_t)vmWorkItems.size();
-
-            #pragma omp parallel for if(options.enableInternalThreads)
-            for (int32_t workItemIt = 0; workItemIt < numWorkItems; ++workItemIt) 
-            {
-                OmmWorkItem& workItem = vmWorkItems[workItemIt];
-
-                const uint32_t numMicroTriangles = omm::bird::GetNumMicroTriangles(workItem.subdivisionLevel);
-
-                for (uint32_t uTriIt = 0; uTriIt < numMicroTriangles; ++uTriIt)
-                {
-                    if (workItem.vmStates.IsStateSet(uTriIt))
-                    {
-                        continue;
-                    }
-
-                    OmmCoverage vmCoverage = { 0, };
-                    for (uint32_t mipIt = 0; mipIt < texture->GetMipCount(); ++mipIt)
-                    {
-                        const Triangle subTri = omm::bird::GetMicroTriangle(workItem.uvTri, uTriIt, workItem.subdivisionLevel);
-
-                        auto TestPoint = [&desc, &vmCoverage, &texture, &mipIt](float2 p) {
-                            if (desc.alphaCutoff < texture->Bilinear<eFormat, eTilingMode, eTextureAddressMode, bTexIsPow2>(p, mipIt))
-                                vmCoverage.numBelowAlpha++;
-                            else
-                                vmCoverage.numAboveAlpha++;
-                        };
-
-                        TestPoint(subTri.p0);
-                        TestPoint(subTri.p1);
-                        TestPoint(subTri.p2);
-
-                        {
-                            const float2 p = (subTri.p0 + 0.5f * (subTri.p1 - subTri.p0) + 0.5f * (subTri.p2 - subTri.p0));
-                            TestPoint(p);
-                        }
-                        
-#if 0
-                        {
-                            const float2 p = (subTri.p0 + 0.25f * (subTri.p1 - subTri.p0) + 0.25f * (subTri.p2 - subTri.p0));
-                            TestPoint(p);
-                        }
-
-                        {
-                            const float2 p = (subTri.p0 + 0.75f * (subTri.p1 - subTri.p0) + 0.25f * (subTri.p2 - subTri.p0));
-                            TestPoint(p);
-                        }
-
-                        {
-                            const float2 p = (subTri.p0 + 0.25f * (subTri.p1 - subTri.p0) + 0.75f * (subTri.p2 - subTri.p0));
-                            TestPoint(p);
-                        }
-                        
-                        {
-                            const float2 p = (subTri.p0 + 0.75f * (subTri.p1 - subTri.p0) + 0.75f * (subTri.p2 - subTri.p0));
-                            TestPoint(p);
-                        }
-#endif
-
-                        const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGreater, desc.alphaCutoffLessEqual, vmCoverage);
-                        if (IsUnknown(state))
-                        {
-                            workItem.vmStates.SetState(uTriIt, state);
-                            break;
-                        }
-                    }
-                }
-            }
-
-            return ommResult_SUCCESS;
-        }
-
-        template<ommCpuTextureFormat eFormat, TilingMode eTilingMode, ommTextureAddressMode eTextureAddressMode, ommTextureFilterMode eFilterMode, bool bTexIsPow2>
         static ommResult ResampleFine(const ommCpuBakeInputDesc& desc, const Logger& log, const Options& options, vector<OmmWorkItem>& vmWorkItems)
         {
             if (options.enableAABBTesting && !options.disableLevelLineIntersection)
@@ -1010,12 +881,7 @@ namespace Cpu
                                 // Run conservative rasterization on the micro triangle
                                 for (uint32_t uTriIt = 0; uTriIt < numMicroTriangles; ++uTriIt)
                                 {
-                                    // if (workItem.vmStates.GetState(uTriIt) != ommOpacityState_UnknownOpaque)
-                                    // {
-                                    //     continue;
-                                    // }
-
-                                    if (workItem.vmStates.IsStateSet(uTriIt))
+                                    if (workItem.vmStates.GetState(uTriIt) != ommOpacityState_UnknownOpaque)
                                     {
                                         continue;
                                     }
@@ -1611,25 +1477,8 @@ namespace Cpu
             return ommResult_SUCCESS;
         }
 
-        static ommResult CreateUsageHistograms(vector<OmmWorkItem>& vmWorkItems, const Logger& log, VisibilityMapUsageHistogram& arrayHistogram, VisibilityMapUsageHistogram& indexHistogram)
+        static ommResult CreateUsageHistograms(vector<OmmWorkItem>& vmWorkItems, VisibilityMapUsageHistogram& arrayHistogram, VisibilityMapUsageHistogram& indexHistogram)
         {
-            for (OmmWorkItem& a : vmWorkItems)
-            {
-                const float area = GetArea2D(a.uvTri);
-
-                const bool willBake = area < 1.f;
-
-                const uint32_t numMicroTriangles = omm::bird::GetNumMicroTriangles(a.subdivisionLevel);
-
-                // omm::debu
-                log.Infof("%.2f - willBake:%d, lvl:%d", area, willBake, a.subdivisionLevel);
-
-               //for (uint32_t i = 0; i < numMicroTriangles; ++i)
-               //{
-               //    log.Infof("%.2f - willBake:%d, lvl:%d", area, willBake, a.subdivisionLevel);
-               //}
-            }
-
             // Collect raster output to a final VM state.
             for (int32_t workItemIt = 0; workItemIt < vmWorkItems.size(); ++workItemIt)
             {
@@ -1848,10 +1697,6 @@ namespace Cpu
             return impl::ResampleCoarse<eFormat, eTilingMode, eTextureAddressMode, eFilterMode, bTexIsPow2>(desc, log, options, vmWorkItems);
         };
 
-        auto impl__ResampleStochastic = [](const ommCpuBakeInputDesc& desc, const Logger& log, const Options& options, vector<OmmWorkItem>& vmWorkItems) {
-            return impl::ResampleStochastic<eFormat, eTilingMode, eTextureAddressMode, eFilterMode, bTexIsPow2>(desc, log, options, vmWorkItems);
-            };
-
         auto impl__ResampleFine = [](const ommCpuBakeInputDesc& desc, const Logger& log, const Options& options, vector<OmmWorkItem>& vmWorkItems) {
             return impl::ResampleFine<eFormat, eTilingMode, eTextureAddressMode, eFilterMode, bTexIsPow2>(desc, log, options, vmWorkItems);
         };
@@ -1864,8 +1709,6 @@ namespace Cpu
             RETURN_STATUS_IF_FAILED(impl::ValidateWorkloadSize(m_stdAllocator, m_log, desc, options, vmWorkItems));
 
             RETURN_STATUS_IF_FAILED(impl__ResampleCoarse(desc, m_log, options, vmWorkItems));
-
-            RETURN_STATUS_IF_FAILED(impl__ResampleStochastic(desc, m_log, options, vmWorkItems));
 
             RETURN_STATUS_IF_FAILED(impl__ResampleFine(desc, m_log, options, vmWorkItems));
 
@@ -1881,7 +1724,7 @@ namespace Cpu
 
             VisibilityMapUsageHistogram arrayHistogram;
             VisibilityMapUsageHistogram indexHistogram;
-            RETURN_STATUS_IF_FAILED(impl::CreateUsageHistograms(vmWorkItems, m_log, arrayHistogram, indexHistogram));
+            RETURN_STATUS_IF_FAILED(impl::CreateUsageHistograms(vmWorkItems, arrayHistogram, indexHistogram));
 
             vector<std::pair<uint64_t, uint32_t>> sortKeys(m_stdAllocator.GetInterface());
             RETURN_STATUS_IF_FAILED(impl::MicromapSpatialSort(m_stdAllocator, options, vmWorkItems, sortKeys));

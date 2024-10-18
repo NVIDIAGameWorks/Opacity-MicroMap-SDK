@@ -36,18 +36,6 @@ namespace omm
         return x > 0 && !(x & (x-1));
     }
 
-    static int32_t log2(int32_t v) {
-        int32_t r; // result of log2(v) will go here
-        int32_t shift;
-
-        r = (v > 0xFFFF) << 4; v >>= r;
-        shift = (v > 0xFF) << 3; v >>= shift; r |= shift;
-        shift = (v > 0xF) << 2; v >>= shift; r |= shift;
-        shift = (v > 0x3) << 1; v >>= shift; r |= shift;
-        r |= (v >> 1);
-        return r;
-    }
-
     static uint32_t _bit_interleave_sw(uint32_t in_x, uint32_t in_y) {
         // 'Interleave bits by Binary Magic Numbers'
         // https://graphics.stanford.edu/~seander/bithacks.html#InterleaveBMN
