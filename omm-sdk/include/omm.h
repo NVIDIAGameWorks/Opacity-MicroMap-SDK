@@ -16,7 +16,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 #define OMM_VERSION_MAJOR 1
 #define OMM_VERSION_MINOR 5
-#define OMM_VERSION_BUILD 0
+#define OMM_VERSION_BUILD 1
 
 #define OMM_MAX_TRANSIENT_POOL_BUFFERS 8
 
@@ -469,7 +469,7 @@ inline ommCpuBakeInputDesc ommCpuBakeInputDescDefault()
    v.degenTriState                 = ommSpecialIndex_FullyUnknownOpaque;
    v.maxSubdivisionLevel           = 8;
    v.subdivisionLevels             = NULL;
-   v.maxWorkloadSize               = 0;
+   v.maxWorkloadSize               = 0xFFFFFFFFFFFFFFFF;
    return v;
 }
 
