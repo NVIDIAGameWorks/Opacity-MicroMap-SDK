@@ -11,35 +11,14 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include "omm_handle.h"
 #include "serialize_impl.h"
 #include <xxhash.h>
+#include <cstring>
+#include <lz4.h>
 
 namespace omm
 {
 namespace Cpu
 {
-    class MemoryStreamBuf : public std::streambuf {
-    public:
-        MemoryStreamBuf(uint8_t* data, size_t size) {
-            setg((char*)data, (char*)data, (char*)data + size);
-            setp((char*)data, (char*)data + size);
-        }
-    };
-
-    class PassthroughStreamBuf : public std::streambuf {
-    public:
-        PassthroughStreamBuf() { }
-
-        std::streamsize GetWrittenSize() const
-        {
-            return written_size;
-        }
-
-        std::streamsize xsputn(const char* s, std::streamsize n) override {
-            written_size += n;
-            return n;
-        }
-    private:
-        std::streamsize written_size = 0;
-    };
+    
 
     template<class TElem>
     void WriteArray(std::ostream& os, const TElem* data, uint32_t elementCount)
@@ -104,7 +83,7 @@ namespace Cpu
     {
         std::ostream os(&buffer);
 
-        static_assert(sizeof(ommCpuBakeInputDesc) == 128);
+        static_assert(sizeof(ommCpuBakeInputDesc) == 136);
 
         os.write(reinterpret_cast<const char*>(&inputDesc.bakeFlags), sizeof(inputDesc.bakeFlags));
 
@@ -148,6 +127,7 @@ namespace Cpu
         }
 
         os.write(reinterpret_cast<const char*>(&inputDesc.unknownStatePromotion), sizeof(inputDesc.unknownStatePromotion));
+        os.write(reinterpret_cast<const char*>(&inputDesc.degenTriState), sizeof(inputDesc.degenTriState));
         os.write(reinterpret_cast<const char*>(&inputDesc.maxSubdivisionLevel), sizeof(inputDesc.maxSubdivisionLevel));
 
         size_t numSubdivLvls = inputDesc.subdivisionLevels == nullptr ? 0 : inputDesc.indexCount;
@@ -188,7 +168,7 @@ namespace Cpu
     }
 
     template<class TMemoryStreamBuf>
-    ommResult SerializeResultImpl::_Serialize(const ommCpuDeserializedDesc& inputDesc, TMemoryStreamBuf& buffer)
+    ommResult SerializeResultImpl::_Serialize(const ommCpuDeserializedDesc& inputDesc, int decompressedSize, TMemoryStreamBuf& buffer)
     {
         std::ostream os(&buffer);
 
@@ -199,14 +179,14 @@ namespace Cpu
         int major = OMM_VERSION_MAJOR;
         int minor = OMM_VERSION_MINOR;
         int patch = OMM_VERSION_BUILD;
-        int inputDescVersion = SerializeResultImpl::VERSION;
+        int inputDescVersion = Serialize::VERSION;
         os.write(reinterpret_cast<const char*>(&major), sizeof(major));
         os.write(reinterpret_cast<const char*>(&minor), sizeof(minor));
         os.write(reinterpret_cast<const char*>(&patch), sizeof(patch));
         os.write(reinterpret_cast<const char*>(&inputDescVersion), sizeof(inputDescVersion));
+        os.write(reinterpret_cast<const char*>(&inputDesc.flags), sizeof(int));
+        os.write(reinterpret_cast<const char*>(&decompressedSize), sizeof(decompressedSize));
         // END HEADER
-
-        os.write(reinterpret_cast<const char*>(&inputDesc.flags), sizeof(inputDesc.flags));
 
         os.write(reinterpret_cast<const char*>(&inputDesc.numInputDescs), sizeof(inputDesc.numInputDescs));
         for (int i = 0; i < inputDesc.numInputDescs; ++i)
@@ -226,15 +206,49 @@ namespace Cpu
     ommResult SerializeResultImpl::Serialize(const ommCpuDeserializedDesc& desc)
     {
         PassthroughStreamBuf passthrough;
-        RETURN_STATUS_IF_FAILED(_Serialize(desc, passthrough));
 
-        size_t size = passthrough.GetWrittenSize();
+        RETURN_STATUS_IF_FAILED(_Serialize(desc, 0 /*decompressedSize*/, passthrough));
 
-        m_desc.data = m_stdAllocator.allocate(size, 16);
-        m_desc.size = size;
+        size_t serializedSize = passthrough.GetWrittenSize();
+        uint8_t* serialized = m_stdAllocator.allocate(serializedSize, 16);
 
-        MemoryStreamBuf buf((uint8_t*)m_desc.data, m_desc.size);
-        RETURN_STATUS_IF_FAILED(_Serialize(desc, buf));
+        const bool compressionEnabled = serializedSize < LZ4_MAX_INPUT_SIZE && ((desc.flags & ommCpuSerializeFlags_Compress) == ommCpuSerializeFlags_Compress);
+        static_assert(0x7E000000 == LZ4_MAX_INPUT_SIZE);
+
+        const int headerSize = (int)HeaderSize[VERSION - 1];
+        const int decompressedSize = compressionEnabled ? (int)serializedSize - headerSize : 0;
+
+        MemoryStreamBuf buf(serialized, serializedSize);
+        RETURN_STATUS_IF_FAILED(_Serialize(desc, decompressedSize, buf));
+
+        if (compressionEnabled)
+        {
+            int scratchSize = LZ4_compressBound(decompressedSize);
+            uint8_t* scratch = m_stdAllocator.allocate(scratchSize, 16);
+
+            int compressedSize = LZ4_compress_default((const char*)serialized + headerSize, (char*)scratch, decompressedSize, scratchSize);
+
+            if (compressedSize < 0)
+            {
+                m_stdAllocator.deallocate(scratch, scratchSize);
+                m_stdAllocator.deallocate(serialized, serializedSize);
+                return ommResult_FAILURE;
+            }
+
+            m_desc.size = headerSize + compressedSize;
+            m_desc.data = m_stdAllocator.allocate(m_desc.size, 16);
+
+            memcpy(m_desc.data, serialized, headerSize);
+            memcpy((uint8_t*)m_desc.data + headerSize, scratch, compressedSize);
+
+            m_stdAllocator.deallocate(scratch, scratchSize);
+            m_stdAllocator.deallocate(serialized, serializedSize);
+        }
+        else
+        {
+            m_desc.data = serialized;
+            m_desc.size = serializedSize;
+        }
 
         // Compute the digest
         XXH64_hash_t hash = XXH64((uint8_t*)m_desc.data + sizeof(XXH64_hash_t), m_desc.size - sizeof(XXH64_hash_t), 42/*seed*/);
@@ -247,6 +261,7 @@ namespace Cpu
         : m_stdAllocator(stdAllocator)
         , m_log(log)
         , m_inputDesc(ommCpuDeserializedDescDefault())
+        , m_deserializedData(m_stdAllocator)
     {
     }
 
@@ -315,12 +330,41 @@ namespace Cpu
         }
     }
 
-    template<class TMemoryStreamBuf>
-    ommResult DeserializedResultImpl::_Deserialize(ommCpuBakeInputDesc& inputDesc, TMemoryStreamBuf& buffer)
+    ommResult DeserializedResultImpl::_Deserialize(Header& header, XXH64_hash_t hash, MemoryStreamBuf& buffer)
     {
         std::istream os(&buffer);
 
-        static_assert(sizeof(ommCpuBakeInputDesc) == 128);
+        os.read(reinterpret_cast<char*>(&header.storedHash), sizeof(header.storedHash));
+
+        if (hash != header.storedHash)
+        {
+            return m_log.InvalidArgf("The serialized blob appears corrupted, computed digest != header value %ull, %ull", hash, header.storedHash);
+        }
+
+        os.read(reinterpret_cast<char*>(&header.major), sizeof(header.major));
+        os.read(reinterpret_cast<char*>(&header.minor), sizeof(header.minor));
+        os.read(reinterpret_cast<char*>(&header.patch), sizeof(header.patch));
+        os.read(reinterpret_cast<char*>(&header.inputDescVersion), sizeof(header.inputDescVersion));
+        os.read(reinterpret_cast<char*>(&header.flags), sizeof(header.flags));
+
+        if (header.inputDescVersion >= 2)
+        {
+            os.read(reinterpret_cast<char*>(&header.decompressedSize), sizeof(header.decompressedSize));
+        }
+
+        if (header.inputDescVersion > Serialize::VERSION)
+        {
+            return m_log.InvalidArgf("The serialized blob appears to be generated from an incompatible version of the SDK (%d.%d.%d:%d)", header.major, header.minor, header.patch, header.inputDescVersion);
+        }
+
+        return ommResult_SUCCESS;
+    }
+
+    ommResult DeserializedResultImpl::_Deserialize(ommCpuBakeInputDesc& inputDesc, const Header& header, MemoryStreamBuf& buffer)
+    {
+        std::istream os(&buffer);
+
+        static_assert(sizeof(ommCpuBakeInputDesc) == 136);
 
         os.read(reinterpret_cast<char*>(&inputDesc.bakeFlags), sizeof(inputDesc.bakeFlags));
 
@@ -372,6 +416,10 @@ namespace Cpu
         }
 
         os.read(reinterpret_cast<char*>(&inputDesc.unknownStatePromotion), sizeof(inputDesc.unknownStatePromotion));
+        if (header.inputDescVersion >= 2)
+        {
+            os.read(reinterpret_cast<char*>(&inputDesc.degenTriState), sizeof(inputDesc.degenTriState));
+        }
         os.read(reinterpret_cast<char*>(&inputDesc.maxSubdivisionLevel), sizeof(inputDesc.maxSubdivisionLevel));
 
         size_t numSubdivLvls = 0;
@@ -389,8 +437,7 @@ namespace Cpu
         return ommResult_SUCCESS;
     }
 
-    template<class TMemoryStreamBuf>
-    ommResult DeserializedResultImpl::_Deserialize(ommCpuBakeResultDesc& resultDesc, TMemoryStreamBuf& buffer)
+    ommResult DeserializedResultImpl::_Deserialize(ommCpuBakeResultDesc& resultDesc, const Header& header, MemoryStreamBuf& buffer)
     {
         std::istream os(&buffer);
 
@@ -417,36 +464,11 @@ namespace Cpu
         return ommResult_SUCCESS;
     }
 
-    template<class TMemoryStreamBuf>
-    ommResult DeserializedResultImpl::_Deserialize(XXH64_hash_t hash, ommCpuDeserializedDesc& desc, TMemoryStreamBuf& buffer)
+    ommResult DeserializedResultImpl::_Deserialize(ommCpuDeserializedDesc& desc, const Header& header, MemoryStreamBuf& buffer)
     {
         std::istream os(&buffer);
 
-        // BEGIN HEADER
-        XXH64_hash_t storedHash;
-        os.read(reinterpret_cast<char*>(&storedHash), sizeof(storedHash));
-
-        if (hash != storedHash)
-        {
-            return m_log.InvalidArgf("The serialized blob appears corrupted, computed digest != header value %ull, %ull", hash, storedHash);
-        }
-
-        int major = 0;
-        int minor = 0;
-        int patch = 0;
-        int inputDescVersion = 0;
-        os.read(reinterpret_cast<char*>(&major), sizeof(major));
-        os.read(reinterpret_cast<char*>(&minor), sizeof(minor));
-        os.read(reinterpret_cast<char*>(&patch), sizeof(patch));
-        os.read(reinterpret_cast<char*>(&inputDescVersion), sizeof(inputDescVersion));
-        // END HEADER
-
-        if (inputDescVersion != SerializeResultImpl::VERSION)
-        {
-            return m_log.InvalidArgf("The serialized blob appears to be generated from an incompatible version of the SDK (%d.%d.%d:%d)", major, minor, patch, inputDescVersion);
-        }
-
-        os.read(reinterpret_cast<char*>(&desc.flags), sizeof(desc.flags));
+        desc.flags = (ommCpuSerializeFlags)header.flags;
 
         os.read(reinterpret_cast<char*>(&desc.numInputDescs), sizeof(desc.numInputDescs));
         if (desc.numInputDescs != 0)
@@ -455,7 +477,7 @@ namespace Cpu
             for (int i = 0; i < desc.numInputDescs; ++i)
             {
                 inputDescs[i] = ommCpuBakeInputDescDefault();
-                _Deserialize(inputDescs[i], buffer);
+                _Deserialize(inputDescs[i], header, buffer);
             }
             desc.inputDescs = inputDescs;
         }
@@ -466,8 +488,7 @@ namespace Cpu
             ommCpuBakeResultDesc* resultDescs = AllocateArray<ommCpuBakeResultDesc>(m_stdAllocator, desc.numResultDescs);
             for (int i = 0; i < desc.numResultDescs; ++i)
             {
-               // resultDescs[i] = ommCpuBakeResultDescDefault();
-                _Deserialize(resultDescs[i], buffer);
+                _Deserialize(resultDescs[i], header, buffer);
             }
             desc.resultDescs = resultDescs;
         }
@@ -482,12 +503,35 @@ namespace Cpu
         if (desc.size == 0)
             return m_log.InvalidArg("size must be non-zero");
 
-        MemoryStreamBuf buf((uint8_t*)desc.data, desc.size);
-
         // Compute the digest
         XXH64_hash_t hash = XXH64((const uint8_t*)desc.data + sizeof(XXH64_hash_t), desc.size - sizeof(XXH64_hash_t), 42/*seed*/);
 
-        return _Deserialize(hash, m_inputDesc, buf);
+        MemoryStreamBuf buf((uint8_t*)desc.data, desc.size);
+        Header header;
+        RETURN_STATUS_IF_FAILED(_Deserialize(header, hash, buf));
+        
+        int headerSize = 0;
+        RETURN_STATUS_IF_FAILED(GetHeaderSize(header.inputDescVersion, headerSize));
+
+        if (header.decompressedSize != 0)
+        {
+            m_deserializedData.resize(header.decompressedSize);
+
+            int resLz4 = LZ4_decompress_safe((const char*)desc.data + headerSize, (char*)m_deserializedData.data(), (int)desc.size - headerSize, header.decompressedSize);
+
+            if (resLz4 < 0)
+            {
+                return ommResult_FAILURE;
+            }
+
+            MemoryStreamBuf bufContent((uint8_t*)m_deserializedData.data(), header.decompressedSize);
+            return _Deserialize(m_inputDesc, header, bufContent);
+        }
+        else
+        {
+            MemoryStreamBuf bufContent((uint8_t*)desc.data + headerSize, desc.size - headerSize);
+            return _Deserialize(m_inputDesc, header, bufContent);
+        }
     }
 
 } // namespace Cpu

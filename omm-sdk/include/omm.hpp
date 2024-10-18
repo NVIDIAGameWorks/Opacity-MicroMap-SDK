@@ -232,8 +232,11 @@ namespace omm
          EnableNearDuplicateDetection = 1u << 4,
 
          // Enable additional validation, when enabled additional processing is performed to validate quality and sanity of input data
-         // which may help diagnose longer than expected bake time.
-          EnableWorkloadValidation    = 1u << 5,
+         // which may help diagnose omm bake result or longer than expected bake times.
+         // *** NOTE messageInterface must be set when using this flag *** 
+         EnableValidation             = 1u << 5,
+
+         EnableWorkloadValidation OMM_DEPRECATED_MSG("EnableWorkloadValidation is deprecated, use EnableValidation instead") = 1u << 5,
       };
       OMM_DEFINE_ENUM_FLAG_OPERATORS(BakeFlags);
 
@@ -313,6 +316,8 @@ namespace omm
          const Format*         formats                       = nullptr;
          // Determines how to promote mixed states
          UnknownStatePromotion unknownStatePromotion         = UnknownStatePromotion::ForceOpaque;
+         // Determines the state of unresolvable/degenerate triangles (nan/inf or zeroa area UV-triangles)
+         SpecialIndex          degenTriState                 = SpecialIndex::FullyUnknownOpaque;
          // Micro triangle count is 4^N, where N is the subdivision level.
          // maxSubdivisionLevel level must be in range [0, 12].
          // When dynamicSubdivisionScale is enabled maxSubdivisionLevel is the max subdivision level allowed.

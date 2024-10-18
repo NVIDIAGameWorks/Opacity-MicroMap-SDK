@@ -120,7 +120,7 @@ namespace {
 
 		// Setup the baking parameters, setting only required data.
 		omm::Cpu::BakeInputDesc bakeDesc;
-		bakeDesc.bakeFlags = omm::Cpu::BakeFlags::EnableWorkloadValidation;
+		bakeDesc.bakeFlags = omm::Cpu::BakeFlags::EnableValidation;
 		// Texture object
 		bakeDesc.texture = textureHandle;
 		// Alpha test parameters.

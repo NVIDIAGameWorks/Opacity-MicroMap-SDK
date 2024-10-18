@@ -38,7 +38,7 @@ namespace Cpu
         Force32BitIndices               = 1u << 2,
         DisableDuplicateDetection       = 1u << 3,
         EnableNearDuplicateDetection    = 1u << 4,
-        EnableWorkloadValidation        = 1u << 5,
+        EnableValidation                = 1u << 5,
 
         // Internal / not publicly exposed options.
         EnableAABBTesting               = 1u << 6,
@@ -59,7 +59,7 @@ namespace Cpu
         static_assert((uint32_t)BakeFlagsInternal::DisableSpecialIndices == (uint32_t)ommCpuBakeFlags_DisableSpecialIndices);
         static_assert((uint32_t)BakeFlagsInternal::DisableDuplicateDetection == (uint32_t)ommCpuBakeFlags_DisableDuplicateDetection);
         static_assert((uint32_t)BakeFlagsInternal::EnableNearDuplicateDetection == (uint32_t)ommCpuBakeFlags_EnableNearDuplicateDetection);
-        static_assert((uint32_t)BakeFlagsInternal::EnableWorkloadValidation == (uint32_t)ommCpuBakeFlags_EnableWorkloadValidation);
+        static_assert((uint32_t)BakeFlagsInternal::EnableValidation == (uint32_t)ommCpuBakeFlags_EnableValidation);
     }
 
     struct Options
@@ -70,11 +70,11 @@ namespace Cpu
             disableDuplicateDetection(((uint32_t)flags& (uint32_t)BakeFlagsInternal::DisableDuplicateDetection) == (uint32_t)BakeFlagsInternal::DisableDuplicateDetection),
             enableNearDuplicateDetection(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableNearDuplicateDetection) == (uint32_t)BakeFlagsInternal::EnableNearDuplicateDetection),
             enableNearDuplicateDetectionBruteForce(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableNearDuplicateDetectionBruteForce) == (uint32_t)BakeFlagsInternal::EnableNearDuplicateDetectionBruteForce),
+            enableValidation(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableValidation) == (uint32_t)BakeFlagsInternal::EnableValidation),
             enableWrapping(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableWrapping) == (uint32_t)BakeFlagsInternal::EnableWrapping),
             enableSnapping(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableSnapping) == (uint32_t)BakeFlagsInternal::EnableSnapping),
             enableStochasticClassification(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableStochasticClassification) == (uint32_t)BakeFlagsInternal::EnableStochasticClassification),
             enableBakeOnlySmallest(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableBakeOnlySmallest) == (uint32_t)BakeFlagsInternal::EnableBakeOnlySmallest),
-            enableWorkloadValidation(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableWorkloadValidation) == (uint32_t)BakeFlagsInternal::EnableWorkloadValidation),
             enableAABBTesting(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableAABBTesting) == (uint32_t)BakeFlagsInternal::EnableAABBTesting),
             disableRemovePoorQualityOMM(((uint32_t)flags& (uint32_t)BakeFlagsInternal::DisableRemovePoorQualityOMM) == (uint32_t)BakeFlagsInternal::DisableRemovePoorQualityOMM),
             disableLevelLineIntersection(((uint32_t)flags& (uint32_t)BakeFlagsInternal::DisableLevelLineIntersection) == (uint32_t)BakeFlagsInternal::DisableLevelLineIntersection),
@@ -85,11 +85,11 @@ namespace Cpu
         const bool disableDuplicateDetection;
         const bool enableNearDuplicateDetection;
         const bool enableNearDuplicateDetectionBruteForce;
+        const bool enableValidation;
         const bool enableWrapping;
         const bool enableSnapping;
         const bool enableStochasticClassification;
         const bool enableBakeOnlySmallest;
-        const bool enableWorkloadValidation;
         const bool enableAABBTesting;
         const bool disableRemovePoorQualityOMM;
         const bool disableLevelLineIntersection;
@@ -277,8 +277,8 @@ namespace Cpu
         {
             return m_log.InvalidArg("[Invalid Argument] - EnableNearDuplicateDetection or EnableNearDuplicateDetectionBruteForce is used together with DisableDuplicateDetection");
         }
-        if (options.enableWorkloadValidation && !m_log.HasLogger())
-            return m_log.InvalidArg("[Invalid Argument] - EnableWorkloadValidation is set but not message callback was provided"); // this works more as documentation since it won't be logged
+        if (options.enableValidation && !m_log.HasLogger())
+            return m_log.InvalidArg("[Invalid Argument] - EnableValidation is set but no message callback was provided"); // this works more as documentation since it won't be logged
 
         if (TextureImpl* texture = GetHandleImpl<TextureImpl>(desc.texture))
         {
@@ -613,6 +613,8 @@ namespace Cpu
             {
                 const uint32_t texCoordStrideInBytes = desc.texCoordStrideInBytes == 0 ? GetTexCoordFormatSize(desc.texCoordFormat) : desc.texCoordStrideInBytes;
 
+                uint32_t numDegenTri = 0;
+
                 for (int32_t i = 0; i < triangleCount; ++i)
                 {
                     uint32_t triangleIndices[3];
@@ -656,6 +658,7 @@ namespace Cpu
 
                     if (bIsDisabled || bIsDegenerate)
                     {
+                        numDegenTri++;
                         continue; // These indices will be set to special index unknown later.
                     }
 
@@ -687,6 +690,13 @@ namespace Cpu
                     else {
                         vmWorkItems[it->second].primitiveIndices.push_back(i);
                     }
+                }
+
+                if (options.enableValidation && numDegenTri != 0)
+                {
+                    const char* specialIndex = ToString(desc.degenTriState);
+                    log.Infof("[Info] - The workload consists of %d degenerate triangles, these will be classified as Fully Unknown Opaque (this behaviour can be changed by degenTriState).",
+                        numDegenTri, specialIndex);
                 }
             }
 
@@ -743,7 +753,7 @@ namespace Cpu
         {
             const bool limitWorkloadSize = desc.maxWorkloadSize != 0xFFFFFFFFFFFFFFFF;
 
-            if (!options.enableWorkloadValidation && !limitWorkloadSize)
+            if (!options.enableValidation && !limitWorkloadSize)
                 return ommResult_SUCCESS;
 
             uint64_t workloadSize = ComputeWorkloadSize(desc, ommWorkItems);
@@ -756,7 +766,7 @@ namespace Cpu
                 }
             }
             
-            if (options.enableWorkloadValidation)
+            if (options.enableValidation)
             {
                 const uint64_t warnSize = 1ull << 27ull;  // 128 * 1024x1024 texels.
                 if (workloadSize > warnSize)
@@ -1787,7 +1797,7 @@ namespace Cpu
             // Set special indices...
             {
                 res.ommIndexBuffer.resize(triangleCount);
-                std::fill(res.ommIndexBuffer.begin(), res.ommIndexBuffer.end(), (int32_t)ommSpecialIndex_FullyUnknownOpaque);
+                std::fill(res.ommIndexBuffer.begin(), res.ommIndexBuffer.end(), (int32_t)desc.degenTriState);
                 for (const OmmWorkItem& vm : vmWorkItems) 
 				{
                     for (uint32_t primitiveIndex : vm.primitiveIndices)

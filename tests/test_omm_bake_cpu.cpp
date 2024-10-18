@@ -55,7 +55,24 @@ namespace {
 		uint64_t maxWorkloadSize = 0xFFFFFFFFFFFFFFFF;
 		omm::Result bakeResult = omm::Result::SUCCESS;
 		bool forceCorruptedBlob = false;
+		bool forceSerializedOutput = false;
+		bool serializeCompress = false;
+		omm::SpecialIndex degenTriState = omm::SpecialIndex::FullyUnknownOpaque;
 	};
+
+	static float StandardCircle(int i, int j, int w, int h, int mip)
+	{
+		if (i == 0 && j == 0)
+			return 0.6f;
+
+		const float r = 0.4f;
+
+		const int2 idx = int2(i, j);
+		const float2 uv = float2(idx) / float2((float)w);
+		if (glm::length(uv - 0.5f) < r)
+			return 0.f;
+		return 1.f;
+	}
 
 	class OMMBakeTestCPU : public ::testing::TestWithParam<TestSuiteConfig> {
 	protected:
@@ -141,7 +158,14 @@ namespace {
 			return buffer;
 		}
 
-		omm::Debug::Stats RunOmmBake(
+		struct BakeOutput
+		{
+			omm::Debug::Stats stats;
+			std::vector<uint8_t> serializedInput;
+			std::vector<uint8_t> serializedOutput;
+		};
+
+		BakeOutput Bake(
 			float alphaCutoff,
 			uint32_t subdivisionLevel,
 			int2 texSize,
@@ -152,6 +176,8 @@ namespace {
 			omm::Cpu::Texture tex,
 			const Options opt = {})
 		{
+			BakeOutput output;
+
 			omm::Cpu::BakeInputDesc desc;
 			desc.texture = tex;
 			desc.format = opt.format;
@@ -170,7 +196,7 @@ namespace {
 			desc.unknownStatePromotion = opt.unknownStatePromotion;
 			desc.bakeFlags = (omm::Cpu::BakeFlags)((uint32_t)omm::Cpu::BakeFlags::EnableInternalThreads);
 			desc.maxWorkloadSize = opt.maxWorkloadSize;
-
+			desc.degenTriState = opt.degenTriState;
 			if (opt.mergeSimilar)
 				desc.bakeFlags = (omm::Cpu::BakeFlags)((uint32_t)desc.bakeFlags | (uint32_t)omm::Cpu::BakeFlags::EnableNearDuplicateDetection);
 			if (Force32BitIndices())
@@ -184,13 +210,13 @@ namespace {
 
 			omm::Cpu::BakeResult res = nullptr;
 			const omm::Cpu::BakeResultDesc* resDesc = nullptr;
-			if (TestSerialization() || opt.forceCorruptedBlob)
+			if (TestSerialization() || opt.forceCorruptedBlob || opt.forceSerializedOutput)
 			{
-				std::vector<uint8_t> data;
 				{
 					omm::Cpu::DeserializedDesc dataToSerialize;
 					dataToSerialize.numInputDescs = 1;
 					dataToSerialize.inputDescs = &desc;
+					dataToSerialize.flags = opt.serializeCompress ? omm::Cpu::SerializeFlags::Compress : omm::Cpu::SerializeFlags::None;
 
 					// Serialize...
 					omm::Cpu::SerializedResult serializedRes = 0;
@@ -202,7 +228,7 @@ namespace {
 					EXPECT_EQ(omm::Cpu::GetSerializedResultDesc(serializedRes, &blob), omm::Result::SUCCESS);
 
 					// Copy content.
-					data = std::vector<uint8_t>((uint8_t*)blob->data, (uint8_t*)blob->data + blob->size);
+					output.serializedInput = std::vector<uint8_t>((uint8_t*)blob->data, (uint8_t*)blob->data + blob->size);
 
 					// Destroy
 					EXPECT_EQ(omm::Cpu::DestroySerializedResult(serializedRes), omm::Result::SUCCESS);
@@ -211,8 +237,8 @@ namespace {
 				// Now do deserialize again and call bake
 				{
 					omm::Cpu::BlobDesc blob;
-					blob.data = data.data();
-					blob.size = data.size();
+					blob.data = output.serializedInput.data();
+					blob.size = output.serializedInput.size();
 
 					if (opt.forceCorruptedBlob)
 					{
@@ -223,7 +249,7 @@ namespace {
 					if (opt.forceCorruptedBlob)
 					{
 						EXPECT_EQ(omm::Cpu::Deserialize(_baker, blob, &dRes), omm::Result::INVALID_ARGUMENT);
-						return omm::Debug::Stats();
+						return BakeOutput();
 					}
 					else
 					{
@@ -244,7 +270,7 @@ namespace {
 
 					if (opt.bakeResult != omm::Result::SUCCESS)
 					{
-						return omm::Debug::Stats();
+						return BakeOutput();
 					}
 
 					EXPECT_NE(res, nullptr);
@@ -259,6 +285,7 @@ namespace {
 					omm::Cpu::DeserializedDesc dataToSerialize;
 					dataToSerialize.numResultDescs = 1;
 					dataToSerialize.resultDescs = resDesc;
+					dataToSerialize.flags = opt.serializeCompress ? omm::Cpu::SerializeFlags::Compress : omm::Cpu::SerializeFlags::None;
 
 					// Serialize...
 					omm::Cpu::SerializedResult serializedRes = 0;
@@ -270,7 +297,7 @@ namespace {
 					EXPECT_EQ(omm::Cpu::GetSerializedResultDesc(serializedRes, &blob), omm::Result::SUCCESS);
 
 					// Copy content.
-					data = std::vector<uint8_t>((uint8_t*)blob->data, (uint8_t*)blob->data + blob->size);
+					output.serializedOutput = std::vector<uint8_t>((uint8_t*)blob->data, (uint8_t*)blob->data + blob->size);
 
 					// Destroy
 					EXPECT_EQ(omm::Cpu::DestroySerializedResult(serializedRes), omm::Result::SUCCESS);
@@ -279,8 +306,8 @@ namespace {
 				// Now do deserialize & compare
 				{
 					omm::Cpu::BlobDesc blob;
-					blob.data = data.data();
-					blob.size = data.size();
+					blob.data = output.serializedOutput.data();
+					blob.size = output.serializedOutput.size();
 
 					omm::Cpu::DeserializedResult dRes = nullptr;
 					EXPECT_EQ(omm::Cpu::Deserialize(_baker, blob, &dRes), omm::Result::SUCCESS);
@@ -319,7 +346,7 @@ namespace {
 				EXPECT_EQ(omm::Cpu::Bake(_baker, desc, &res), opt.bakeResult);
 				if (opt.bakeResult != omm::Result::SUCCESS)
 				{
-					return omm::Debug::Stats();
+					return BakeOutput();
 				}
 
 				EXPECT_NE(res, nullptr);
@@ -350,7 +377,89 @@ namespace {
 			}
 
 			// Manually collected stats from parsing the 
-			omm::Debug::Stats stats = omm::Debug::Stats{};
+			if (resDesc)
+			{
+				EXPECT_EQ(omm::Debug::GetStats(_baker, resDesc, &output.stats), omm::Result::SUCCESS);
+			}
+
+			omm::Test::ValidateHistograms(resDesc);
+
+			EXPECT_EQ(omm::Cpu::DestroyBakeResult(res), omm::Result::SUCCESS);
+
+			return output;
+		}
+
+		omm::Debug::Stats Bake(const std::vector<uint8_t>& serializedInput, const Options opt = {})
+		{
+			omm::Cpu::BlobDesc blob;
+			blob.data = (void*)serializedInput.data();
+			blob.size = serializedInput.size();
+
+			if (opt.forceCorruptedBlob)
+			{
+				blob.size -= sizeof(uint32_t);
+			}
+
+			omm::Cpu::DeserializedResult dRes = nullptr;
+			if (opt.forceCorruptedBlob)
+			{
+				EXPECT_EQ(omm::Cpu::Deserialize(_baker, blob, &dRes), omm::Result::INVALID_ARGUMENT);
+				return omm::Debug::Stats();
+			}
+			else
+			{
+				EXPECT_EQ(omm::Cpu::Deserialize(_baker, blob, &dRes), omm::Result::SUCCESS);
+			}
+
+			EXPECT_NE(dRes, nullptr);
+
+			const omm::Cpu::DeserializedDesc* desDesc = nullptr;
+			EXPECT_EQ(omm::Cpu::GetDeserializedDesc(dRes, &desDesc), omm::Result::SUCCESS);
+
+			EXPECT_EQ(desDesc->numInputDescs, 1);
+			EXPECT_EQ(desDesc->numResultDescs, 0);
+
+			const omm::Cpu::BakeInputDesc& desc = desDesc->inputDescs[0];
+
+			omm::Cpu::BakeResult res = nullptr;
+			EXPECT_EQ(omm::Cpu::Bake(_baker, desc, &res), opt.bakeResult);
+
+			if (opt.bakeResult != omm::Result::SUCCESS)
+			{
+				return omm::Debug::Stats();
+			}
+
+			EXPECT_NE(res, nullptr);
+
+			EXPECT_EQ(omm::Cpu::DestroyDeserializedResult(dRes), omm::Result::SUCCESS);
+
+			const omm::Cpu::BakeResultDesc* resDesc = nullptr;
+			EXPECT_EQ(omm::Cpu::GetBakeResultDesc(res, &resDesc), omm::Result::SUCCESS); 
+
+#if OMM_TEST_ENABLE_IMAGE_DUMP
+			constexpr bool kDumpDebug = true;
+#else
+			constexpr bool kDumpDebug = false;
+#endif
+
+			if (kDumpDebug)
+			{
+				std::string name = ::testing::UnitTest::GetInstance()->current_test_suite()->name();
+				std::string tname = ::testing::UnitTest::GetInstance()->current_test_info()->name();
+				std::string fileName = name + "_" + tname;
+				std::replace(fileName.begin(), fileName.end(), '/', '_');
+
+				omm::Debug::SaveAsImages(_baker, desc, resDesc,
+					{ .path = "OmmBakeOutput",
+						.filePostfix = fileName.c_str(),
+						.detailedCutout = opt.detailedCutout,
+						.dumpOnlyFirstOMM = false,
+						.monochromeUnknowns = opt.monochromeUnknowns,
+						.oneFile = opt.oneFile });
+			}
+
+			// Manually collected stats from parsing the
+			omm::Debug::Stats stats;
 			if (resDesc)
 			{
 				EXPECT_EQ(omm::Debug::GetStats(_baker, resDesc, &stats), omm::Result::SUCCESS);
@@ -363,7 +472,82 @@ namespace {
 			return stats;
 		}
 
-		omm::Debug::Stats RunOmmBakeFP32(
+		omm::Debug::Stats GetBakeOutput(const std::vector<uint8_t>& serializedOutput, const Options opt = {})
+		{
+			omm::Cpu::BlobDesc blob;
+			blob.data = (void*)serializedOutput.data();
+			blob.size = serializedOutput.size();
+
+			if (opt.forceCorruptedBlob)
+			{
+				blob.size -= sizeof(uint32_t);
+			}
+
+			omm::Cpu::DeserializedResult dRes = nullptr;
+			if (opt.forceCorruptedBlob)
+			{
+				EXPECT_EQ(omm::Cpu::Deserialize(_baker, blob, &dRes), omm::Result::INVALID_ARGUMENT);
+				return omm::Debug::Stats();
+			}
+			else
+			{
+				EXPECT_EQ(omm::Cpu::Deserialize(_baker, blob, &dRes), omm::Result::SUCCESS);
+			}
+
+			EXPECT_NE(dRes, nullptr);
+
+			const omm::Cpu::DeserializedDesc* desDesc = nullptr;
+			EXPECT_EQ(omm::Cpu::GetDeserializedDesc(dRes, &desDesc), omm::Result::SUCCESS);
+
+			EXPECT_EQ(desDesc->numInputDescs, 0);
+			EXPECT_EQ(desDesc->numResultDescs, 1);
+
+			const omm::Cpu::BakeResultDesc* resDesc = &desDesc->resultDescs[0];
+
+			// Manually collected stats from parsing the
+			omm::Debug::Stats stats;
+			if (resDesc)
+			{
+				EXPECT_EQ(omm::Debug::GetStats(_baker, resDesc, &stats), omm::Result::SUCCESS);
+			}
+
+			omm::Test::ValidateHistograms(resDesc);
+
+			EXPECT_EQ(omm::Cpu::DestroyDeserializedResult(dRes), omm::Result::SUCCESS);
+
+			return stats;
+		}
+
+		omm::Debug::Stats GetOmmBakeStats(
+			float alphaCutoff,
+			uint32_t subdivisionLevel,
+			int2 texSize,
+			uint32_t indexCount,
+			uint32_t* triangleIndices,
+			omm::TexCoordFormat texCoordFormat,
+			void* texCoords,
+			omm::Cpu::Texture tex,
+			const Options opt = {})
+		{
+			BakeOutput res = Bake(alphaCutoff, subdivisionLevel, texSize, indexCount, triangleIndices, texCoordFormat, texCoords, tex, opt);
+			return res.stats;
+		}
+
+		BakeOutput GetOmmBakeOutput(
+			float alphaCutoff,
+			uint32_t subdivisionLevel,
+			int2 texSize,
+			uint32_t indexCount,
+			uint32_t* triangleIndices,
+			omm::TexCoordFormat texCoordFormat,
+			void* texCoords,
+			omm::Cpu::Texture tex,
+			const Options opt = {})
+		{
+			return Bake(alphaCutoff, subdivisionLevel, texSize, indexCount, triangleIndices, texCoordFormat, texCoords, tex, opt);
+		}
+
+		omm::Debug::Stats GetOmmBakeStatsFP32(
 			float alphaCutoff,
 			uint32_t subdivisionLevel,
 			int2 texSize,
@@ -376,10 +560,26 @@ namespace {
 		{
 			vmtest::TextureFP32 texture(texSize.x, texSize.y, opt.mipCount, EnableZOrder(), EnableAlphaCutoff() ? alphaCutoff : -1.f, tex);
 			omm::Cpu::Texture texHandle = CreateTexture(texture.GetDesc());
-			return RunOmmBake(alphaCutoff, subdivisionLevel, texSize, indexCount, triangleIndices, texCoordFormat, texCoords, texHandle, opt);
+			return GetOmmBakeStats(alphaCutoff, subdivisionLevel, texSize, indexCount, triangleIndices, texCoordFormat, texCoords, texHandle, opt);
 		}
 
-		omm::Debug::Stats RunOmmBakeFP32(
+		BakeOutput GetOmmBakeOutputFP32(
+			float alphaCutoff,
+			uint32_t subdivisionLevel,
+			int2 texSize,
+			uint32_t indexCount,
+			uint32_t* triangleIndices,
+			omm::TexCoordFormat texCoordFormat,
+			void* texCoords,
+			std::function<float(int i, int j, int w, int h, int mip)> tex,
+			const Options opt = {})
+		{
+			vmtest::TextureFP32 texture(texSize.x, texSize.y, opt.mipCount, EnableZOrder(), EnableAlphaCutoff() ? alphaCutoff : -1.f, tex);
+			omm::Cpu::Texture texHandle = CreateTexture(texture.GetDesc());
+			return GetOmmBakeOutput(alphaCutoff, subdivisionLevel, texSize, indexCount, triangleIndices, texCoordFormat, texCoords, texHandle, opt);
+		}
+
+		omm::Debug::Stats GetOmmBakeStatsFP32(
 			float alphaCutoff,
 			uint32_t subdivisionLevel,
 			int2 texSize,
@@ -388,10 +588,22 @@ namespace {
 		{
 			uint32_t triangleIndices[6] = { 0, 1, 2, 3, 1, 2 };
 			float texCoords[8] = { 0.f, 0.f,	0.f, 1.f,	1.f, 0.f,	 1.f, 1.f };
-			return RunOmmBakeFP32(alphaCutoff, subdivisionLevel, texSize, 6, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, tex, opt);
+			return GetOmmBakeStatsFP32(alphaCutoff, subdivisionLevel, texSize, 6, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, tex, opt);
 		}
 
-		omm::Debug::Stats RunOmmBakeUNORM8(
+		BakeOutput GetOmmBakeOutputFP32(
+			float alphaCutoff,
+			uint32_t subdivisionLevel,
+			int2 texSize,
+			std::function<float(int i, int j, int w, int h, int mip)> tex,
+			const Options opt = {})
+		{
+			uint32_t triangleIndices[6] = { 0, 1, 2, 3, 1, 2 };
+			float texCoords[8] = { 0.f, 0.f,	0.f, 1.f,	1.f, 0.f,	 1.f, 1.f };
+			return GetOmmBakeOutputFP32(alphaCutoff, subdivisionLevel, texSize, 6, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, tex, opt);
+		}
+
+		omm::Debug::Stats GetOmmBakeStatsUNORM8(
 			float alphaCutoff,
 			uint32_t subdivisionLevel,
 			int2 texSize,
@@ -403,10 +615,10 @@ namespace {
 		{
 			vmtest::TextureUNORM8 texture(texSize.x, texSize.y, opt.mipCount, EnableZOrder(), EnableAlphaCutoff() ? alphaCutoff : -1.f, tex);
 			omm::Cpu::Texture texHandle = CreateTexture(texture.GetDesc());
-			return RunOmmBake(alphaCutoff, subdivisionLevel, texSize, indexCount, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, texHandle, opt);
+			return GetOmmBakeStats(alphaCutoff, subdivisionLevel, texSize, indexCount, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, texHandle, opt);
 		}
 
-		omm::Debug::Stats RunOmmBakeUNORM8(
+		omm::Debug::Stats GetOmmBakeStatsUNORM8(
 			float alphaCutoff,
 			uint32_t subdivisionLevel,
 			int2 texSize,
@@ -417,7 +629,7 @@ namespace {
 			float texCoords[8] = { 0.f, 0.f,	0.f, 1.f,	1.f, 0.f,	 1.f, 1.f };
 			vmtest::TextureUNORM8 texture(texSize.x, texSize.y, opt.mipCount, EnableZOrder(), EnableAlphaCutoff() ? alphaCutoff : -1.f, tex);
 			omm::Cpu::Texture texHandle = CreateTexture(texture.GetDesc());
-			return RunOmmBake(alphaCutoff, subdivisionLevel, texSize, 6, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, texHandle, opt);
+			return GetOmmBakeStats(alphaCutoff, subdivisionLevel, texSize, 6, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, texHandle, opt);
 		}
 
 		omm::Debug::Stats LeafletMipN(uint32_t mipStart, uint32_t NumMip, float alphaCutoff = 0.5f)
@@ -486,7 +698,7 @@ namespace {
 			}
 
 			int2 size = { std::get<0>(mipDims[mipStart]), std::get<1>(mipDims[mipStart]) };
-			omm::Debug::Stats stats = RunOmmBakeFP32(alphaCutoff, subdivisionLevel, size, indexCount, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, [mipStart, mips](int i, int j, int w, int h, int mip)->float {
+			omm::Debug::Stats stats = GetOmmBakeStatsFP32(alphaCutoff, subdivisionLevel, size, indexCount, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, [mipStart, mips](int i, int j, int w, int h, int mip)->float {
 
 				return 1.f - mips[mipStart + mip][w * j + i];
 
@@ -519,13 +731,44 @@ namespace {
 			}
 
 			int2 size = { width, height };
-			omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, size, indexCount, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, [mips](int i, int j, int w, int h, int mip)->float {
+			omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, size, indexCount, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, [mips](int i, int j, int w, int h, int mip)->float {
 
 				return 1.f - mips[w * j + i];
 
 				}, { .format = omm::Format::OC1_4_State, .unknownStatePromotion = omm::UnknownStatePromotion::Nearest, .enableSpecialIndices = false, .oneFile = true, .detailedCutout = false, .maxWorkloadSize = maxWorkloadSize, .bakeResult = bakeResult });
 
 			return stats;
+		}
+
+		void GenerateSerializedString(const char* inputStr, const char* outputStr, bool compress)
+		{
+			auto binaryToHex = [](const char* name, const std::vector<unsigned char>& binaryData) {
+				std::cout << name << " = {";
+
+				for (size_t i = 0; i < binaryData.size(); ++i) {
+					std::cout << "0x" << std::hex << std::uppercase << std::setw(2) << std::setfill('0') << (int)binaryData[i];
+
+					if (i != binaryData.size() - 1) {
+						std::cout << ", ";
+					}
+
+					if ((i + 1) % 20 == 0 && i != binaryData.size() - 1) {
+						std::cout << std::endl;
+					}
+				}
+
+				std::cout << "};" << std::endl;
+				};
+
+			uint32_t subdivisionLevel = 4;
+			uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
+
+			BakeOutput output = GetOmmBakeOutputFP32(0.5f, subdivisionLevel, { 8, 8 }, &StandardCircle, { .forceSerializedOutput = true, .serializeCompress = compress });
+
+			if (inputStr)
+				binaryToHex(inputStr, output.serializedInput);
+			if (outputStr)
+				binaryToHex(outputStr, output.serializedOutput);
 		}
 
 		std::vector< omm::Cpu::Texture> _textures;
@@ -545,7 +788,7 @@ namespace {
 		uint32_t subdivisionLevel = 4;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, {1024, 1024}, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, {1024, 1024}, [](int i, int j, int w, int h, int mip)->float {
 			return 0.6f;
 			});
 
@@ -558,7 +801,7 @@ namespace {
 		uint32_t subdivisionLevel = 3;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
 			return 0.6f;
 			});
 
@@ -570,7 +813,7 @@ namespace {
 		uint32_t subdivisionLevel = 2;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
 			return 0.6f;
 			});
 
@@ -582,7 +825,7 @@ namespace {
 		uint32_t subdivisionLevel = 1;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
 			return 0.6f;
 			});
 
@@ -594,7 +837,7 @@ namespace {
 		uint32_t subdivisionLevel = 0;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
 			return 0.6f;
 			});
 
@@ -606,7 +849,7 @@ namespace {
 		uint32_t subdivisionLevel = 4;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
 			return 0.4f;
 			});
 
@@ -618,7 +861,7 @@ namespace {
 		uint32_t subdivisionLevel = 3;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
 			return 0.4f;
 			});
 
@@ -630,7 +873,7 @@ namespace {
 		uint32_t subdivisionLevel = 2;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
 			return 0.4f;
 			});
 
@@ -642,7 +885,7 @@ namespace {
 		uint32_t subdivisionLevel = 1;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
 			return 0.4f;
 			});
 
@@ -653,7 +896,7 @@ namespace {
 
 		uint32_t subdivisionLevel = 1;
 
-		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
 			if ((i) % 8 != (j) % 8)
 				return 0.f;
 			else
@@ -667,7 +910,7 @@ namespace {
 
 		uint32_t subdivisionLevel = 1;
 
-		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
 			if ((i) % 8 != (j) % 8)
 				return 1.f;
 			else
@@ -682,7 +925,7 @@ namespace {
 		uint32_t subdivisionLevel = 4;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
 			if (i == 0 && j == 0)
 				return 0.6f;
 			return 0.4f;
@@ -700,7 +943,7 @@ namespace {
 		uint32_t subdivisionLevel = 1;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
 			return 0.6f;
 			}, { .bakeResult = omm::Result::INVALID_ARGUMENT, .forceCorruptedBlob = true });
 
@@ -712,18 +955,7 @@ namespace {
 		uint32_t subdivisionLevel = 4;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
-			if (i == 0 && j == 0)
-				return 0.6f;
-
-			const float r = 0.4f;
-
-			const int2 idx = int2(i, j);
-			const float2 uv = float2(idx) / float2((float)w);
-			if (glm::length(uv - 0.5f) < r)
-				return 0.f;
-			return 1.f;
-			});
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, { 1024, 1024 }, &StandardCircle);
 
 		ExpectEqual(stats, {
 			.totalOpaque = 204,
@@ -738,18 +970,7 @@ namespace {
 		uint32_t subdivisionLevel = 4;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
-			if (i == 0 && j == 0)
-				return 0.6f;
-
-			const float r = 0.4f;
-
-			const int2 idx = int2(i, j);
-			const float2 uv = float2(idx) / float2((float)w);
-			if (glm::length(uv - 0.5f) < r)
-				return 0.f;
-			return 1.f;
-			}, { .mergeSimilar = true });
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, { 1024, 1024 }, &StandardCircle, { .mergeSimilar = true });
 
 		ExpectEqual(stats, {
 			.totalOpaque = 200,
@@ -764,18 +985,7 @@ namespace {
 		uint32_t subdivisionLevel = 4;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
-			if (i == 0 && j == 0)
-				return 0.6f;
-
-			const float r = 0.4f;
-
-			const int2 idx = int2(i, j);
-			const float2 uv = float2(idx) / float2((float)w);
-			if (glm::length(uv - 0.5f) < r)
-				return 0.f;
-			return 1.f;
-			}, { .format = omm::Format::OC1_2_State });
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, { 1024, 1024 }, &StandardCircle, { .format = omm::Format::OC1_2_State });
 
 		ExpectEqual(stats, {
 			.totalOpaque = 254,
@@ -788,7 +998,7 @@ namespace {
 		uint32_t subdivisionLevel = 4;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunOmmBakeUNORM8(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->uint8_t {
+		omm::Debug::Stats stats = GetOmmBakeStatsUNORM8(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->uint8_t {
 			const float uv = float(i) / (float)w;
 			const float val = 0.5f - 0.5f * std::sin(uv * 15);
 			const uint8_t val8 = (uint8_t)(val * 255.f);
@@ -808,7 +1018,7 @@ namespace {
 		uint32_t subdivisionLevel = 4;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
 			if (i == 0 && j == 0)
 				return 0.6f;
 
@@ -830,7 +1040,7 @@ namespace {
 		uint32_t subdivisionLevel = 4;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
 			if (i == 0 && j == 0)
 				return 0.6f;
 
@@ -850,7 +1060,7 @@ namespace {
 		uint32_t subdivisionLevel = 4;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
 			if (i == 0 && j == 0)
 				return 0.6f;
 
@@ -870,7 +1080,7 @@ namespace {
 		uint32_t subdivisionLevel = 5;
 		uint32_t numMicroTris = omm::bird::GetNumMicroTriangles(subdivisionLevel);
 
-		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, { 1024, 1024 }, [](int i, int j, int w, int h, int mip)->float {
 			
 			auto complexMultiply = [](float2 a, float2 b)->float2 {
 				return float2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x);
@@ -915,7 +1125,7 @@ namespace {
 		uint32_t triangleIndices[6] = { 0, 1, 2, };
 		float texCoords[8] = { 0.2f, 0.f,  0.1f, 0.8f,  0.9f, 0.1f };
 
-		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, indexCount, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, { 1024, 1024 }, indexCount, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, [](int i, int j, int w, int h, int mip)->float {
 
 			auto complexMultiply = [](float2 a, float2 b)->float2 {
 				return float2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x);
@@ -960,7 +1170,7 @@ namespace {
 		uint32_t triangleIndices[6] = { 0, 1, 2, };
 		float texCoords[8] = { 0.2f, 0.f,  0.1f, 0.8f,  0.9f, 0.1f };
 
-		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, indexCount, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, { 1024, 1024 }, indexCount, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, [](int i, int j, int w, int h, int mip)->float {
 
 			auto complexMultiply = [](float2 a, float2 b)->float2 {
 				return float2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x);
@@ -1034,7 +1244,7 @@ namespace {
 		uint32_t triangleIndices[6] = { 0, 1, 2, };
 		float texCoords[8] = { 0.2f, 0.f,  0.1f, 0.8f,  0.9f, 0.1f };
 
-		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, indexCount, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, { 1024, 1024 }, indexCount, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, [](int i, int j, int w, int h, int mip)->float {
 
 			return GetJulia(i, j, w, h, mip);
 
@@ -1058,7 +1268,7 @@ namespace {
 		float texCoords[8] = { 0.2f, 0.f,  0.1f, 0.8f,  0.9f, 0.1f };
 		std::vector<uint32_t> texCoordsFP16 = ConvertTexCoords(omm::TexCoordFormat::UV16_FLOAT, texCoords, sizeof(texCoords));
 
-		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, indexCount, triangleIndices, omm::TexCoordFormat::UV16_FLOAT, texCoordsFP16.data(), [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, { 1024, 1024 }, indexCount, triangleIndices, omm::TexCoordFormat::UV16_FLOAT, texCoordsFP16.data(), [](int i, int j, int w, int h, int mip)->float {
 
 			return GetJulia(i, j, w, h, mip);
 
@@ -1082,7 +1292,7 @@ namespace {
 		float texCoords[8] = { 0.2f, 0.f,  0.1f, 0.8f,  0.9f, 0.1f };
 		std::vector<uint32_t> texCoordsUnorm16 = ConvertTexCoords(omm::TexCoordFormat::UV16_UNORM, texCoords, sizeof(texCoords));
 
-		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, indexCount, triangleIndices, omm::TexCoordFormat::UV16_UNORM, texCoordsUnorm16.data(), [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, { 1024, 1024 }, indexCount, triangleIndices, omm::TexCoordFormat::UV16_UNORM, texCoordsUnorm16.data(), [](int i, int j, int w, int h, int mip)->float {
 
 			return GetJulia(i, j, w, h, mip);
 
@@ -1105,7 +1315,7 @@ namespace {
 		uint32_t triangleIndices[6] = { 0, 1, 2, };
 		float texCoords[8] = { 0.2f, 0.f,  0.1f, 0.8f,  0.9f, 0.1f };
 
-		omm::Debug::Stats stats = RunOmmBakeUNORM8(0.5f, subdivisionLevel, { 1024, 1024 }, indexCount, triangleIndices, texCoords, [](int i, int j, int w, int h, int mip)->uint8_t {
+		omm::Debug::Stats stats = GetOmmBakeStatsUNORM8(0.5f, subdivisionLevel, { 1024, 1024 }, indexCount, triangleIndices, texCoords, [](int i, int j, int w, int h, int mip)->uint8_t {
 			const float val = GetJulia(i, j, w, h, mip);
 			return (uint8_t)std::clamp(val * 255.f, 0.f, 255.f) ;
 
@@ -1132,7 +1342,7 @@ namespace {
 		ops.alphaCutoffLE = omm::OpacityState::Transparent;
 		ops.alphaCutoffGT = omm::OpacityState::UnknownOpaque;
 
-		omm::Debug::Stats stats = RunOmmBakeUNORM8(0.5f, subdivisionLevel, { 1024, 1024 }, indexCount, triangleIndices, texCoords, [](int i, int j, int w, int h, int mip)->uint8_t {
+		omm::Debug::Stats stats = GetOmmBakeStatsUNORM8(0.5f, subdivisionLevel, { 1024, 1024 }, indexCount, triangleIndices, texCoords, [](int i, int j, int w, int h, int mip)->uint8_t {
 			const float val = GetJulia(i, j, w, h, mip);
 			return (uint8_t)std::clamp(val * 255.f, 0.f, 255.f);
 			}, ops);
@@ -1158,7 +1368,7 @@ namespace {
 		ops.alphaCutoffLE = omm::OpacityState::Opaque;
 		ops.alphaCutoffGT = omm::OpacityState::Transparent;
 
-		omm::Debug::Stats stats = RunOmmBakeUNORM8(0.5f, subdivisionLevel, { 1024, 1024 }, indexCount, triangleIndices, texCoords, [](int i, int j, int w, int h, int mip)->uint8_t {
+		omm::Debug::Stats stats = GetOmmBakeStatsUNORM8(0.5f, subdivisionLevel, { 1024, 1024 }, indexCount, triangleIndices, texCoords, [](int i, int j, int w, int h, int mip)->uint8_t {
 			const float val = GetJulia(i, j, w, h, mip);
 			return (uint8_t)std::clamp(val * 255.f, 0.f, 255.f);
 			}, ops);
@@ -1181,7 +1391,7 @@ namespace {
 		//float texCoords[8] = { 0.25f, 0.25f,  0.25f, 0.75f,  0.75f, 0.25f };
 		float texCoords[8] = { 0.f, 0.f,  0.f, 1.0f,  1.f, 1.f, 1.f, 0.f };
 
-		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 4, 4 }, indexCount, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, { 4, 4 }, indexCount, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, [](int i, int j, int w, int h, int mip)->float {
 
 			uint32_t x = (i) % 2;
 			uint32_t y = (j) % 2;
@@ -1214,7 +1424,7 @@ namespace {
 		//float texCoords[8] = { 0.25f, 0.25f,  0.25f, 0.75f,  0.75f, 0.25f };
 		float texCoords[8] = { 0.f, 0.f,  0.f, 1.0f,  1.f, 1.f, 1.f, 0.f };
 
-		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, indexCount, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, { 1024, 1024 }, indexCount, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, [](int i, int j, int w, int h, int mip)->float {
 
 			const float scale = 30.f;
 			const float gridThickness = 0.2f;
@@ -1246,7 +1456,7 @@ namespace {
 		//float texCoords[8] = { 0.25f, 0.25f,  0.25f, 0.75f,  0.75f, 0.25f };
 		float texCoords[8] = { 0.f, 0.f,  0.f, 1.0f,  1.f, 1.f, 1.f, 0.f };
 
-		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, indexCount, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, { 1024, 1024 }, indexCount, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, [](int i, int j, int w, int h, int mip)->float {
 
 			const float scale = 30.f;
 			const float gridThickness = 0.2f;
@@ -1293,7 +1503,7 @@ namespace {
 			}
 		}
 
-		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, (uint32_t)indices.size(), indices.data(), omm::TexCoordFormat::UV32_FLOAT, (float*)texCoords.data(), [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, { 1024, 1024 }, (uint32_t)indices.size(), indices.data(), omm::TexCoordFormat::UV32_FLOAT, (float*)texCoords.data(), [](int i, int j, int w, int h, int mip)->float {
 
 			const float scale = 30.f;
 			const float gridThickness = 0.2f;
@@ -1339,7 +1549,7 @@ namespace {
 			}
 		}
 
-		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, (uint32_t)indices.size(), indices.data(), omm::TexCoordFormat::UV32_FLOAT, (float*)texCoords.data(), [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, { 1024, 1024 }, (uint32_t)indices.size(), indices.data(), omm::TexCoordFormat::UV32_FLOAT, (float*)texCoords.data(), [](int i, int j, int w, int h, int mip)->float {
 
 			const float scale = 30.f;
 			const float gridThickness = 0.2f;
@@ -1386,7 +1596,7 @@ namespace {
 			}
 		}
 
-		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, (uint32_t)indices.size(), indices.data(), omm::TexCoordFormat::UV32_FLOAT, (float*)texCoords.data(), [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, { 1024, 1024 }, (uint32_t)indices.size(), indices.data(), omm::TexCoordFormat::UV32_FLOAT, (float*)texCoords.data(), [](int i, int j, int w, int h, int mip)->float {
 
 			const float scale = 30.f;
 			const float gridThickness = 0.2f;
@@ -1433,7 +1643,7 @@ namespace {
 			}
 		}
 
-		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, (uint32_t)indices.size(), indices.data(), omm::TexCoordFormat::UV32_FLOAT, (float*)texCoords.data(), [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, { 1024, 1024 }, (uint32_t)indices.size(), indices.data(), omm::TexCoordFormat::UV32_FLOAT, (float*)texCoords.data(), [](int i, int j, int w, int h, int mip)->float {
 
 			const float scale = 30.f;
 			const float gridThickness = 0.2f;
@@ -1480,7 +1690,7 @@ namespace {
 			}
 		}
 
-		omm::Debug::Stats stats = RunOmmBakeFP32(0.5f, subdivisionLevel, { 1024, 1024 }, (uint32_t)indices.size(), indices.data(), omm::TexCoordFormat::UV32_FLOAT, (float*)texCoords.data(), [](int i, int j, int w, int h, int mip)->float {
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, subdivisionLevel, { 1024, 1024 }, (uint32_t)indices.size(), indices.data(), omm::TexCoordFormat::UV32_FLOAT, (float*)texCoords.data(), [](int i, int j, int w, int h, int mip)->float {
 
 			const float scale = 30.f;
 			const float gridThickness = 0.2f;
@@ -1812,6 +2022,257 @@ namespace {
 			.totalTransparent = 0,
 			.totalUnknownTransparent = 0,
 			.totalUnknownOpaque = 0,
+			});
+	}
+
+	TEST_P(OMMBakeTestCPU, DeserializeInput_v1_4_0) {
+
+		// GenerateSerializedString("input_v1_4_0", nullptr, false);
+
+		std::vector<unsigned char> input_v1_4_0 
+			= { 0x7B, 0xF1, 0x3F, 0x42, 0x79, 0xB1, 0x1D, 0x05, 0x01, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
+				0x08, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3E, 0x00, 0x00, 0x00, 0x3E, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x9A, 0x99, 0x19, 0x3F,
+				0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x80, 0x3F,
+				0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x80, 0x3F,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x3F,
+				0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x3F,
+				0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x02, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00,
+				0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x80, 0x3F,
+				0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
+				0x02, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3F, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00 };
+
+		omm::Debug::Stats stats = Bake(input_v1_4_0);
+
+		ExpectEqual(stats, {
+			.totalOpaque = 152,
+			.totalTransparent = 232,
+			.totalUnknownTransparent = 70,
+			.totalUnknownOpaque = 58,
+			});
+	}
+
+	TEST_P(OMMBakeTestCPU, DeserializeOutput_v1_4_0) {
+
+		// GenerateSerializedString(nullptr, "output_v1_4_0", false);
+
+		std::vector<unsigned char> output_v1_4_0 
+			= { 0x0E, 0x73, 0xCB, 0x81, 0x3B, 0xF6, 0xA4, 0xA1, 0x01, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00,
+				0x55, 0x55, 0x75, 0xD5, 0xEF, 0xAB, 0x00, 0xFE, 0x8A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2A, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0xA8, 0xDE, 0x00, 0x00, 0x2A, 0xA8, 0x7F,
+				0x55, 0x55, 0x55, 0xFD, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2A, 0xA8, 0xDF, 0x00, 0x00, 0x2A, 0x80, 0x7E,
+				0x55, 0x55, 0x7F, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55,
+				0xED, 0xAB, 0x02, 0xFE, 0xAB, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0xBA, 0xFE, 0x6F, 0xD5, 0x6F, 0xD5, 0x2A,
+				0x80, 0x2A, 0xA8, 0x7F, 0x55, 0x55, 0x55, 0xFD, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2A, 0xA8, 0xDF, 0x02,
+				0xA8, 0xDE, 0x57, 0x75, 0x55, 0x55, 0x7F, 0x55, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x02, 0x00,
+				0x40, 0x00, 0x00, 0x00, 0x04, 0x00, 0x02, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x04, 0x00, 0x02, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00,
+				0x04, 0x00, 0x02, 0x00 };
+
+		omm::Debug::Stats stats = GetBakeOutput(output_v1_4_0);
+
+		ExpectEqual(stats, {
+			.totalOpaque = 152,
+			.totalTransparent = 232,
+			.totalUnknownTransparent = 70,
+			.totalUnknownOpaque = 58,
+			});
+	}
+
+	TEST_P(OMMBakeTestCPU, DeserializeOutput_Compress_v1_4_0) {
+
+		// GenerateSerializedString(nullptr, "output_compress_v1_4_0", true);
+
+		std::vector<unsigned char> output_compress_v1_4_0
+			= { 0x0E, 0x73, 0xCB, 0x81, 0x3B, 0xF6, 0xA4, 0xA1, 0x01, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00,
+				0x55, 0x55, 0x75, 0xD5, 0xEF, 0xAB, 0x00, 0xFE, 0x8A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2A, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0xA8, 0xDE, 0x00, 0x00, 0x2A, 0xA8, 0x7F,
+				0x55, 0x55, 0x55, 0xFD, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2A, 0xA8, 0xDF, 0x00, 0x00, 0x2A, 0x80, 0x7E,
+				0x55, 0x55, 0x7F, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55,
+				0xED, 0xAB, 0x02, 0xFE, 0xAB, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0xBA, 0xFE, 0x6F, 0xD5, 0x6F, 0xD5, 0x2A,
+				0x80, 0x2A, 0xA8, 0x7F, 0x55, 0x55, 0x55, 0xFD, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2A, 0xA8, 0xDF, 0x02,
+				0xA8, 0xDE, 0x57, 0x75, 0x55, 0x55, 0x7F, 0x55, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x02, 0x00,
+				0x40, 0x00, 0x00, 0x00, 0x04, 0x00, 0x02, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x04, 0x00, 0x02, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00,
+				0x04, 0x00, 0x02, 0x00 };
+
+		omm::Debug::Stats stats = GetBakeOutput(output_compress_v1_4_0);
+
+		ExpectEqual(stats, {
+			.totalOpaque = 152,
+			.totalTransparent = 232,
+			.totalUnknownTransparent = 70,
+			.totalUnknownOpaque = 58,
+			});
+	}
+
+	TEST_P(OMMBakeTestCPU, DeserializeInput_v1_5_0) {
+
+		// GenerateSerializedString("input_v1_5_0", nullptr, false);
+
+		std::vector<unsigned char> input_v1_5_0 
+			= { 0xF9, 0x28, 0x27, 0x49, 0x16, 0xE8, 0xF3, 0x2F, 0x01, 0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
+				0x01, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3E, 0x00, 0x00, 0x00, 0x3E,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x9A, 0x99, 0x19, 0x3F, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x80, 0x3F,
+				0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x80, 0x3F,
+				0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x3F,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x3F,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x02, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x3F,
+				0x00, 0x00, 0x80, 0x3F, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3F, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
+				0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFC, 0xFF, 0xFF, 0xFF,
+				0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00,
+				0x00 };
+
+		omm::Debug::Stats stats = Bake(input_v1_5_0);
+
+		ExpectEqual(stats, {
+			.totalOpaque = 152,
+			.totalTransparent = 232,
+			.totalUnknownTransparent = 70,
+			.totalUnknownOpaque = 58,
+			});
+	}
+
+	TEST_P(OMMBakeTestCPU, DeserializeInput_Compress_v1_5_0) {
+
+		// GenerateSerializedString("input_compress_v1_5_0", nullptr, true);
+
+		std::vector<unsigned char> input_compress_v1_5_0 
+			= { 0xCC, 0xA7, 0x2B, 0xC2, 0xF9, 0x90, 0x5B, 0x10, 0x01, 0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x02, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0xE9, 0x01, 0x00, 0x00, 0x44, 0x01, 0x00, 0x00, 0x00, 0x04, 0x00, 0x13,
+				0x08, 0x04, 0x00, 0x43, 0x00, 0x00, 0x00, 0x3E, 0x04, 0x00, 0x01, 0x02, 0x00, 0x11, 0x40, 0x06, 0x00, 0x06, 0x02, 0x00,
+				0x04, 0x30, 0x00, 0x01, 0x39, 0x00, 0xAF, 0x00, 0x00, 0x00, 0x9A, 0x99, 0x19, 0x3F, 0x00, 0x00, 0x80, 0x04, 0x00, 0x04,
+				0x00, 0x02, 0x00, 0x08, 0x1C, 0x00, 0x0F, 0x02, 0x00, 0x01, 0x04, 0x20, 0x00, 0x04, 0x02, 0x00, 0x04, 0x10, 0x00, 0x04,
+				0x08, 0x00, 0x0F, 0x02, 0x00, 0x01, 0x00, 0x1C, 0x00, 0x04, 0x02, 0x00, 0x04, 0x0C, 0x00, 0x04, 0x08, 0x00, 0x0C, 0x02,
+				0x00, 0x00, 0x18, 0x00, 0x08, 0x04, 0x00, 0x04, 0x02, 0x00, 0x00, 0x14, 0x00, 0x0F, 0x02, 0x00, 0x25, 0x00, 0x3C, 0x00,
+				0x04, 0x04, 0x00, 0x02, 0x02, 0x00, 0x16, 0x02, 0x13, 0x01, 0x01, 0x02, 0x00, 0x00, 0x10, 0x00, 0x11, 0x20, 0x0A, 0x00,
+				0x0C, 0x02, 0x00, 0x08, 0x38, 0x00, 0x06, 0x0C, 0x00, 0x00, 0x58, 0x01, 0x13, 0x06, 0x2B, 0x00, 0x00, 0x0C, 0x00, 0x00,
+				0x40, 0x00, 0x13, 0x03, 0x54, 0x00, 0x00, 0x0C, 0x00, 0x07, 0x02, 0x00, 0x10, 0x3F, 0x0C, 0x00, 0x04, 0x24, 0x00, 0x08,
+				0x02, 0x00, 0x54, 0xFC, 0xFF, 0xFF, 0xFF, 0x04, 0x11, 0x00, 0xC0, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00,
+				0x00, 0x00, 0x00 };
+
+		omm::Debug::Stats stats = Bake(input_compress_v1_5_0);
+
+		ExpectEqual(stats, {
+			.totalOpaque = 152,
+			.totalTransparent = 232,
+			.totalUnknownTransparent = 70,
+			.totalUnknownOpaque = 58,
+			});
+	}
+
+	TEST_P(OMMBakeTestCPU, DeserializeOutput_v1_5_0) {
+
+		// GenerateSerializedString(nullptr, "output_v1_5_0", false);
+
+		std::vector<unsigned char> output_v1_5_0 
+			= { 0xEC, 0x20, 0xE6, 0x60, 0x0F, 0x57, 0xC1, 0x93, 0x01, 0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
+				0x80, 0x00, 0x00, 0x00, 0x55, 0x55, 0x75, 0xD5, 0xEF, 0xAB, 0x00, 0xFE, 0x8A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2A, 0x00,
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0xA8, 0xDE, 0x00,
+				0x00, 0x2A, 0xA8, 0x7F, 0x55, 0x55, 0x55, 0xFD, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2A, 0xA8, 0xDF, 0x00,
+				0x00, 0x2A, 0x80, 0x7E, 0x55, 0x55, 0x7F, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55,
+				0x55, 0x55, 0x55, 0x55, 0xED, 0xAB, 0x02, 0xFE, 0xAB, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0xBA, 0xFE, 0x6F,
+				0xD5, 0x6F, 0xD5, 0x2A, 0x80, 0x2A, 0xA8, 0x7F, 0x55, 0x55, 0x55, 0xFD, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x2A, 0xA8, 0xDF, 0x02, 0xA8, 0xDE, 0x57, 0x75, 0x55, 0x55, 0x7F, 0x55, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x04, 0x00, 0x02, 0x00, 0x40, 0x00, 0x00, 0x00, 0x04, 0x00, 0x02, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00,
+				0x04, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
+				0x02, 0x00, 0x00, 0x00, 0x04, 0x00, 0x02, 0x00 };
+
+		omm::Debug::Stats stats = GetBakeOutput(output_v1_5_0);
+
+		ExpectEqual(stats, {
+			.totalOpaque = 152,
+			.totalTransparent = 232,
+			.totalUnknownTransparent = 70,
+			.totalUnknownOpaque = 58,
+			});
+	}
+
+	TEST_P(OMMBakeTestCPU, DeserializeOutput_Compress_v1_5_0) {
+
+		// GenerateSerializedString(nullptr, "output_compress_v1_5_0", true);
+
+		std::vector<unsigned char> output_compress_v1_5_0 
+			= { 0x33, 0x2C, 0x5C, 0x0E, 0xFB, 0x84, 0xDA, 0xE1, 0x01, 0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x02, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0xC4, 0x00, 0x00, 0x00, 0xF0, 0x06, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00,
+				0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x55, 0x55, 0x75, 0xD5, 0xEF, 0xAB, 0x00, 0xFE, 0x8A, 0x15, 0x00, 0x21, 0x00, 0x2A,
+				0x06, 0x00, 0x08, 0x02, 0x00, 0xC4, 0x20, 0xA8, 0xDE, 0x00, 0x00, 0x2A, 0xA8, 0x7F, 0x55, 0x55, 0x55, 0xFD, 0x18, 0x00,
+				0xA0, 0x2A, 0xA8, 0xDF, 0x00, 0x00, 0x2A, 0x80, 0x7E, 0x55, 0x55, 0x17, 0x00, 0x0A, 0x02, 0x00, 0x53, 0xED, 0xAB, 0x02,
+				0xFE, 0xAB, 0x29, 0x00, 0x9E, 0x80, 0xBA, 0xFE, 0x6F, 0xD5, 0x6F, 0xD5, 0x2A, 0x80, 0x40, 0x00, 0x50, 0x02, 0xA8, 0xDE,
+				0x57, 0x75, 0x40, 0x00, 0x13, 0x02, 0x2C, 0x00, 0x53, 0x04, 0x00, 0x02, 0x00, 0x40, 0x08, 0x00, 0x00, 0x9C, 0x00, 0x00,
+				0x18, 0x00, 0x00, 0x14, 0x00, 0x00, 0x1F, 0x00, 0x00, 0x06, 0x00, 0x00, 0x14, 0x00, 0x00, 0x04, 0x00, 0x80, 0x02, 0x00,
+				0x00, 0x00, 0x04, 0x00, 0x02, 0x00 };
+
+		omm::Debug::Stats stats = GetBakeOutput(output_compress_v1_5_0);
+
+		ExpectEqual(stats, {
+			.totalOpaque = 152,
+			.totalTransparent = 232,
+			.totalUnknownTransparent = 70,
+			.totalUnknownOpaque = 58,
+			});
+	}
+
+	TEST_P(OMMBakeTestCPU, Degen_Default) {
+
+		uint32_t triangleIndices[3] = { 0, 1, 2, };
+		float texCoords[8] = {  0.f, 0.f, 
+								0.f, 0.437582970f,	
+								0.f, 0.221271083f };
+
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, 4, { 1024, 1024 }, 3, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, &StandardCircle);
+
+		ExpectEqual(stats, {
+			.totalFullyUnknownOpaque = 1,
+		});
+	}
+
+	TEST_P(OMMBakeTestCPU, Degen_FullyUnknownTransparent) {
+
+		uint32_t triangleIndices[3] = { 0, 1, 2, };
+		float texCoords[8] = { 0.f, 0.f,
+								0.f, 0.437582970f,
+								0.f, 0.221271083f };
+
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, 4, { 1024, 1024 }, 3, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords,
+			&StandardCircle, { .degenTriState = omm::SpecialIndex::FullyUnknownTransparent });
+
+		ExpectEqual(stats, {
+			.totalFullyUnknownTransparent = 1,
 			});
 	}
 

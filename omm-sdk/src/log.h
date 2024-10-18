@@ -18,6 +18,18 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 namespace omm
 {
+	static const char* ToString(ommSpecialIndex specialIndex)
+	{
+		switch (specialIndex)
+		{
+		case ommSpecialIndex_FullyTransparent:			return "Fully Transparent";
+		case ommSpecialIndex_FullyOpaque:				return "Fully Opaque";
+		case ommSpecialIndex_FullyUnknownTransparent:	return "Fully Unknown Transparent";
+		case ommSpecialIndex_FullyUnknownOpaque:		return "Fully Unknown Opaque";
+		default: return "Unknown State";
+		}
+	}
+
 	class Logger
 	{
 	public:
