@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.13)
 
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/gtest)
 	option(OMM_ENABLE_TESTS "Enable unit test" ON)
@@ -31,6 +31,8 @@ if (NOT DEFINED OMM_PROJECT_FOLDER)
     set(OMM_PROJECT_FOLDER "Opacity Micro-Map SDK")
 endif()
 
+add_subdirectory(util/viewer_app)
+
 add_subdirectory(thirdparty)
 add_subdirectory(shared)
 add_subdirectory(omm-sdk)
@@ -39,3 +41,4 @@ add_subdirectory(integration)
 if (OMM_ENABLE_TESTS)
     add_subdirectory(tests)
 endif()
+

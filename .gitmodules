@@ -22,3 +22,9 @@
 [submodule "thirdparty/lz4"]
 	path = thirdparty/lz4
 	url = https://github.com/lz4/lz4.git
+[submodule "util/donut"]
+	path = util/donut
+	url = https://github.com/NVIDIAGameWorks/donut.git
+[submodule "util/viewer_app/donut"]
+	path = util/viewer_app/donut
+	url = https://github.com/NVIDIAGameWorks/donut.git

@@ -19,10 +19,13 @@ add_library(stb_lib INTERFACE)
 target_include_directories(stb_lib INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/stb>)
 
 # lz4
-set(LZ4_BUILD_CLI OFF)
-set(LZ4_BUILD_LEGACY_LZ4C OFF)
-add_subdirectory("lz4/build/cmake")
-set_property(TARGET lz4_static PROPERTY FOLDER "${OMM_PROJECT_FOLDER}/Thirdparty") 
+if (NOT TARGET lz4)
+	set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries" FORCE)
+	set(LZ4_BUILD_CLI OFF)
+	set(LZ4_BUILD_LEGACY_LZ4C OFF)
+	add_subdirectory("lz4/build/cmake")
+	set_property(TARGET lz4 PROPERTY FOLDER "${OMM_PROJECT_FOLDER}/Thirdparty") 
+endif()
 
 # ShaderMake
 if (NOT TARGET ShaderMake)
