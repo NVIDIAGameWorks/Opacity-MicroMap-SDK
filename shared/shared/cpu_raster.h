@@ -11,7 +11,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #pragma once
 
 #include "math.h"
-#include "triangle.h"
+#include "geometry.h"
 
 namespace omm
 {
@@ -366,6 +366,184 @@ namespace omm
     }
 
     template <typename F>
+    inline void RasterizeLineImpl(const Line& _l, int2 r, const float2& offset, F f, void* context = nullptr)
+    {
+        Line l = _l.p0.x > _l.p1.x ? Line(_l.p1, _l.p0) : _l;
+
+        // Bresenham's line algorithm
+        // src: https://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm
+
+        int x0 = (int)(l.p0.x * r.x);
+        int x1 = (int)(l.p1.x * r.x);
+        int y0 = (int)(l.p0.y * r.y);
+        int y1 = (int)(l.p1.y * r.y);
+
+        auto plotLineLow = [&f, context](int x0, int y0, int x1, int y1) {
+            int dx = x1 - x0;
+            int dy = y1 - y0;
+            int yi = 1;
+            if (dy < 0)
+            {
+                yi = -1;
+                dy = -dy;
+            }
+            int D = (2 * dy) - dx;
+            int y = y0;
+
+            for (int x = x0; x <= x1; ++x)
+            {
+                f(int2({ x, y }), context);
+                if (D > 0)
+                {
+                    y = y + 1;
+                    D = D + (2 * (dy - dx));
+                }
+                else
+                {
+                    D = D + 2 * dy;
+                }
+            }
+        };
+
+        auto plotLineHigh = [&f, context](int x0, int y0, int x1, int y1) {
+            int dx = x1 - x0;
+            int dy = y1 - y0;
+            int xi = 1;
+            if (dx < 0)
+            {
+                xi = -1;
+                dx = -dx;
+            }
+            int D = (2 * dx) - dy;
+            int x = x0;
+
+            for (int y = y0; y <= y1; ++y)
+            {
+                f(int2({ x, y }), context);
+
+                if (D > 0)
+                {
+                    x = x + xi;
+                    D = D + (2 * (dx - dy));
+                }
+                else
+                {
+                    D = D + 2 * dx;
+                }
+            }
+        };
+
+        if (abs(y1 - y0) < abs(x1 - x0))
+        {
+            if (x0 > x1)
+                plotLineLow(x1, y1, x0, y0);
+            else
+                plotLineLow(x0, y0, x1, y1);
+        }
+        else
+        {
+            if (y0 > y1)
+                plotLineHigh(x1, y1, x0, y0);
+            else
+                plotLineHigh(x0, y0, x1, y1);
+        }
+    }
+
+    template <typename F>
+    inline void RasterizeLineConservativeImpl(const Line& _l, int2 r, /*const float2& offset,*/ F f, void* context = nullptr)
+    {
+        Line l = _l.p0.x > _l.p1.x ? Line(_l.p1, _l.p0) : _l;
+
+        float x0 = (float)(l.p0.x * r.x);
+        float x1 = (float)(l.p1.x * r.x);
+        float y0 = (float)(l.p0.y * r.y);
+        float y1 = (float)(l.p1.y * r.y);
+
+        const float max_x = x1; // Sorted earlier
+        const float max_y = std::max(y0, y1);
+        const float min_y = std::min(y0, y1);
+
+        const float k = (y1 - y0) / (x1 - x0);
+        const float m = y0 - k * x0;
+
+        int ix0 = (int)x0;
+        int iy0 = (int)y0;
+        int ix1 = (int)x1;
+        int iy1 = (int)y1;
+
+        enum eDir
+        {
+            eUp,
+            eRight,
+            eDown
+        };
+
+        auto DoesIntersect = [](float k, float m, int px, int py, float max_x, float min_y, float max_y, eDir dir)->bool
+            {
+                auto IsZero = [](float x) {
+                    return (x < 1e-6f && x > -1e-6f);
+                    };
+
+                auto IsInf = [](float x) {
+                    return std::isinf(x);
+                    };
+
+                if (dir == eUp)
+                {
+                    const float x = IsInf(k) ? max_x : (py - m) / k;
+                    const float y = IsInf(k) ? py : k * x + m;
+                    const float dx = x - px;
+                    return dx >= 0 && dx <= 1 && x <= max_x && y >= min_y && y <= max_y;
+                }
+                if (dir == eRight)
+                {
+                    const float y = k * (px + 1.0f) + m;
+                    const float x = IsZero(k) ? max_x : (y - m) / k;
+                    const float dy = y - py;
+                    const bool inRangeY = dy >= 0 && dy <= 1;
+                    return dy >= 0 && dy <= 1 && x <= max_x && y >= min_y && y <= max_y;
+                }
+                if (dir == eDown)
+                {
+                    const float x = IsInf(k) ? max_x : ((py + 1.0f) - m) / k;
+                    const float y = IsInf(k) ? py + 1.0f : k * x + m;
+                    const float dx = x - px;
+                    return dx >= 0 && dx <= 1 && x <= max_x && y >= min_y && y <= max_y;
+                }
+                return false;
+            };
+
+        int x = ix0;
+        int y = iy0;
+
+        int yLast = y;
+        for (; x <= ix1;)
+        {
+            f(int2({ x, y }), context);
+
+            if (DoesIntersect(k, m, x, y, max_x, min_y, max_y, eUp) && yLast != (y - 1))
+            {
+                yLast = y;
+                y -= 1;
+            }
+            else if (DoesIntersect(k, m, x, y, max_x, min_y, max_y, eRight))
+            {
+                yLast = y;
+                x += 1;
+            }
+            else if (DoesIntersect(k, m, x, y, max_x, min_y, max_y, eDown) && yLast != (y + 1))
+            {
+                yLast = y;
+                y += 1;
+            }
+            else
+            {
+                break;
+            }
+        }
+    }
+
+    template <typename F>
     inline void RasterizeConservativeSerial(const Triangle& t, int2 r, F f, void* context = nullptr) { Rasterize<RasterMode::OverConservative, false, false>(t, r, float2{0,0}, f, context); };
 
     template <typename F>
@@ -385,5 +563,11 @@ namespace omm
 
     template <typename F>
     inline void RasterizeParallel(const Triangle& t, int2 r, F f, void* context = nullptr) { Rasterize<RasterMode::Default, true, false>(t, r, float2{ 0,0 }, f, context); };
+
+    template <typename F>
+    inline void RasterizeLine(const Line& l, int2 r, F f, void* context = nullptr) { RasterizeLineImpl(l, r, float2{ 0,0 }, f, context); };
+
+    template <typename F>
+    inline void RasterizeLineConservative(const Line& l, int2 r, F f, void* context = nullptr) { RasterizeLineConservativeImpl(l, r, float2{ 0,0 }, f, context); };
 
 } // namespace omm

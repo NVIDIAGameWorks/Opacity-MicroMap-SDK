@@ -1,7 +1,7 @@
 #pragma once
 #include <omm.h>
 #include "omm.h"
-#include <shared/triangle.h>
+#include <shared/geometry.h>
 #include <shared/texture.h>
 #include <shared/bird.h>
 #include <shared/cpu_raster.h>
@@ -98,10 +98,23 @@ using ImageRGBA = Image<uchar4>;
 using ImageAlpha = Image<uint8_t>;
 
 static inline bool SaveImageToFile(const std::string& folder, const std::string& fileName, const ImageRGB& image) {
-	const uint CHANNEL_NUM = 3;
-	std::string dst = folder + "/" + fileName;
-	int res = stbi_write_png(dst.c_str(), image.GetWidth(), image.GetHeight(), CHANNEL_NUM, (unsigned char*)image.GetData(), 0 /*stride in bytes*/);
-	return res == 1;
+
+#if OMM_TEST_ENABLE_IMAGE_DUMP
+	constexpr bool kDumpDebug = true;
+#else
+	constexpr bool kDumpDebug = false;
+#endif
+
+	if (kDumpDebug)
+	{
+		if (!folder.empty())
+			std::filesystem::create_directory(folder);
+
+		const uint CHANNEL_NUM = 3;
+		std::string dst = folder + "/" + fileName;
+		int res = stbi_write_png(dst.c_str(), image.GetWidth(), image.GetHeight(), CHANNEL_NUM, (unsigned char*)image.GetData(), 0 /*stride in bytes*/);
+		return res == 1;
+	}
 }
 
 static inline void FillWithCheckerboardRGB(ImageRGB& image, int checkerSize) {

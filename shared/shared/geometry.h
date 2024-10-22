@@ -16,6 +16,24 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 namespace omm
 {
+    struct Line
+    {
+        Line() = default;
+        Line& operator=(const Line&) = default;
+        Line(const float2& _p0, const float2& _p1) :
+            p0(_p0),
+            p1(_p1)
+        {
+            aabb_s = { std::min(p0.x, p1.x), std::min(p0.y, p1.y) };
+            aabb_e = { std::max(p0.x, p1.x), std::max(p0.y, p1.y) };
+        }
+
+        float2 p0;
+        float2 p1;
+        float2 aabb_s;     //< Start point of the aabb
+        float2 aabb_e;     //< End point of the aabb
+    };
+
     enum class WindingOrder : uint8_t {
         CW,
         CCW,

@@ -14,7 +14,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 #include <shared/bird.h>
 #include <shared/math.h>
-#include <shared/triangle.h>
+#include <shared/geometry.h>
 #include <shared/cpu_raster.h>
 #include <shared/texture.h>
 #include <shared/parse.h>
