@@ -67,10 +67,8 @@ static ommOpacityState GetStateFromCoverage(ommFormat vmFormat, ommUnknownStateP
 struct LevelLineIntersectionKernel
 {
     struct Params {
-        OmmCoverage*            vmCoverage;
-        const Triangle*         triangle;
-        float2                  invSize;
-        int2                    size;
+        OmmCoverage             vmCoverage;
+        Triangle                triangle;
         const TextureImpl*      texture;
         float                   alphaCutoff;
         float                   borderAlpha;
@@ -134,18 +132,18 @@ private:
         const float _length;
     };
      
-    static bool IsZero(float value, float kEpsilon = 1e-6f) {
-        return std::abs(value) < kEpsilon;
+    __forceinline static bool IsZero(float value, float kEpsilon = 1e-6f) {
+        return value < kEpsilon && value > -kEpsilon;
     };
 
-    static bool IsPointInsideUnitSquare(const float2& p)
+    __forceinline static bool IsPointInsideUnitSquare(const float2& p)
     {
         return p.x >= 0.f && p.x <= 1.f && p.y >= 0.f && p.y <= 1.f;
     }
 
-    static bool TestEdgeHyperbolaIntersection(
-        float2 p0, float2 p1,       // 'Edge'       - Defined by the end points (in any order)
-        const float4& h             // 'Hyperbola'  - Hyperbolic curve on the form x * h.x + y * h.y + x * y + h.z + h.w = 0
+    __forceinline static bool TestEdgeHyperbolaIntersection(
+        float2& p0, float2& p1,                     // 'Edge'       - Defined by the end points (in any order)
+        const float4& h                             // 'Hyperbola'  - Hyperbolic curve on the form x * h.x + y * h.y + x * y + h.z + h.w = 0
     )
     {
         if (p0.x > p1.x)
@@ -243,14 +241,16 @@ public:
     template<ommCpuTextureFormat eFormat, ommTextureAddressMode eTextureAddressMode, TilingMode eTilingMode, bool bTexIsPow2>
     static void run(int2 pixel, float3* bc, Coverage coverage, void* ctx)
     {
-        const Params* p = (const Params*)ctx;
+        Params* p = (Params*)ctx;
+
+        const float2& invSize = p->texture->GetRcpSize(p->mipLevel);
 
         // We add +0.5 here in order to compensate for the raster offset.
         const float2 pixelf = (float2)pixel + 0.5f;
-        const float2 invPixelf = pixelf * p->invSize;
+        const float2 invPixelf = pixelf * invSize;
 
         int2 coord00, coord10, coord01, coord11;
-        omm::GatherTexCoord4<eTextureAddressMode, bTexIsPow2>(glm::floor(pixelf), p->size, coord00, coord10, coord01, coord11);
+        omm::GatherTexCoord4<eTextureAddressMode, bTexIsPow2>(pixel, p->texture->GetSize(p->mipLevel), coord00, coord10, coord01, coord11);
 
         auto IsBorder = [](int2 coord) {
             return (coord.x == kTexCoordBorder || coord.y == kTexCoordBorder);
@@ -279,10 +279,11 @@ public:
             const bool IsOpaque2 = p->alphaCutoff < gatherRed.z;
             const bool IsOpaque3 = p->alphaCutoff < gatherRed.w;
 
+
             const float2 p0x0 = invPixelf;
-            const float2 p0x1 = invPixelf + float2(0.0f, p->invSize.y);
-            const float2 p1x1 = invPixelf + p->invSize;
-            const float2 p1x0 = invPixelf + float2(p->invSize.x, 0.0f);
+            const float2 p0x1 = invPixelf + float2(0.0f, invSize.y);
+            const float2 p1x1 = invPixelf + invSize;
+            const float2 p1x0 = invPixelf + float2(invSize.x, 0.0f);
 
             bool IsInside0 = true;
             bool IsInside1 = true;
@@ -291,10 +292,10 @@ public:
 
             //if (coverage == Coverage::PartiallyCovered)
             {
-                IsInside0 = p->triangle->PointInTriangle(p0x0);
-                IsInside1 = p->triangle->PointInTriangle(p0x1);
-                IsInside2 = p->triangle->PointInTriangle(p1x1);
-                IsInside3 = p->triangle->PointInTriangle(p1x0);
+                IsInside0 = p->triangle.PointInTriangle(p0x0);
+                IsInside1 = p->triangle.PointInTriangle(p0x1);
+                IsInside2 = p->triangle.PointInTriangle(p1x1);
+                IsInside3 = p->triangle.PointInTriangle(p1x0);
             }
 
             bool IsOpaque = false;
@@ -313,12 +314,12 @@ public:
             IsTransparent |= IsInside3 && !IsOpaque3;
 
             if (IsOpaque) {
-                p->vmCoverage->numAboveAlpha += 1;
+                p->vmCoverage.numAboveAlpha += 1;
             }
 
             if (IsTransparent)
             {
-                p->vmCoverage->numBelowAlpha += 1;
+                p->vmCoverage.numBelowAlpha += 1;
             }
 
             // We've already concluded it's unknown -> return!
@@ -344,20 +345,22 @@ public:
             {
                 ///< All points on the same level. Alpha cutoff is either entierly above, or entierly below.
                 if (p->alphaCutoff < a) {
-                    p->vmCoverage->numAboveAlpha += 1;
+                    p->vmCoverage.numAboveAlpha += 1;
                 }
                 else
                 {
-                    p->vmCoverage->numBelowAlpha += 1;
+                    p->vmCoverage.numBelowAlpha += 1;
                 }
             }
             else
             {
+                uint32_t edgeList0[] = { 0, 1, 2 };
+                uint32_t edgeList1[] = { 1, 2, 0 };
                 for (uint32_t edge = 0; edge < 3; ++edge) {
 
                     // Transform the edge to the local coordinate system of the texel.
-                    const float2 p0 = (float2)p->size * p->triangle->getP(edge % 3) - pixelf;
-                    const float2 p1 = (float2)p->size * p->triangle->getP((edge + 1) % 3) - pixelf;
+                    float2 p0 = p->texture->GetSizef(p->mipLevel) * p->triangle.getP(edgeList0[edge]) - pixelf;
+                    float2 p1 = p->texture->GetSizef(p->mipLevel) * p->triangle.getP(edgeList1[edge]) - pixelf;
 
                     // Hyperbolic paraboloid (3D surface) => Hyperbola (2D line)
                     // f(x, y) = a + b * x + c * y + d * x * y where f(x, y) = p->alphaCutoff =>
@@ -366,8 +369,8 @@ public:
 
                     if (TestEdgeHyperbolaIntersection(p0, p1, h))
                     {
-                        p->vmCoverage->numAboveAlpha += 1;
-                        p->vmCoverage->numBelowAlpha += 1;
+                        p->vmCoverage.numAboveAlpha += 1;
+                        p->vmCoverage.numBelowAlpha += 1;
                         break;
                     }
                 }

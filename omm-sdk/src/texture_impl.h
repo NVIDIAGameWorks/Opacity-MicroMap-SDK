@@ -57,15 +57,19 @@ namespace omm
             return m_textureFormat;
         }
 
-        int2 GetSize(int32_t mip) const {
+        const int2& GetSize(int32_t mip) const {
             return m_mips[mip].size;
+        }
+
+        const float2& GetSizef(int32_t mip) const {
+            return m_mips[mip].sizef;
         }
 
         bool SizeIsPow2() const {
             return m_mips[0].sizeIsPow2;
         }
 
-        float2 GetRcpSize(int32_t mip) const {
+        const float2& GetRcpSize(int32_t mip) const {
             return m_mips[mip].rcpSize;
         }
 
@@ -135,6 +139,7 @@ namespace omm
         struct Mips
         {
             int2 size;
+            float2 sizef;
             bool sizeIsPow2;
             float2 rcpSize;
             int2 sizeMinusOne;
@@ -264,6 +269,7 @@ namespace omm
                 os.read(reinterpret_cast<char*>(&mip.numElements), sizeof(mip.numElements));
                 os.read(reinterpret_cast<char*>(&mip.dataOffsetSAT), sizeof(mip.dataOffsetSAT));
 
+                mip.sizef = (float2)mip.size;
                 mip.sizeIsPow2 = isPow2(mip.size.x) && isPow2(mip.size.y);
             }
         }

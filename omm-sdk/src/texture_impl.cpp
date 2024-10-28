@@ -93,6 +93,7 @@ namespace omm
         for (uint32_t mipIt = 0; mipIt < desc.mipCount; ++mipIt)
         {
             m_mips[mipIt].size = { desc.mips[mipIt].width, desc.mips[mipIt].height };
+            m_mips[mipIt].sizef = (float2)m_mips[mipIt].size;
             m_mips[mipIt].sizeMinusOne = m_mips[mipIt].size - 1;
             m_mips[mipIt].rcpSize = 1.f / (float2)m_mips[mipIt].size;
             m_mips[mipIt].sizeIsPow2 = omm::isPow2(m_mips[mipIt].size.x) && omm::isPow2(m_mips[mipIt].size.y);
