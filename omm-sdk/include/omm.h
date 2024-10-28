@@ -420,8 +420,13 @@ typedef struct ommCpuBakeInputDesc
    const ommFormat*         formats;
    // Determines how to promote mixed states
    ommUnknownStatePromotion unknownStatePromotion;
-   // Determines the state of unresolvable/degenerate triangles (nan/inf or zeroa area UV-triangles)
-   ommSpecialIndex          degenTriState;
+   // Determines the state of unresolvable(nan/inf UV-triangles) and disabled triangles. Note that degenerate triangles (points/lines) will be resolved correctly.
+   union
+   {
+       OMM_DEPRECATED_MSG("unresolvedTriState has been deprecated, please use unresolvedTriState instead")
+       ommSpecialIndex     degenTriState;
+       ommSpecialIndex     unresolvedTriState;
+   };
    // Micro triangle count is 4^N, where N is the subdivision level.
    // maxSubdivisionLevel level must be in range [0, 12].
    // When dynamicSubdivisionScale is enabled maxSubdivisionLevel is the max subdivision level allowed.
@@ -466,7 +471,7 @@ inline ommCpuBakeInputDesc ommCpuBakeInputDescDefault()
    v.format                        = ommFormat_OC1_4_State;
    v.formats                       = NULL;
    v.unknownStatePromotion         = ommUnknownStatePromotion_ForceOpaque;
-   v.degenTriState                 = ommSpecialIndex_FullyUnknownOpaque;
+   v.unresolvedTriState            = ommSpecialIndex_FullyUnknownOpaque;
    v.maxSubdivisionLevel           = 8;
    v.subdivisionLevels             = NULL;
    v.maxWorkloadSize               = 0xFFFFFFFFFFFFFFFF;

@@ -34,13 +34,6 @@ namespace omm
         float2 aabb_e;     //< End point of the aabb
     };
 
-    enum class TriangleInfo : uint8_t {
-        Invalid     = 1u << 0u,
-        Degenerate  = 1u << 1u,
-        CW          = 1u << 2u,
-        CCW         = 1u << 3u,
-    };
-
     static bool IsInvalid(const float2& p0, const float2& p1, const float2& p2)
     {
         const bool anyNan = glm::any(glm::isnan(p0)) || glm::any(glm::isnan(p1)) || glm::any(glm::isnan(p2));
@@ -49,10 +42,8 @@ namespace omm
     }
 
     static inline bool IsDegenerate(const float2& p0, const float2& p1, const float2& p2) {
-        const float3 N = glm::cross(float3(p2 - p0, 0), float3(p1 - p0, 0));
-        const float N2 = N.z * N.z;
-        const bool bIsZeroArea = N2 < 1e-9;
-        return bIsZeroArea;
+        float area = 0.5f * std::abs(p0.x * (p1.y - p2.y) + p1.x * (p2.y - p0.y) + p2.x * (p0.y - p1.y));
+        return area < 1e-9;
     }
 
     static inline bool IsCCW(const float2& p0, const float2& p1, const float2& p2) {
@@ -70,21 +61,8 @@ namespace omm
         Triangle(const float2& _p0, const float2& _p1, const float2& _p2) :
             p0(_p0),
             p1(_p1),
-            p2(_p2),
-            _info(0)
+            p2(_p2)
         {
-            if (IsInvalid(p0, p1, p2))
-            {
-                _info |= (uint32_t)TriangleInfo::Invalid;
-            }
-            else if (IsDegenerate(p0, p1, p2))
-            {
-                _info |= (uint32_t)TriangleInfo::Degenerate;
-            }
-            else 
-            {
-                _info |= IsCCW(p0, p1, p2) ? (uint32_t)TriangleInfo::CCW : (uint32_t)TriangleInfo::CW;
-            }
             aabb_s = { std::min(std::min(p0.x, p1.x), p2.x), std::min(std::min(p0.y, p1.y), p2.y) };
             aabb_e = { std::max(std::max(p0.x, p1.x), p2.x), std::max(std::max(p0.y, p1.y), p2.y) };
         }
@@ -98,19 +76,18 @@ namespace omm
             return p2;
         }
 
-        inline bool getIsInvalid() const {
-            return (_info & (uint32_t)TriangleInfo::Invalid) == (uint32_t)TriangleInfo::Invalid;
+        inline bool GetIsInvalid() const {
+            return IsInvalid(p0, p1, p2);
         }
 
-        inline bool getIsDegenerate() const {
-            return (_info & (uint32_t)TriangleInfo::Degenerate) == (uint32_t)TriangleInfo::Degenerate;
+        inline bool GetIsDegenerate() const {
+            return IsDegenerate(p0, p1, p2);
         }
 
-        inline bool getIsCCW() const {
-            OMM_ASSERT(!getIsInvalid());
-            //OMM_ASSERT(!getIsDegenerate());
-           // OMM_ASSERT((_info & ((uint32_t)TriangleInfo::CCW | (uint32_t)TriangleInfo::CW)) == ((uint32_t)TriangleInfo::CCW | (uint32_t)TriangleInfo::CW));
-            return (_info & (uint32_t)TriangleInfo::CCW) == (uint32_t)TriangleInfo::CCW;
+        inline bool GetIsCCW() const {
+            OMM_ASSERT(!GetIsInvalid());
+            OMM_ASSERT(!GetIsDegenerate());
+            return IsCCW(p0, p1, p2);
         }
 
         float2 p0;
@@ -119,7 +96,6 @@ namespace omm
 
         float2 aabb_s;         //< Start point of the aabb
         float2 aabb_e;         //< End point of the aabb
-        uint32_t _info;        //< TriangleInfo This matters when calculating barycentrics during rasterization.
     };
 
     template <class T>

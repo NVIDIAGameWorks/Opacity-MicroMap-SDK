@@ -26,7 +26,7 @@ protected:
 		_triangle = std::get<0>(GetParam());
 		_size = std::get<1>(GetParam());
 
-		EXPECT_EQ(_triangle.getIsCCW(), true);
+		EXPECT_EQ(_triangle.GetIsCCW(), true);
 	}
 
 	void TearDown() override {
@@ -219,7 +219,6 @@ TEST_P(RasterTest, RasterizeConservativeSuperLarge) {
 	Run({ _size.x * 4, _size.y * 4, }, omm::RasterMode::OverConservative, false);
 }
 
-#if 0
 INSTANTIATE_TEST_SUITE_P(
 	RasterContained,
 	RasterTest,
@@ -282,6 +281,5 @@ INSTANTIATE_TEST_SUITE_P(
 	::testing::Values(
 		std::make_tuple<omm::Triangle, int2>(omm::Triangle({ 0.809000027f, 0.332400024f }, { 0.332400024f, 0.502599990f }, { 0.402599990f, 0.332400024f }), { 1024, 1024 })
 	));
-#endif
 
 }  // namespace

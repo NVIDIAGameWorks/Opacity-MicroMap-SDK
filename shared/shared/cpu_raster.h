@@ -283,17 +283,17 @@ namespace omm
         
         // constexpr bool EnableBarycentrics = false;
 
-        OMM_ASSERT(!_t.getIsDegenerate());
+        OMM_ASSERT(!_t.GetIsDegenerate());
 
         // Scanline approaches could be investigated as well.
-        const bool isCCW = _t.getIsCCW();
+        const bool isCCW = _t.GetIsCCW();
 
         const float2 rf = float2(r);
         const float2 invSize = 1.f / rf;
         // Rasterizer expects CCW triangles.
         Triangle t = isCCW ? Triangle(_t.p0 * rf + offset, _t.p1 * rf + offset, _t.p2 * rf + offset)
                                     : Triangle(_t.p2 * rf + offset, _t.p1 * rf + offset, _t.p0 * rf + offset);
-        OMM_ASSERT(t.getIsCCW());
+        OMM_ASSERT(t.GetIsCCW());
 
         const int2 min = int2{ glm::floor(t.aabb_s) };
         const int2 max = int2{ glm::ceil(t.aabb_e) };
@@ -513,14 +513,14 @@ namespace omm
         const float min_y = std::min(y0, y1);
 
         float k = (y1 - y0) / (x1 - x0);
-        if (k > 1e6 || k < -1e6)
+        if (k > 1e4 || k < -1e4)
             k = std::numeric_limits<float>::infinity();
         const float m = y0 - k * x0;
 
-        int ix0 = (int)x0;
-        int iy0 = (int)y0;
-        int ix1 = (int)x1;
-        int iy1 = (int)y1;
+        int ix0 = (int)glm::floor(x0);
+        int iy0 = (int)glm::floor(y0);
+        int ix1 = (int)glm::floor(x1);
+        int iy1 = (int)glm::floor(y1);
 
         enum eDir
         {
@@ -600,69 +600,50 @@ namespace omm
             }
         }
     }
-
-    // t - the triangle to rasterize
-    // r - the pixel resolution to rasterize at.
-    // f - the function callback, _should_ be inlined when using lambdas.
-    template <RasterMode eRasterMode, bool EnableParallel, bool EnableBarycentrics, typename F>
-    inline void Rasterize(const Triangle& _t, int2 r, const float2& offset, F f, void* context = nullptr) 
-    {
-        if (_t.getIsDegenerate())
-        {
-            Line l(_t.aabb_s, _t.aabb_e);
-            if (eRasterMode == RasterMode::Default)
-            {
-                RasterizeLineImpl<EnableParallel, EnableBarycentrics, F>(l, r, offset, f, context);
-            }
-            else
-            {
-                RasterizeLineConservativeImpl<EnableParallel, EnableBarycentrics, F>(l, r, offset, f, context);
-                OMM_ASSERT(eRasterMode == RasterMode::OverConservative);
-            }
-        }
-        else
-        {
-            RasterizeTriImpl<eRasterMode, EnableParallel, EnableBarycentrics, F>(_t, r, offset, f, context);
-        }
-    }
    
     template <typename F>
-    inline void RasterizeConservativeSerial(const Triangle& t, int2 r, F f, void* context = nullptr) { Rasterize<RasterMode::OverConservative, false, false>(t, r, float2{0,0}, f, context); };
+    inline void RasterizeConservativeSerial(const Triangle& t, int2 r, F f, void* context = nullptr) { RasterizeTriImpl<RasterMode::OverConservative, false, false>(t, r, float2{0,0}, f, context); };
 
     template <typename F>
-    inline void RasterizeConservativeSerialBarycentrics(const Triangle& t, int2 r, F f, void* context = nullptr) { Rasterize<RasterMode::OverConservative, false, true>(t, r, float2{ 0,0 }, f, context); };
+    inline void RasterizeConservativeSerialBarycentrics(const Triangle& t, int2 r, F f, void* context = nullptr) { RasterizeTriImpl<RasterMode::OverConservative, false, true>(t, r, float2{ 0,0 }, f, context); };
 
     template <typename F>
-    inline void RasterizeConservativeSerialWithOffset(const Triangle& t, int2 r, float2 offset, F f, void* context = nullptr) { Rasterize<RasterMode::OverConservative, false, false>(t, r, offset, f, context); };
+    inline void RasterizeConservativeSerialWithOffset(const Triangle& t, int2 r, float2 offset, F f, void* context = nullptr) { RasterizeTriImpl<RasterMode::OverConservative, false, false>(t, r, offset, f, context); };
 
     template <typename F>
-    inline void RasterizeConservativeSerialWithOffsetCoverage(const Triangle& t, int2 r, float2 offset, F f, void* context = nullptr) { Rasterize<RasterMode::OverConservative, false, false>(t, r, offset, f, context); };
+    inline void RasterizeConservativeSerialWithOffsetCoverage(const Triangle& t, int2 r, float2 offset, F f, void* context = nullptr) { RasterizeTriImpl<RasterMode::OverConservative, false, false>(t, r, offset, f, context); };
 
     template <typename F>
-    inline void RasterizeConservativeParallel(const Triangle& t, int2 r, F f, void* context = nullptr) { Rasterize<RasterMode::OverConservative, true, false>(t, r, float2{ 0,0 }, f, context); };
+    inline void RasterizeConservativeParallel(const Triangle& t, int2 r, F f, void* context = nullptr) { RasterizeTriImpl<RasterMode::OverConservative, true, false>(t, r, float2{ 0,0 }, f, context); };
 
     template <typename F>
-    inline void RasterizeConservativeParallelBarycentrics(const Triangle& t, int2 r, F f, void* context = nullptr) { Rasterize<RasterMode::OverConservative, true, true>(t, r, float2{ 0,0 }, f, context); };
+    inline void RasterizeConservativeParallelBarycentrics(const Triangle& t, int2 r, F f, void* context = nullptr) { RasterizeTriImpl<RasterMode::OverConservative, true, true>(t, r, float2{ 0,0 }, f, context); };
 
     template <typename F>
-    inline void RasterizeUnderConservative(const Triangle& t, int2 r, F f, void* context = nullptr) { Rasterize<RasterMode::UnderConservative, false, false>(t, r, float2{ 0,0 }, f, context); };
+    inline void RasterizeUnderConservative(const Triangle& t, int2 r, F f, void* context = nullptr) { RasterizeTriImpl<RasterMode::UnderConservative, false, false>(t, r, float2{ 0,0 }, f, context); };
 
     template <typename F>
-    inline void RasterizeUnderConservativeBarycentrics(const Triangle& t, int2 r, F f, void* context = nullptr) { Rasterize<RasterMode::UnderConservative, false, true>(t, r, float2{ 0,0 }, f, context); };
+    inline void RasterizeUnderConservativeBarycentrics(const Triangle& t, int2 r, F f, void* context = nullptr) { RasterizeTriImpl<RasterMode::UnderConservative, false, true>(t, r, float2{ 0,0 }, f, context); };
 
     template <typename F>
-    inline void RasterizeSerial(const Triangle& t, int2 r, F f, void* context = nullptr) { Rasterize<RasterMode::Default, false, false>(t, r, float2{ 0,0 }, f, context); };
+    inline void RasterizeSerial(const Triangle& t, int2 r, F f, void* context = nullptr) { RasterizeTriImpl<RasterMode::Default, false, false>(t, r, float2{ 0,0 }, f, context); };
 
     template <typename F>
-    inline void RasterizeParallel(const Triangle& t, int2 r, F f, void* context = nullptr) { Rasterize<RasterMode::Default, true, false>(t, r, float2{ 0,0 }, f, context); };
+    inline void RasterizeParallel(const Triangle& t, int2 r, F f, void* context = nullptr) { RasterizeTriImpl<RasterMode::Default, true, false>(t, r, float2{ 0,0 }, f, context); };
 
     template <typename F>
-    inline void RasterizeParallelBarycentrics(const Triangle& t, int2 r, F f, void* context = nullptr) { Rasterize<RasterMode::Default, true, true>(t, r, float2{ 0,0 }, f, context); };
+    inline void RasterizeParallelBarycentrics(const Triangle& t, int2 r, F f, void* context = nullptr) { RasterizeTriImpl<RasterMode::Default, true, true>(t, r, float2{ 0,0 }, f, context); };
 
     template <typename F>
     inline void RasterizeLine(const Line& l, int2 r, F f, void* context = nullptr) { RasterizeLineImpl<false, false>(l, r, float2{ 0,0 }, f, context); };
 
     template <typename F>
+    inline void RasterizeConservativeSerialLine(const Line& l, int2 r, F f, void* context = nullptr) { RasterizeLineConservativeImpl<false, false>(l, r, float2{ 0,0 }, f, context); };
+
+    template <typename F>
     inline void RasterizeLineConservative(const Line& l, int2 r, F f, void* context = nullptr) { RasterizeLineConservativeImpl<false, false>(l, r, float2{ 0,0 }, f, context); };
+
+    template <typename F>
+    inline void RasterizeConservativeSerialLineWithOffset(const Line& l, int2 r, float2 offset, F f, void* context = nullptr) { RasterizeLineConservativeImpl<false, false>(l, r, offset, f, context); };
 
 } // namespace omm

@@ -191,24 +191,13 @@ namespace omm
 
             omm::Triangle t = FetchUVTriangle(desc.texCoords, texCoordStrideInBytes, desc.texCoordFormat, triangleIndices);
 
-#if 1
-            if (t.getIsDegenerate())
+#if 0
+            if (IsDegenerate(t))
             {
                 float2 p[3] = { t.p0, t.p1, t.p2 };
-                // std::sort(p, p + 3, [](const float2& a, const float2& b) {
-                //     if (a.x == b.x)
-                //         return a.y < b.y;
-                //     return a.x < b.x;
-                // });
-
-                // float texCoords[8] = { 0.2f, 0.f,
-                //         0.2f, 0.437582970f,
-                //         0.2f, 0.221271083f };
-
                 const float2 halfway = 0.5f * (p[1] - p[0]);
                 const float2 halfwayRot = float2(halfway.y, -halfway.x);
                 p[2] = 0.5f * halfwayRot + halfway + p[0];
-
                 t = Triangle(p[0], p[1], p[2]);
             }
 #endif
@@ -412,7 +401,7 @@ namespace omm
                 params.scale = scale;
                 params.mode = Mode::FillBackground;
                 params.highlightReuse = highlightReuse;
-                params.macroTriangleIsBackfacing = !macroTriangle.getIsCCW();
+                params.macroTriangleIsBackfacing = !macroTriangle.GetIsCCW();
                 params.mipCount = (uint32_t)alphaFps.size();
 
                 // Clone the source texture and render each individual VM on top of it. 
