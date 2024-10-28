@@ -146,7 +146,7 @@ static inline void FillWithCheckerboardRGBA(ImageRGBA& image, int checkerSize) {
 template<class T>
 static inline void Rasterize(Image<T>& image, const omm::Triangle& t, bool conservative, T color) {
 
-	auto kernel = [&image, color](int2 idx, float3* bc, void*) {
+	auto kernel = [&image, color](int2 idx, void*) {
 
 		if (!image.IsInsideImage(idx))
 			return;

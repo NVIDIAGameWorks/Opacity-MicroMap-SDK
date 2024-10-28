@@ -34,17 +34,33 @@ namespace omm
         float2 aabb_e;     //< End point of the aabb
     };
 
-    enum class WindingOrder : uint8_t {
-        CW,
-        CCW,
+    enum class TriangleInfo : uint8_t {
+        Invalid     = 1u << 0u,
+        Degenerate  = 1u << 1u,
+        CW          = 1u << 2u,
+        CCW         = 1u << 3u,
     };
 
-    static inline WindingOrder GetWinding(const float2 _p0, const float2 _p1, const float2 _p2) {
-        double3 a = double3(_p2 - _p0, 0);
-        double3 b = double3(_p1 - _p0, 0);
+    static bool IsInvalid(const float2& p0, const float2& p1, const float2& p2)
+    {
+        const bool anyNan = glm::any(glm::isnan(p0)) || glm::any(glm::isnan(p1)) || glm::any(glm::isnan(p2));
+        const bool anyInf = glm::any(glm::isinf(p0)) || glm::any(glm::isinf(p1)) || glm::any(glm::isinf(p2));
+        return anyNan || anyInf;
+    }
+
+    static inline bool IsDegenerate(const float2& p0, const float2& p1, const float2& p2) {
+        const float3 N = glm::cross(float3(p2 - p0, 0), float3(p1 - p0, 0));
+        const float N2 = N.z * N.z;
+        const bool bIsZeroArea = N2 < 1e-9;
+        return bIsZeroArea;
+    }
+
+    static inline bool IsCCW(const float2& p0, const float2& p1, const float2& p2) {
+        double3 a = double3(p2 - p0, 0);
+        double3 b = double3(p1 - p0, 0);
         const double3 N = glm::cross(a, b);
         const double Nz = N.z;
-        return Nz < 0 ? WindingOrder::CCW : WindingOrder::CW;
+        return Nz < 0;
     }
 
     struct Triangle {
@@ -55,13 +71,25 @@ namespace omm
             p0(_p0),
             p1(_p1),
             p2(_p2),
-            _winding(GetWinding(p0, p1, p2))
+            _info(0)
         {
+            if (IsInvalid(p0, p1, p2))
+            {
+                _info |= (uint32_t)TriangleInfo::Invalid;
+            }
+            else if (IsDegenerate(p0, p1, p2))
+            {
+                _info |= (uint32_t)TriangleInfo::Degenerate;
+            }
+            else 
+            {
+                _info |= IsCCW(p0, p1, p2) ? (uint32_t)TriangleInfo::CCW : (uint32_t)TriangleInfo::CW;
+            }
             aabb_s = { std::min(std::min(p0.x, p1.x), p2.x), std::min(std::min(p0.y, p1.y), p2.y) };
             aabb_e = { std::max(std::max(p0.x, p1.x), p2.x), std::max(std::max(p0.y, p1.y), p2.y) };
         }
 
-        float2 getP(uint32_t index) const {
+        inline float2 getP(uint32_t index) const {
             if (index == 0)
                 return p0;
             else if (index == 1)
@@ -70,13 +98,28 @@ namespace omm
             return p2;
         }
 
+        inline bool getIsInvalid() const {
+            return (_info & (uint32_t)TriangleInfo::Invalid) == (uint32_t)TriangleInfo::Invalid;
+        }
+
+        inline bool getIsDegenerate() const {
+            return (_info & (uint32_t)TriangleInfo::Degenerate) == (uint32_t)TriangleInfo::Degenerate;
+        }
+
+        inline bool getIsCCW() const {
+            OMM_ASSERT(!getIsInvalid());
+            //OMM_ASSERT(!getIsDegenerate());
+           // OMM_ASSERT((_info & ((uint32_t)TriangleInfo::CCW | (uint32_t)TriangleInfo::CW)) == ((uint32_t)TriangleInfo::CCW | (uint32_t)TriangleInfo::CW));
+            return (_info & (uint32_t)TriangleInfo::CCW) == (uint32_t)TriangleInfo::CCW;
+        }
+
         float2 p0;
         float2 p1;
         float2 p2;
 
-        float2 aabb_s;     //< Start point of the aabb
-        float2 aabb_e;     //< End point of the aabb
-        WindingOrder _winding; //< This matters when calculating barycentrics during rasterization.
+        float2 aabb_s;         //< Start point of the aabb
+        float2 aabb_e;         //< End point of the aabb
+        uint32_t _info;        //< TriangleInfo This matters when calculating barycentrics during rasterization.
     };
 
     template <class T>
@@ -92,13 +135,6 @@ namespace omm
         hash_combine(seed, t.p1);
         hash_combine(seed, t.p2);
         return seed;
-    }
-
-    static inline WindingOrder GetWinding(const Triangle& t) {
-        float2 a = t.p2 - t.p0;
-        float2 b = t.p1 - t.p0;
-        const float Nz = a.x * b.y - a.y * b.x;
-        return Nz < 0 ? WindingOrder::CCW : WindingOrder::CW;
     }
 
     static float float16ToFloat32(uint16_t fp16)

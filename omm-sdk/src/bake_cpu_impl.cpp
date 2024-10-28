@@ -453,18 +453,6 @@ namespace Cpu
         return std::min<uint>(SubdivisionLevel, desc.maxSubdivisionLevel);
     }
 
-    static bool IsDegenerate(const Triangle& t)
-    {
-        const bool anyNan = glm::any(glm::isnan(t.p0)) || glm::any(glm::isnan(t.p1)) || glm::any(glm::isnan(t.p2));
-        const bool anyInf = glm::any(glm::isinf(t.p0)) || glm::any(glm::isinf(t.p1)) || glm::any(glm::isinf(t.p2));
-        
-        const float3 N = glm::cross(float3(t.p2 - t.p0, 0), float3(t.p1 - t.p0, 0));
-        const float N2 = N.z * N.z;
-        const bool bIsZeroArea = N2 < 1e-9;
-
-        return anyNan || anyInf || bIsZeroArea;
-    }
-
     static int32_t GetSubdivisionLevelForPrimitive(const ommCpuBakeInputDesc& desc, uint32_t i, const Triangle& uvTri, uint2 texSize)
     {
         if (desc.subdivisionLevels && desc.subdivisionLevels[i] <= 12)
@@ -518,9 +506,8 @@ namespace Cpu
                     const int32_t subdivisionLevel = GetSubdivisionLevelForPrimitive(desc, i, uvTri, texture->GetSize(0 /*always based on mip 0*/));
 
                     const bool bIsDisabled = subdivisionLevel == kDisabledPrimitive;
-                    const bool bIsDegenerate = IsDegenerate(uvTri);
-
-                    if (bIsDisabled || bIsDegenerate)
+                    
+                    if (bIsDisabled || uvTri.getIsInvalid())
                     {
                         numDegenTri++;
                         continue; // These indices will be set to special index unknown later.
@@ -714,7 +701,13 @@ namespace Cpu
             return ommResult_SUCCESS;
         }
 
-        template<ommCpuTextureFormat eFormat, TilingMode eTilingMode, ommTextureAddressMode eTextureAddressMode, ommTextureFilterMode eFilterMode>
+        enum TriangleClass
+        {
+            Normal,
+            Degenerate
+        };
+
+        template<ommCpuTextureFormat eFormat, TilingMode eTilingMode, ommTextureAddressMode eTextureAddressMode, ommTextureFilterMode eFilterMode, TriangleClass eTriangleClass>
         static ommResult ResampleFine(const ommCpuBakeInputDesc& desc, const Logger& log, const Options& options, vector<OmmWorkItem>& vmWorkItems)
         {
             if (options.enableAABBTesting && !options.disableLevelLineIntersection)
@@ -738,6 +731,17 @@ namespace Cpu
                         {
                             // Subdivide the input triangle in to smaller triangles. They will be "bird-curve" ordered.
                             OmmWorkItem& workItem = vmWorkItems[workItemIt];
+                            const bool isDegenerate = workItem.uvTri.getIsDegenerate();
+
+                            if (eTriangleClass == TriangleClass::Normal && isDegenerate)
+                            {
+                                continue;
+                            }
+
+                            if (eTriangleClass == TriangleClass::Degenerate && !isDegenerate)
+                            {
+                                continue;
+                            }
 
                             const uint32_t numMicroTriangles = omm::bird::GetNumMicroTriangles(workItem.subdivisionLevel);
 
@@ -747,6 +751,9 @@ namespace Cpu
                                 // Run conservative rasterization on the micro triangle
                                 for (uint32_t uTriIt = 0; uTriIt < numMicroTriangles; ++uTriIt)
                                 {
+                                    //if (uTriIt != (15 + 45+1) )
+                                    //    continue;
+
                                     if (workItem.vmStates.GetState(uTriIt) != ommOpacityState_UnknownOpaque)
                                     {
                                         continue;
@@ -779,7 +786,8 @@ namespace Cpu
                                             else
                                                 vmCoverage.numBelowAlpha++;
 
-                                            auto kernel = &LevelLineIntersectionKernel::run<eFormat, eTextureAddressMode, eTilingMode>;
+                                            auto kernel = &LevelLineIntersectionKernel::run<eFormat, eTextureAddressMode, eTilingMode, eTriangleClass == TriangleClass::Degenerate>;
+
                                             RasterizeConservativeSerialWithOffsetCoverage(subTri, rasterSize, pixelOffset, kernel, &params);
 
                                             OMM_ASSERT(vmCoverage.numAboveAlpha != 0 || vmCoverage.numBelowAlpha != 0);
@@ -867,7 +875,7 @@ namespace Cpu
 
                                         params.vmState = &vmCoverage;
 
-                                        auto kernel = [](int2 pixel, float3* bc, void* ctx)
+                                        auto kernel = [](int2 pixel, void* ctx)
                                         {
                                             KernelParams* p = (KernelParams*)ctx;
 
@@ -1564,8 +1572,12 @@ namespace Cpu
             return impl::ResampleCoarse<eFormat, eTilingMode, eTextureAddressMode, eFilterMode>(desc, log, options, vmWorkItems);
         };
 
-        auto impl__ResampleFine = [](const ommCpuBakeInputDesc& desc, const Logger& log, const Options& options, vector<OmmWorkItem>& vmWorkItems) {
-            return impl::ResampleFine<eFormat, eTilingMode, eTextureAddressMode, eFilterMode>(desc, log, options, vmWorkItems);
+        auto impl__ResampleFineNormal = [](const ommCpuBakeInputDesc& desc, const Logger& log, const Options& options, vector<OmmWorkItem>& vmWorkItems) {
+            return impl::ResampleFine<eFormat, eTilingMode, eTextureAddressMode, eFilterMode, impl::TriangleClass::Normal>(desc, log, options, vmWorkItems);
+        };
+
+        auto impl__ResampleFineDegen = [](const ommCpuBakeInputDesc& desc, const Logger& log, const Options& options, vector<OmmWorkItem>& vmWorkItems) {
+            return impl::ResampleFine<eFormat, eTilingMode, eTextureAddressMode, eFilterMode, impl::TriangleClass::Degenerate>(desc, log, options, vmWorkItems);
         };
 
         {
@@ -1577,7 +1589,9 @@ namespace Cpu
 
             RETURN_STATUS_IF_FAILED(impl__ResampleCoarse(desc, m_log, options, vmWorkItems));
 
-            RETURN_STATUS_IF_FAILED(impl__ResampleFine(desc, m_log, options, vmWorkItems));
+            RETURN_STATUS_IF_FAILED(impl__ResampleFineNormal(desc, m_log, options, vmWorkItems));
+
+            RETURN_STATUS_IF_FAILED(impl__ResampleFineDegen(desc, m_log, options, vmWorkItems));
 
             RETURN_STATUS_IF_FAILED(impl::PromoteToSpecialIndices(desc, options, vmWorkItems));
 

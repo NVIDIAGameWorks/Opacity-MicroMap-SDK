@@ -54,7 +54,7 @@ protected:
 		int one = 1;
 		int checkerSize = 64;
 		
-		auto KernelCBFill = [&image, checkerSize](int2 idx, float3* bc, void* ) {
+		auto KernelCBFill = [&image, checkerSize](int2 idx, void* ) {
 			if (idx.x >= image.GetSize().x)
 				return;
 			if (idx.y >= image.GetSize().y)
@@ -118,7 +118,7 @@ protected:
 				Params p;
 				p.checkerSize = checkerSize;
 				p.fillColor = uchar3(128, 0, 0);
-				omm::RasterizeLineConservativeImpl(_line, size / checkerSize, LineFill, &p);
+				omm::RasterizeLineConservative(_line, size / checkerSize, LineFill, &p);
 			}
 
 			{
@@ -223,10 +223,17 @@ INSTANTIATE_TEST_SUITE_P(
 	));
 
 INSTANTIATE_TEST_SUITE_P(
-	RasterLine_Vertical,
+	RasterLine_Vertical0,
 	RasterLineTest,
 	::testing::Values(
 		std::make_tuple<omm::Line, int2>(omm::Line({ 0.5f, 0.5f }, { 0.5f, 0.1f }), { 1024, 1024 })
+	));
+
+INSTANTIATE_TEST_SUITE_P(
+	RasterLine_Vertical1,
+	RasterLineTest,
+	::testing::Values(
+		std::make_tuple<omm::Line, int2>(omm::Line({ 0.5f, 0.1f }, { 0.5f, 0.5f }), { 1024, 1024 })
 	));
 
 }  // namespace

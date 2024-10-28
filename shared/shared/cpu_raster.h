@@ -274,24 +274,26 @@ namespace omm
     // t - the triangle to rasterize
     // r - the pixel resolution to rasterize at.
     // f - the function callback, _should_ be inlined when using lambdas.
-    template <RasterMode eRasterMode, bool EnableParallel, bool TestCoverage, typename F>
-    inline void Rasterize(const Triangle& _t, int2 r, const float2& offset, F f, void* context = nullptr) {
+    template <RasterMode eRasterMode, bool EnableParallel, bool EnableBarycentrics, typename F>
+    inline void RasterizeTriImpl(const Triangle& _t, int2 r, const float2& offset, F f, void* context = nullptr) {
 
         // Obvious optimizations this rasterizer does _not_ do:
         // No coarse raster step - might be useful for large triangles,
         // Tight triangle traversal, right now it searches row wise and terminates on first exit.
+        
+        // constexpr bool EnableBarycentrics = false;
+
+        OMM_ASSERT(!_t.getIsDegenerate());
 
         // Scanline approaches could be investigated as well.
-
-        omm::WindingOrder winding = _t._winding;
-
-        // Rasterizer expects CCW triangles.
-        const bool isBackfacing = winding == omm::WindingOrder::CW;
+        const bool isCCW = _t.getIsCCW();
 
         const float2 rf = float2(r);
         const float2 invSize = 1.f / rf;
-        Triangle t = isBackfacing ? Triangle(_t.p2 * rf + offset, _t.p1 * rf + offset, _t.p0 * rf + offset) : Triangle(_t.p0 * rf + offset, _t.p1 * rf + offset, _t.p2 * rf + offset);
-        OMM_ASSERT(t._winding == omm::WindingOrder::CCW);
+        // Rasterizer expects CCW triangles.
+        Triangle t = isCCW ? Triangle(_t.p0 * rf + offset, _t.p1 * rf + offset, _t.p2 * rf + offset)
+                                    : Triangle(_t.p2 * rf + offset, _t.p1 * rf + offset, _t.p0 * rf + offset);
+        OMM_ASSERT(t.getIsCCW());
 
         const int2 min = int2{ glm::floor(t.aabb_s) };
         const int2 max = int2{ glm::ceil(t.aabb_e) };
@@ -315,47 +317,62 @@ namespace omm
                     if (_tix.SquareInTriangleSkipAABBTest(s, pixelSize)) {
                         const float2 s_c = (s + 0.5f);
 
-                        float3 bc = _tix.GetBarycentrics(s_c);
-                        if (isBackfacing)
-                            bc = { bc.z, bc.y, bc.x };
-                        if constexpr (TestCoverage)
+                        if constexpr (EnableBarycentrics)
                         {
-                            Coverage coverage = _tix.SquareEntierlyInTriangleSkipAABBTest(s, pixelSize) ? FullyCovered : PartiallyCovered;
-                            f(int2({ x, y }), &bc, coverage, context);
-                        }
-                        else {
+                            float3 bc = _tix.GetBarycentrics(s_c);
+                            if (!isCCW)
+                                bc = { bc.z, bc.y, bc.x };
+
                             f(int2({ x, y }), &bc, context);
+                        }
+                        else
+                        {
+                           f(int2({ x, y }), context);
                         }
                         wasInside = true;
                     }
                     else if (wasInside)
                         break;
                 } else if constexpr (eRasterMode == RasterMode::UnderConservative) {
-                    static_assert(!TestCoverage);
+
                     const float2 s = float2(x, y);
 
                     if (_tix.SquareEntierlyInTriangleSkipAABBTest(s, pixelSize)) {
                         const float2 s_c = (s + 0.5f);
 
-                        float3 bc = _tix.GetBarycentrics(s_c);
-                        if (isBackfacing)
-                            bc = { bc.z, bc.y, bc.x };
+                        if constexpr (EnableBarycentrics)
+                        {
+                            float3 bc = _tix.GetBarycentrics(s_c);
+                            if (!isCCW)
+                                bc = { bc.z, bc.y, bc.x };
 
-                        f(int2({ x, y }), &bc, context);
+                            f(int2({ x, y }), &bc, context);
+                        }
+                        else
+                        {
+                            f(int2({ x, y }), context);
+                        }
                         wasInside = true;
                     }
                     else if (wasInside)
                         break;
                 }
                 else if constexpr (eRasterMode == RasterMode::Default) {
-                    static_assert(!TestCoverage);
-                    const float2 s = (float2(x, y) + 0.5f);
-                    if (_tix.PointInTriangle(s, pixelSize)) {
 
-                        float3 bc = _tix.GetBarycentrics(s);
-                        if (isBackfacing)
-                            bc = { bc.z, bc.y, bc.x };
-                        f(int2({ x, y }), &bc, context);
+                    const float2 s = (float2(x, y) + 0.5f);
+                    if (_tix.PointInTriangle(s, pixelSize)) 
+                    {
+                        if constexpr (EnableBarycentrics)
+                        {
+                            float3 bc = _tix.GetBarycentrics(s);
+                            if (!isCCW)
+                                bc = { bc.z, bc.y, bc.x };
+                            f(int2({ x, y }), &bc, context);
+                        }
+                        else
+                        {
+                           f(int2({ x, y }), context);
+                        }
                         wasInside = true;
                     }
                     else if (wasInside)
@@ -365,7 +382,7 @@ namespace omm
         }
     }
 
-    template <typename F>
+    template <bool EnableParallel, bool EnableBarycentrics, typename F>
     inline void RasterizeLineImpl(const Line& _l, int2 r, const float2& offset, F f, void* context = nullptr)
     {
         Line l = _l.p0.x > _l.p1.x ? Line(_l.p1, _l.p0) : _l;
@@ -392,7 +409,16 @@ namespace omm
 
             for (int x = x0; x <= x1; ++x)
             {
-                f(int2({ x, y }), context);
+                if constexpr (EnableBarycentrics)
+                {
+                    const float3 zero(0, 0, 0);
+                    f(int2({ x, y }), &zero, context);
+                }
+                else
+                {
+                    f(int2({ x, y }), context);
+                }
+
                 if (D > 0)
                 {
                     y = y + 1;
@@ -403,7 +429,7 @@ namespace omm
                     D = D + 2 * dy;
                 }
             }
-        };
+            };
 
         auto plotLineHigh = [&f, context](int x0, int y0, int x1, int y1) {
             int dx = x1 - x0;
@@ -419,7 +445,15 @@ namespace omm
 
             for (int y = y0; y <= y1; ++y)
             {
-                f(int2({ x, y }), context);
+                if constexpr (EnableBarycentrics)
+                {
+                    const float3 zero(0, 0, 0);
+                    f(int2({ x, y }), &zero, context);
+                }
+                else
+                {
+                    f(int2({ x, y }), context);
+                }
 
                 if (D > 0)
                 {
@@ -431,7 +465,7 @@ namespace omm
                     D = D + 2 * dx;
                 }
             }
-        };
+            };
 
         if (abs(y1 - y0) < abs(x1 - x0))
         {
@@ -449,15 +483,30 @@ namespace omm
         }
     }
 
-    template <typename F>
-    inline void RasterizeLineConservativeImpl(const Line& _l, int2 r, /*const float2& offset,*/ F f, void* context = nullptr)
+    template <bool EnableParallel, bool EnableBarycentrics, typename F>
+    inline void RasterizeLineConservativeImpl(const Line& _l, int2 r, const float2& offset, F f, void* context = nullptr)
     {
-        Line l = _l.p0.x > _l.p1.x ? Line(_l.p1, _l.p0) : _l;
+        // if (_l.p0.x > _l.p1.x)
+        //     std::swap(_l.p0, _l.p1);
+        // else if (_l.p0.x < _l.p1.x)
+        // 
+       // *rf + offset
+        const float2 rf(r);
+        Line l = Line(_l.p0 * rf + offset, _l.p1 * rf + offset);
 
-        float x0 = (float)(l.p0.x * r.x);
-        float x1 = (float)(l.p1.x * r.x);
-        float y0 = (float)(l.p0.y * r.y);
-        float y1 = (float)(l.p1.y * r.y);
+        // Line l = _l.p0.x > _l.p1.x ? Line(_l.p1 * rf + offset, _l.p0 * rf + offset) : Line(_l.p0 * rf + offset, _l.p1 * rf + offset);
+
+        if ((l.p0.x > l.p1.x) ||
+            (l.p0.x == l.p1.x && l.p0.y > l.p1.y))
+        {
+            std::swap(l.p0.x, l.p1.x);
+            std::swap(l.p0.y, l.p1.y);
+        }
+
+        float x0 = (float)(l.p0.x);
+        float x1 = (float)(l.p1.x);
+        float y0 = (float)(l.p0.y);
+        float y1 = (float)(l.p1.y);
 
         const float max_x = x1; // Sorted earlier
         const float max_y = std::max(y0, y1);
@@ -493,7 +542,7 @@ namespace omm
                     const float x = IsInf(k) ? max_x : (py - m) / k;
                     const float y = IsInf(k) ? py : k * x + m;
                     const float dx = x - px;
-                    return dx >= 0 && dx <= 1 && x <= max_x && y >= min_y && y <= max_y;
+                    return dx >= 0 && dx <= 1 && x <= max_x && y > min_y && y < max_y;
                 }
                 if (dir == eRight)
                 {
@@ -501,14 +550,14 @@ namespace omm
                     const float x = IsZero(k) ? max_x : (y - m) / k;
                     const float dy = y - py;
                     const bool inRangeY = dy >= 0 && dy <= 1;
-                    return dy >= 0 && dy <= 1 && x <= max_x && y >= min_y && y <= max_y;
+                    return dy >= 0 && dy <= 1 && x <= max_x && y > min_y && y < max_y;
                 }
                 if (dir == eDown)
                 {
                     const float x = IsInf(k) ? max_x : ((py + 1.0f) - m) / k;
                     const float y = IsInf(k) ? py + 1.0f : k * x + m;
                     const float dx = x - px;
-                    return dx >= 0 && dx <= 1 && x <= max_x && y >= min_y && y <= max_y;
+                    return dx >= 0 && dx <= 1 && x <= max_x && y > min_y && y < max_y;
                 }
                 return false;
             };
@@ -519,7 +568,15 @@ namespace omm
         int yLast = y;
         for (; x <= ix1;)
         {
-            f(int2({ x, y }), context);
+            if constexpr (EnableBarycentrics)
+            {
+                const float3 zero(0, 0, 0);
+                f(int2({ x, y }), &zero, context);
+            }
+            else
+            {
+                f(int2({ x, y }), context);
+            }
 
             if (DoesIntersect(k, m, x, y, max_x, min_y, max_y, eUp) && yLast != (y - 1))
             {
@@ -528,7 +585,6 @@ namespace omm
             }
             else if (DoesIntersect(k, m, x, y, max_x, min_y, max_y, eRight))
             {
-                yLast = y;
                 x += 1;
             }
             else if (DoesIntersect(k, m, x, y, max_x, min_y, max_y, eDown) && yLast != (y + 1))
@@ -543,20 +599,54 @@ namespace omm
         }
     }
 
+    // t - the triangle to rasterize
+    // r - the pixel resolution to rasterize at.
+    // f - the function callback, _should_ be inlined when using lambdas.
+    template <RasterMode eRasterMode, bool EnableParallel, bool EnableBarycentrics, typename F>
+    inline void Rasterize(const Triangle& _t, int2 r, const float2& offset, F f, void* context = nullptr) 
+    {
+        if (_t.getIsDegenerate())
+        {
+            Line l(_t.aabb_s, _t.aabb_e);
+            if (eRasterMode == RasterMode::Default)
+            {
+                RasterizeLineImpl<EnableParallel, EnableBarycentrics, F>(l, r, offset, f, context);
+            }
+            else
+            {
+                RasterizeLineConservativeImpl<EnableParallel, EnableBarycentrics, F>(l, r, offset, f, context);
+                OMM_ASSERT(eRasterMode == RasterMode::OverConservative);
+            }
+        }
+        else
+        {
+            RasterizeTriImpl<eRasterMode, EnableParallel, EnableBarycentrics, F>(_t, r, offset, f, context);
+        }
+    }
+   
     template <typename F>
     inline void RasterizeConservativeSerial(const Triangle& t, int2 r, F f, void* context = nullptr) { Rasterize<RasterMode::OverConservative, false, false>(t, r, float2{0,0}, f, context); };
+
+    template <typename F>
+    inline void RasterizeConservativeSerialBarycentrics(const Triangle& t, int2 r, F f, void* context = nullptr) { Rasterize<RasterMode::OverConservative, false, true>(t, r, float2{ 0,0 }, f, context); };
 
     template <typename F>
     inline void RasterizeConservativeSerialWithOffset(const Triangle& t, int2 r, float2 offset, F f, void* context = nullptr) { Rasterize<RasterMode::OverConservative, false, false>(t, r, offset, f, context); };
 
     template <typename F>
-    inline void RasterizeConservativeSerialWithOffsetCoverage(const Triangle& t, int2 r, float2 offset, F f, void* context = nullptr) { Rasterize<RasterMode::OverConservative, false, true>(t, r, offset, f, context); };
+    inline void RasterizeConservativeSerialWithOffsetCoverage(const Triangle& t, int2 r, float2 offset, F f, void* context = nullptr) { Rasterize<RasterMode::OverConservative, false, false>(t, r, offset, f, context); };
 
     template <typename F>
     inline void RasterizeConservativeParallel(const Triangle& t, int2 r, F f, void* context = nullptr) { Rasterize<RasterMode::OverConservative, true, false>(t, r, float2{ 0,0 }, f, context); };
 
     template <typename F>
+    inline void RasterizeConservativeParallelBarycentrics(const Triangle& t, int2 r, F f, void* context = nullptr) { Rasterize<RasterMode::OverConservative, true, true>(t, r, float2{ 0,0 }, f, context); };
+
+    template <typename F>
     inline void RasterizeUnderConservative(const Triangle& t, int2 r, F f, void* context = nullptr) { Rasterize<RasterMode::UnderConservative, false, false>(t, r, float2{ 0,0 }, f, context); };
+
+    template <typename F>
+    inline void RasterizeUnderConservativeBarycentrics(const Triangle& t, int2 r, F f, void* context = nullptr) { Rasterize<RasterMode::UnderConservative, false, true>(t, r, float2{ 0,0 }, f, context); };
 
     template <typename F>
     inline void RasterizeSerial(const Triangle& t, int2 r, F f, void* context = nullptr) { Rasterize<RasterMode::Default, false, false>(t, r, float2{ 0,0 }, f, context); };
@@ -565,9 +655,12 @@ namespace omm
     inline void RasterizeParallel(const Triangle& t, int2 r, F f, void* context = nullptr) { Rasterize<RasterMode::Default, true, false>(t, r, float2{ 0,0 }, f, context); };
 
     template <typename F>
-    inline void RasterizeLine(const Line& l, int2 r, F f, void* context = nullptr) { RasterizeLineImpl(l, r, float2{ 0,0 }, f, context); };
+    inline void RasterizeParallelBarycentrics(const Triangle& t, int2 r, F f, void* context = nullptr) { Rasterize<RasterMode::Default, true, true>(t, r, float2{ 0,0 }, f, context); };
 
     template <typename F>
-    inline void RasterizeLineConservative(const Line& l, int2 r, F f, void* context = nullptr) { RasterizeLineConservativeImpl(l, r, float2{ 0,0 }, f, context); };
+    inline void RasterizeLine(const Line& l, int2 r, F f, void* context = nullptr) { RasterizeLineImpl<false, false>(l, r, float2{ 0,0 }, f, context); };
+
+    template <typename F>
+    inline void RasterizeLineConservative(const Line& l, int2 r, F f, void* context = nullptr) { RasterizeLineConservativeImpl<false, false>(l, r, float2{ 0,0 }, f, context); };
 
 } // namespace omm

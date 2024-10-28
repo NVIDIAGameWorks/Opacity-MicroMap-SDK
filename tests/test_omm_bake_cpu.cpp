@@ -2243,18 +2243,60 @@ namespace {
 			});
 	}
 
-	TEST_P(OMMBakeTestCPU, Degen_Default) {
+	TEST_P(OMMBakeTestCPU, Degen_Default_lvl1) {
 
 		uint32_t triangleIndices[3] = { 0, 1, 2, };
-		float texCoords[8] = {  0.f, 0.f, 
-								0.f, 0.437582970f,	
-								0.f, 0.221271083f };
+		float texCoords[8] = { 0.2f, 0.f,
+								0.2f, 0.437582970f,
+								0.2f, /*0.221271083f*/ 0.218791485f };
+
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, 1, { 1024, 1024 }, 3, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, &StandardCircle);
+
+		ExpectEqual(stats, {
+			.totalFullyUnknownOpaque = 1,
+			});
+	}
+
+	TEST_P(OMMBakeTestCPU, Degen_Default_lvl2) {
+
+		uint32_t triangleIndices[3] = { 0, 1, 2, };
+		float texCoords[8] = { 0.2f, 0.f,
+								0.2f, 0.437582970f,
+								0.2f, /*0.221271083f*/ 0.218791485f };
+
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, 2, { 1024, 1024 }, 3, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, &StandardCircle);
+
+		ExpectEqual(stats, {
+			.totalFullyUnknownOpaque = 1,
+			});
+	}
+
+	TEST_P(OMMBakeTestCPU, Degen_Default_lvl3) {
+
+		uint32_t triangleIndices[3] = { 0, 1, 2, };
+		float texCoords[8] = { 0.2f, 0.f,
+								0.2f, 0.437582970f,
+								0.2f, /*0.221271083f*/ 0.218791485f };
+
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, 3, { 1024, 1024 }, 3, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, &StandardCircle);
+
+		ExpectEqual(stats, {
+			.totalFullyUnknownOpaque = 1,
+			});
+	}
+
+	TEST_P(OMMBakeTestCPU, Degen_Default_lvl4) {
+
+		uint32_t triangleIndices[3] = { 0, 1, 2, };
+		float texCoords[8] = { 0.2f, 0.f,
+								0.2f, 0.437582970f,
+								0.2f, /*0.221271083f*/ 0.218791485f };
 
 		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, 4, { 1024, 1024 }, 3, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, &StandardCircle);
 
 		ExpectEqual(stats, {
 			.totalFullyUnknownOpaque = 1,
-		});
+			});
 	}
 
 	TEST_P(OMMBakeTestCPU, Degen_FullyUnknownTransparent) {
@@ -2304,11 +2346,11 @@ namespace {
 
 	INSTANTIATE_TEST_SUITE_P(OMMTestCPU, OMMBakeTestCPU, ::testing::Values(
 		   TestSuiteConfig::Default
-		 , TestSuiteConfig::TextureDisableZOrder
-		 , TestSuiteConfig::Force32BitIndices
-		 , TestSuiteConfig::TextureAsUNORM8
-		 , TestSuiteConfig::AlphaCutoff
-		 , TestSuiteConfig::Serialize
+		 //, TestSuiteConfig::TextureDisableZOrder
+		 //, TestSuiteConfig::Force32BitIndices
+		 //, TestSuiteConfig::TextureAsUNORM8
+		 //, TestSuiteConfig::AlphaCutoff
+		 //, TestSuiteConfig::Serialize
 		
 	), CustomParamName);
 

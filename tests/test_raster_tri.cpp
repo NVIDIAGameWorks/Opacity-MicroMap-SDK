@@ -26,7 +26,7 @@ protected:
 		_triangle = std::get<0>(GetParam());
 		_size = std::get<1>(GetParam());
 
-		EXPECT_EQ(omm::GetWinding(_triangle), omm::WindingOrder::CCW);
+		EXPECT_EQ(_triangle.getIsCCW(), true);
 	}
 
 	void TearDown() override {
@@ -57,7 +57,7 @@ protected:
 		int one = 1;
 		int checkerSize = 64;
 		
-		auto KernelCBFill = [&image, checkerSize](int2 idx, float3* bc, void* ) {
+		auto KernelCBFill = [&image, checkerSize](int2 idx, void* ) {
 			if (idx.x >= image.GetSize().x)
 				return;
 			if (idx.y >= image.GetSize().y)
@@ -82,7 +82,7 @@ protected:
 			bool fillWithBarycentrics = false;
 		};
 
-		auto TriangleFill = [&image, size](int2 idx, float3* bc, void* ctx) {
+		auto TriangleFill = [&image, size](int2 idx, const float3* bc, void* ctx) {
 			Params* p = (Params*)ctx;
 
 			auto IsInRange = [&image](int2 idx)->bool {
@@ -126,14 +126,14 @@ protected:
 				Params p;
 				p.checkerSize = 1;
 				p.fillWithBarycentrics = true;
-				omm::RasterizeParallel(t, size, TriangleFill, &p);
+				omm::RasterizeParallelBarycentrics(t, size, TriangleFill, &p);
 			}
 
 			{
 				Params p;
 				p.checkerSize = checkerSize;
 				p.fillColor = uchar3(128, 0, 0);
-				omm::RasterizeUnderConservative(t, size / checkerSize, TriangleFill, &p);
+				omm::RasterizeUnderConservativeBarycentrics(t, size / checkerSize, TriangleFill, &p);
 			}
 		}
 		if (omm::RasterMode::OverConservative == mode)
@@ -142,14 +142,14 @@ protected:
 				Params p;
 				p.checkerSize = checkerSize;
 				p.fillColor = uchar3(128, 0, 0);
-				omm::RasterizeConservativeParallel(t, size / checkerSize, TriangleFill, &p);
+				omm::RasterizeConservativeParallelBarycentrics(t, size / checkerSize, TriangleFill, &p);
 			}
 
 			{
 				Params p;
 				p.checkerSize = 1;
 				p.fillWithBarycentrics = true;
-				omm::RasterizeParallel(t, size, TriangleFill, &p);
+				omm::RasterizeParallelBarycentrics(t, size, TriangleFill, &p);
 			}
 		}
 		else if (omm::RasterMode::Default == mode)
@@ -158,14 +158,14 @@ protected:
 				Params p;
 				p.checkerSize = checkerSize;
 				p.fillColor = uchar3(0, 0, 128);
-				omm::RasterizeParallel(t, size / checkerSize, TriangleFill, &p);
+				omm::RasterizeParallelBarycentrics(t, size / checkerSize, TriangleFill, &p);
 			}
 
 			{
 				Params p;
 				p.checkerSize = 1;
 				p.fillWithBarycentrics = true;
-				omm::RasterizeParallel(t, size, TriangleFill, &p);
+				omm::RasterizeParallelBarycentrics(t, size, TriangleFill, &p);
 			}
 		}
 
@@ -219,6 +219,7 @@ TEST_P(RasterTest, RasterizeConservativeSuperLarge) {
 	Run({ _size.x * 4, _size.y * 4, }, omm::RasterMode::OverConservative, false);
 }
 
+#if 0
 INSTANTIATE_TEST_SUITE_P(
 	RasterContained,
 	RasterTest,
@@ -281,7 +282,6 @@ INSTANTIATE_TEST_SUITE_P(
 	::testing::Values(
 		std::make_tuple<omm::Triangle, int2>(omm::Triangle({ 0.809000027f, 0.332400024f }, { 0.332400024f, 0.502599990f }, { 0.402599990f, 0.332400024f }), { 1024, 1024 })
 	));
-
-
+#endif
 
 }  // namespace

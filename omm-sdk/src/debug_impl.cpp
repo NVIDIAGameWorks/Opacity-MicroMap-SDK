@@ -133,6 +133,7 @@ namespace omm
         int res = stbi_write_png(file.c_str(), image->GetWidth(), image->GetHeight(), CHANNEL_NUM, (unsigned char*)image->GetData(), 0 /*stride in bytes*/);
         return res == 1;
     }
+#pragma optimize("", off)
 
     ommResult SaveAsImagesImpl(StdAllocator<uint8_t>& memoryAllocator, const ommCpuBakeInputDesc& desc, const ommCpuBakeResultDesc* resDesc, const ommDebugSaveImagesDesc& dumpDesc)
     {
@@ -189,7 +190,31 @@ namespace omm
             uint32_t triangleIndices[3];
             GetUInt32Indices(desc.indexFormat, desc.indexBuffer, 3ull * primIt, triangleIndices);
 
-            omm::Triangle macroTriangle = FetchUVTriangle(desc.texCoords, texCoordStrideInBytes, desc.texCoordFormat, triangleIndices);
+            omm::Triangle t = FetchUVTriangle(desc.texCoords, texCoordStrideInBytes, desc.texCoordFormat, triangleIndices);
+
+#if 1
+            if (t.getIsDegenerate())
+            {
+                float2 p[3] = { t.p0, t.p1, t.p2 };
+                // std::sort(p, p + 3, [](const float2& a, const float2& b) {
+                //     if (a.x == b.x)
+                //         return a.y < b.y;
+                //     return a.x < b.x;
+                // });
+
+                // float texCoords[8] = { 0.2f, 0.f,
+                //         0.2f, 0.437582970f,
+                //         0.2f, 0.221271083f };
+
+                const float2 halfway = 0.5f * (p[1] - p[0]);
+                const float2 halfwayRot = float2(halfway.y, -halfway.x);
+                p[2] = 0.5f * halfwayRot + halfway + p[0];
+
+                t = Triangle(p[0], p[1], p[2]);
+            }
+#endif
+
+            omm::Triangle macroTriangle = t;
 
             const bool ClippedViewport = dumpDesc.detailedCutout;
 
@@ -254,10 +279,9 @@ namespace omm
                     uint32_t mipCount = 0;
                 };
 
-                auto Kernel = [&stateColorLUT](int2 pixel, float3* bc, void* context) {
+                auto Kernel = [&stateColorLUT](int2 pixel, const float3* bc, void* context) {
 
                     RasterParams* p = (RasterParams*)context;
-
 
                     int2 dst = (pixel - p->offset);
                     if (dst.x < 0 || dst.y < 0)
@@ -307,9 +331,12 @@ namespace omm
                         float2 bc2 = p->macroTriangleIsBackfacing ? float2(bc->x, bc->y) : float2(bc->z, bc->x);
                         float2 bc2Clamp = glm::saturate(bc2);
 
+                        uint32_t numTris = omm::bird::GetNumMicroTriangles(p->subdivisionLevel);
+
                         uint32_t vmIdx = omm::bird::bary2index(bc2Clamp, p->subdivisionLevel, isUpright);
-                        vmIdx = std::clamp<uint32_t>(vmIdx, 0u, omm::bird::GetNumMicroTriangles(p->subdivisionLevel) - 1);
+                        vmIdx = std::clamp<uint32_t>(vmIdx, 0u, numTris - 1);
                         float3 vmColor = stateColorLUT[(uint32_t)p->states[vmIdx]];
+                        //float3 vmColor = float3(vmIdx, vmIdx, vmIdx) / float3(numTris, numTris, numTris);
                         if (isUpright)
                             vmColor = vmColor * 0.9f;
 
@@ -386,7 +413,7 @@ namespace omm
                 params.scale = scale;
                 params.mode = Mode::FillBackground;
                 params.highlightReuse = highlightReuse;
-                params.macroTriangleIsBackfacing = macroTriangle._winding == omm::WindingOrder::CW;
+                params.macroTriangleIsBackfacing = !macroTriangle.getIsCCW();
                 params.mipCount = (uint32_t)alphaFps.size();
 
                 // Clone the source texture and render each individual VM on top of it. 
@@ -417,14 +444,14 @@ namespace omm
                     }
 
                     omm::Triangle t0(p00, p11, p01);
-                    omm::RasterizeConservativeParallel(t0, srcSize, Kernel, &params);
+                    omm::RasterizeConservativeParallelBarycentrics(t0, srcSize, Kernel, &params);
                     omm::Triangle t1(p00, p10, p11);
-                    omm::RasterizeConservativeParallel(t1, srcSize, Kernel, &params);
+                    omm::RasterizeConservativeParallelBarycentrics(t1, srcSize, Kernel, &params);
                 }
 
                 {  // Fill in each VM-substate color with a blend color
                     params.mode = Mode::FillOMMStates;
-                    omm::RasterizeConservativeParallel(macroTriangle, srcSize, Kernel, &params);
+                    omm::RasterizeConservativeParallelBarycentrics(macroTriangle, srcSize, Kernel, &params);
                 }
 
                 if (!dumpDesc.oneFile || primitiveCount == primIt + 1)
@@ -454,9 +481,9 @@ namespace omm
                         }
 
                         omm::Triangle t0(p00, p11, p01);
-                        omm::RasterizeConservativeParallel(t0, srcSize, Kernel, &params);
+                        omm::RasterizeConservativeParallelBarycentrics(t0, srcSize, Kernel, &params);
                         omm::Triangle t1(p00, p10, p11);
-                        omm::RasterizeConservativeParallel(t1, srcSize, Kernel, &params);
+                        omm::RasterizeConservativeParallelBarycentrics(t1, srcSize, Kernel, &params);
                     }
                 }
 
