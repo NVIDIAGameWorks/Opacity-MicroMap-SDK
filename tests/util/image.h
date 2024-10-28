@@ -115,6 +115,7 @@ static inline bool SaveImageToFile(const std::string& folder, const std::string&
 		int res = stbi_write_png(dst.c_str(), image.GetWidth(), image.GetHeight(), CHANNEL_NUM, (unsigned char*)image.GetData(), 0 /*stride in bytes*/);
 		return res == 1;
 	}
+	return false;
 }
 
 static inline void FillWithCheckerboardRGB(ImageRGB& image, int checkerSize) {

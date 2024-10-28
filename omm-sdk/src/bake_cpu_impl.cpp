@@ -751,8 +751,6 @@ namespace Cpu
                                 // Run conservative rasterization on the micro triangle
                                 for (uint32_t uTriIt = 0; uTriIt < numMicroTriangles; ++uTriIt)
                                 {
-                                    //if (uTriIt != (15 + 45+1) )
-                                    //    continue;
 
                                     if (workItem.vmStates.GetState(uTriIt) != ommOpacityState_UnknownOpaque)
                                     {

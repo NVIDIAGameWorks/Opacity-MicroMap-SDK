@@ -512,7 +512,9 @@ namespace omm
         const float max_y = std::max(y0, y1);
         const float min_y = std::min(y0, y1);
 
-        const float k = (y1 - y0) / (x1 - x0);
+        float k = (y1 - y0) / (x1 - x0);
+        if (k > 1e6 || k < -1e6)
+            k = std::numeric_limits<float>::infinity();
         const float m = y0 - k * x0;
 
         int ix0 = (int)x0;

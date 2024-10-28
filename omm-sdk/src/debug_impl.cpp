@@ -133,7 +133,6 @@ namespace omm
         int res = stbi_write_png(file.c_str(), image->GetWidth(), image->GetHeight(), CHANNEL_NUM, (unsigned char*)image->GetData(), 0 /*stride in bytes*/);
         return res == 1;
     }
-#pragma optimize("", off)
 
     ommResult SaveAsImagesImpl(StdAllocator<uint8_t>& memoryAllocator, const ommCpuBakeInputDesc& desc, const ommCpuBakeResultDesc* resDesc, const ommDebugSaveImagesDesc& dumpDesc)
     {
