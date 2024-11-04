@@ -16,7 +16,6 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include <nvrhi/d3d12.h>
 #include <nvrhi/validation.h>
 
-//#include <atlbase.h>
 #include <wrl/client.h>
 #include <dxgi.h>
 #include <d3d12.h>

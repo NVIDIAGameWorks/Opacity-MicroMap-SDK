@@ -2522,11 +2522,11 @@ namespace {
 
 	INSTANTIATE_TEST_SUITE_P(OMMTestCPU, OMMBakeTestCPU, ::testing::Values(
 		   TestSuiteConfig::Default
-		// , TestSuiteConfig::TextureDisableZOrder
-		// , TestSuiteConfig::Force32BitIndices
-		// , TestSuiteConfig::TextureAsUNORM8
-		// , TestSuiteConfig::AlphaCutoff
-		// , TestSuiteConfig::Serialize
+		 , TestSuiteConfig::TextureDisableZOrder
+		 , TestSuiteConfig::Force32BitIndices
+		 , TestSuiteConfig::TextureAsUNORM8
+		 , TestSuiteConfig::AlphaCutoff
+		 , TestSuiteConfig::Serialize
 		
 	), CustomParamName);
 
