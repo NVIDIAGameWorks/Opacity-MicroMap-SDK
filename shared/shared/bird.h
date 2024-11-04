@@ -12,7 +12,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 #include "assert.h"
 #include "math.h"
-#include "triangle.h"
+#include "geometry.h"
 #include "bit_tricks.h"
 
 namespace omm
