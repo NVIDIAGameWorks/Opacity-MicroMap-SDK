@@ -127,7 +127,7 @@ namespace Cpu
         }
 
         os.write(reinterpret_cast<const char*>(&inputDesc.unknownStatePromotion), sizeof(inputDesc.unknownStatePromotion));
-        os.write(reinterpret_cast<const char*>(&inputDesc.degenTriState), sizeof(inputDesc.degenTriState));
+        os.write(reinterpret_cast<const char*>(&inputDesc.unresolvedTriState), sizeof(inputDesc.unresolvedTriState));
         os.write(reinterpret_cast<const char*>(&inputDesc.maxSubdivisionLevel), sizeof(inputDesc.maxSubdivisionLevel));
 
         size_t numSubdivLvls = inputDesc.subdivisionLevels == nullptr ? 0 : inputDesc.indexCount;
@@ -418,7 +418,7 @@ namespace Cpu
         os.read(reinterpret_cast<char*>(&inputDesc.unknownStatePromotion), sizeof(inputDesc.unknownStatePromotion));
         if (header.inputDescVersion >= 2)
         {
-            os.read(reinterpret_cast<char*>(&inputDesc.degenTriState), sizeof(inputDesc.degenTriState));
+            os.read(reinterpret_cast<char*>(&inputDesc.unresolvedTriState), sizeof(inputDesc.unresolvedTriState));
         }
         os.read(reinterpret_cast<char*>(&inputDesc.maxSubdivisionLevel), sizeof(inputDesc.maxSubdivisionLevel));
 

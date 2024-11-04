@@ -16,11 +16,13 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include <nvrhi/d3d12.h>
 #include <nvrhi/validation.h>
 
-#include <atlbase.h>
+#include <wrl/client.h>
 #include <dxgi.h>
 #include <d3d12.h>
 
 #include <nvrhi/validation.h>
+
+using namespace Microsoft::WRL;
 
 namespace {
 
@@ -38,17 +40,17 @@ namespace {
 		}
 	};
 
-	static CComPtr<IDXGIAdapter> FindAdapter(const std::wstring& targetName)
+	static ComPtr<IDXGIAdapter> FindAdapter(const std::wstring& targetName)
 	{
-		CComPtr<IDXGIAdapter> targetAdapter;
-		CComPtr<IDXGIFactory1> DXGIFactory;
+		ComPtr<IDXGIAdapter> targetAdapter;
+		ComPtr<IDXGIFactory1> DXGIFactory;
 		HRESULT hres = CreateDXGIFactory1(IID_PPV_ARGS(&DXGIFactory));
 		assert(hres == S_OK);
 
 		unsigned int adapterNo = 0;
 		while (SUCCEEDED(hres))
 		{
-			CComPtr<IDXGIAdapter> pAdapter;
+			ComPtr<IDXGIAdapter> pAdapter;
 			hres = DXGIFactory->EnumAdapters(adapterNo, &pAdapter);
 
 			if (SUCCEEDED(hres))
@@ -86,8 +88,8 @@ namespace {
 		{
 			nvrhi::d3d12::DeviceDesc deviceDesc;
 			deviceDesc.errorCB = &DefaultMessageCallback::GetInstance();
-			deviceDesc.pDevice = device12;
-			deviceDesc.pGraphicsCommandQueue = graphicsQueue;
+			deviceDesc.pDevice = device12.Get();
+			deviceDesc.pGraphicsCommandQueue = graphicsQueue.Get();
 			deviceDesc.pComputeCommandQueue = nullptr;
 			deviceDesc.pCopyCommandQueue = nullptr;
 
@@ -105,7 +107,7 @@ namespace {
 		{
 			if (desc.enableDebugRuntime)
 			{
-				CComPtr<ID3D12Debug> debugController;
+				ComPtr<ID3D12Debug> debugController;
 				if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))))
 				{
 					debugController->EnableDebugLayer();
@@ -115,15 +117,15 @@ namespace {
 			targetAdapter = FindAdapter(desc.adapterNameSubstring);
 
 			HRESULT hr = D3D12CreateDevice(
-				targetAdapter,
+				targetAdapter.Get(),
 				D3D_FEATURE_LEVEL_12_0,
 				IID_PPV_ARGS(&device12));
 			assert(hr == S_OK);
 
 			if (desc.enableDebugRuntime)
 			{
-				CComPtr<ID3D12InfoQueue> pInfoQueue;
-				device12->QueryInterface(&pInfoQueue);
+				ComPtr<ID3D12InfoQueue> pInfoQueue;
+				device12->QueryInterface(pInfoQueue.GetAddressOf());
 
 				if (pInfoQueue)
 				{
@@ -150,9 +152,9 @@ namespace {
 	private:
 		const NVRHIContext::InitParams desc;
 		nvrhi::DeviceHandle nvrhiDevice;
-		CComPtr<IDXGIAdapter> targetAdapter;
-		CComPtr<ID3D12Device> device12;
-		CComPtr<ID3D12CommandQueue> graphicsQueue;
+		ComPtr<IDXGIAdapter> targetAdapter;
+		ComPtr<ID3D12Device> device12;
+		ComPtr<ID3D12CommandQueue> graphicsQueue;
 	};
 
 }  // namespace
