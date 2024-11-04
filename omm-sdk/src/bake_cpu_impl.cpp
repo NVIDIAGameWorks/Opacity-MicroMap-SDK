@@ -506,6 +506,21 @@ namespace Cpu
         }
     }
 
+    static bool GetIsInvalid(const Options& options, const Triangle& uvTriangle)
+    {
+        if (uvTriangle.GetIsInvalid())
+        {
+            return true;
+        }
+
+        if (options.disableLevelLineIntersection && uvTriangle.GetIsDegenerate())
+        {
+            return true; // we only support degen triangles in level line intersection mode.
+        }
+
+        return false;
+    }
+
     namespace impl
     {
         static ommResult SetupWorkItems(
@@ -540,7 +555,7 @@ namespace Cpu
 
                     const bool bIsDisabled = subdivisionLevel == kDisabledPrimitive;
                     
-                    if (bIsDisabled || uvTri.GetIsInvalid())
+                    if (bIsDisabled || GetIsInvalid(options, uvTri))
                     {
                         numDisabledTri++;
                         continue; // These indices will be set to special index unknown later.
@@ -784,7 +799,6 @@ namespace Cpu
                                 // Run conservative rasterization on the micro triangle
                                 for (uint32_t uTriIt = 0; uTriIt < numMicroTriangles; ++uTriIt)
                                 {
-
                                     if (workItem.vmStates.GetState(uTriIt) != ommOpacityState_UnknownOpaque)
                                     {
                                         continue;
@@ -827,7 +841,7 @@ namespace Cpu
                                             {
                                                 auto kernel = &LevelLineIntersectionKernel::run<eFormat, eTextureAddressMode, eTilingMode, true /*degenerate*/>;
                                                 Line l(subTri.aabb_s, subTri.aabb_e);
-                                                RasterizeConservativeSerialLineWithOffset(l, rasterSize, pixelOffset, kernel, &params);
+                                                RasterizeConservativeLineWithOffset(l, rasterSize, pixelOffset, kernel, &params);
                                             }
 
                                             OMM_ASSERT(vmCoverage.numAboveAlpha != 0 || vmCoverage.numBelowAlpha != 0);

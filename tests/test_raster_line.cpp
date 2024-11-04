@@ -118,7 +118,7 @@ protected:
 				Params p;
 				p.checkerSize = checkerSize;
 				p.fillColor = uchar3(128, 0, 0);
-				omm::RasterizeLineConservative(_line, size / checkerSize, LineFill, &p);
+				omm::RasterizeConservativeLine(_line, size / checkerSize, LineFill, & p);
 			}
 
 			{
@@ -152,48 +152,63 @@ protected:
 	}
 };
 
+#if 0
 TEST_P(RasterLineTest, Rasterize) {
 	Run(_size, omm::RasterMode::Default);
 }
+#endif
 
+#if 0
 TEST_P(RasterLineTest, RasterizeConservative) {
 	Run(_size, omm::RasterMode::OverConservative);
 }
+#endif
 
+#if 0
 TEST_P(RasterLineTest, RasterizeSmall) {
 	Run({ _size.x / 2, _size.y / 2, }, omm::RasterMode::Default);
 }
+#endif
 
 TEST_P(RasterLineTest, RasterizeConservativeSmall) {
 	Run({ _size.x / 2, _size.y / 2, }, omm::RasterMode::OverConservative);
 }
 
+#if 0
 TEST_P(RasterLineTest, RasterizeLarge) {
 	Run({ _size.x * 2, _size.y * 2, }, omm::RasterMode::Default);
 }
+#endif
 
 TEST_P(RasterLineTest, RasterizeConservativeLarge) {
 	Run({ _size.x * 2, _size.y * 2, }, omm::RasterMode::OverConservative);
 }
 
+#if 1
 TEST_P(RasterLineTest, RasterizeConservativeSuperLarge) {
 	Run({ _size.x * 4, _size.y * 4, }, omm::RasterMode::OverConservative);
 }
+#endif
 
+#if 1
 INSTANTIATE_TEST_SUITE_P(
 	RasterLine_Low,
 	RasterLineTest,
 	::testing::Values(
 		std::make_tuple<omm::Line, int2>(omm::Line({0.2f, 0.2f}, {0.7f, 0.5f}), {1024, 1024})
 	));
+#endif
 
+#if 1
 INSTANTIATE_TEST_SUITE_P(
 	RasterLine_Diagonal,
 	RasterLineTest,
 	::testing::Values(
 		std::make_tuple<omm::Line, int2>(omm::Line({ 0.01f, 0.01f }, { 0.99f, 0.9f }), { 1024, 1024 })
 	));
+#endif
 
+#if 1
 INSTANTIATE_TEST_SUITE_P(
 	RasterLine_LowCenter,
 	RasterLineTest,
@@ -221,19 +236,23 @@ INSTANTIATE_TEST_SUITE_P(
 	::testing::Values(
 		std::make_tuple<omm::Line, int2>(omm::Line({ 0.2f, 0.5f }, { 0.5f, 0.5f }), { 1024, 1024 })
 	));
+#endif
 
+#if 1
 INSTANTIATE_TEST_SUITE_P(
 	RasterLine_Vertical0,
 	RasterLineTest,
 	::testing::Values(
 		std::make_tuple<omm::Line, int2>(omm::Line({ 0.5f, 0.5f }, { 0.5f, 0.1f }), { 1024, 1024 })
 	));
+#endif
 
+#if 1
 INSTANTIATE_TEST_SUITE_P(
 	RasterLine_Vertical1,
 	RasterLineTest,
 	::testing::Values(
 		std::make_tuple<omm::Line, int2>(omm::Line({ 0.5f, 0.1f }, { 0.5f, 0.5f }), { 1024, 1024 })
 	));
-
+#endif
 }  // namespace

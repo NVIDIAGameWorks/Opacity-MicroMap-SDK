@@ -483,124 +483,77 @@ namespace omm
         }
     }
 
-    template <bool EnableParallel, bool EnableBarycentrics, typename F>
+    template <typename F>
     inline void RasterizeLineConservativeImpl(const Line& _l, int2 r, const float2& offset, F f, void* context = nullptr)
     {
-        // if (_l.p0.x > _l.p1.x)
-        //     std::swap(_l.p0, _l.p1);
-        // else if (_l.p0.x < _l.p1.x)
-        // 
-       // *rf + offset
         const float2 rf(r);
         Line l = Line(_l.p0 * rf + offset, _l.p1 * rf + offset);
 
-        // Line l = _l.p0.x > _l.p1.x ? Line(_l.p1 * rf + offset, _l.p0 * rf + offset) : Line(_l.p0 * rf + offset, _l.p1 * rf + offset);
-
-        if ((l.p0.x > l.p1.x) ||
-            (l.p0.x == l.p1.x && l.p0.y > l.p1.y))
+        if (l.p0.x > l.p1.x)
         {
-            std::swap(l.p0.x, l.p1.x);
-            std::swap(l.p0.y, l.p1.y);
+            l = Line(l.p1, l.p0);
         }
 
-        float x0 = (float)(l.p0.x);
-        float x1 = (float)(l.p1.x);
-        float y0 = (float)(l.p0.y);
-        float y1 = (float)(l.p1.y);
+        const int2 gridSize = r;
+        const float2 rayDirection = l.p1 - l.p0;
+        const float2 rayOrigin = l.p0;
+        const float tEnd = glm::length(rayDirection);
 
-        const float max_x = x1; // Sorted earlier
-        const float max_y = std::max(y0, y1);
-        const float min_y = std::min(y0, y1);
+        int x = static_cast<int>(glm::floor(l.p0.x));
+        int y = static_cast<int>(glm::floor(l.p0.y));
 
-        float k = (y1 - y0) / (x1 - x0);
-        if (k > 1e4 || k < -1e4)
-            k = std::numeric_limits<float>::infinity();
-        const float m = y0 - k * x0;
+        int stepX = (rayDirection.x > 0) ? 1 : ((rayDirection.x < 0) ? -1 : 0);
+        int stepY = (rayDirection.y > 0) ? 1 : ((rayDirection.y < 0) ? -1 : 0);
 
-        int ix0 = (int)glm::floor(x0);
-        int iy0 = (int)glm::floor(y0);
-        int ix1 = (int)glm::floor(x1);
-        int iy1 = (int)glm::floor(y1);
+        float tDeltaX = (stepX != 0) ? 1.f / std::abs(rayDirection.x) : std::numeric_limits<float>::infinity();
+        float tDeltaY = (stepY != 0) ? 1.f / std::abs(rayDirection.y) : std::numeric_limits<float>::infinity();
 
-        enum eDir
+        // Calculate tMax (distance to the next cell boundary)
+        float tMaxX, tMaxY;
+
+        if (stepX != 0) {
+            float nextCellBoundary = (x + (stepX > 0 ? 1.f : 0.f));
+            tMaxX = (nextCellBoundary - rayOrigin.x) / rayDirection.x;
+        }
+        else {
+            tMaxX = std::numeric_limits<float>::infinity();
+        }
+
+        if (stepY != 0) {
+            float nextCellBoundary = (y + (stepY > 0 ? 1.f : 0.f));
+            tMaxY = (nextCellBoundary - rayOrigin.y) / rayDirection.y;
+        }
+        else {
+            tMaxY = std::numeric_limits<float>::infinity();
+        }
+
+        if (stepX == 0 && stepY == 0)
         {
-            eUp,
-            eRight,
-            eDown
-        };
+            f(int2(x, y), context);
+            return;
+        }
 
-        auto DoesIntersect = [](float k, float m, int px, int py, float max_x, float min_y, float max_y, eDir dir)->bool
-            {
-                auto IsZero = [](float x) {
-                    return (x < 1e-6f && x > -1e-6f);
-                    };
+        const int yMin = (int)std::min(glm::floor(l.p0.y), glm::floor(l.p1.y));
+        const int yMax = (int)std::max(glm::ceil(l.p0.y), glm::ceil(l.p1.y));
 
-                auto IsInf = [](float x) {
-                    return std::isinf(x);
-                    };
+        const int xMin = (int)std::min(glm::floor(l.p0.x), glm::floor(l.p1.x));
+        const int xMax = (int)std::max(glm::ceil(l.p0.x), glm::ceil(l.p1.x));
 
-                if (dir == eUp)
-                {
-                    const float x = IsInf(k) ? max_x : (py - m) / k;
-                    const float y = IsInf(k) ? py : k * x + m;
-                    const float dx = x - px;
-                    return dx >= 0 && dx <= 1 && x <= max_x && y > min_y && y < max_y;
-                }
-                if (dir == eRight)
-                {
-                    const float y = k * (px + 1.0f) + m;
-                    const float x = IsZero(k) ? max_x : (y - m) / k;
-                    const float dy = y - py;
-                    const bool inRangeY = dy >= 0 && dy <= 1;
-                    return dy >= 0 && dy <= 1 && x <= max_x && y > min_y && y < max_y;
-                }
-                if (dir == eDown)
-                {
-                    const float x = IsInf(k) ? max_x : ((py + 1.0f) - m) / k;
-                    const float y = IsInf(k) ? py + 1.0f : k * x + m;
-                    const float dx = x - px;
-                    return dx >= 0 && dx <= 1 && x <= max_x && y > min_y && y < max_y;
-                }
-                return false;
-            };
-
-        int x = ix0;
-        int y = iy0;
-
-        int yLast = y;
-        for (; x <= ix1;)
+        while (x >= xMin && x <= xMax && y >= yMin && y <= yMax) 
         {
-            if constexpr (EnableBarycentrics)
-            {
-                const float3 zero(0, 0, 0);
-                f(int2({ x, y }), &zero, context);
-            }
-            else
-            {
-                f(int2({ x, y }), context);
-            }
+            f(int2(x, y), context);
 
-            if (DoesIntersect(k, m, x, y, max_x, min_y, max_y, eUp) && yLast != (y - 1))
-            {
-                yLast = y;
-                y -= 1;
+            if (tMaxX < tMaxY) {
+                x += stepX;
+                tMaxX += tDeltaX;
             }
-            else if (DoesIntersect(k, m, x, y, max_x, min_y, max_y, eRight))
-            {
-                x += 1;
-            }
-            else if (DoesIntersect(k, m, x, y, max_x, min_y, max_y, eDown) && yLast != (y + 1))
-            {
-                yLast = y;
-                y += 1;
-            }
-            else
-            {
-                break;
+            else {
+                y += stepY;
+                tMaxY += tDeltaY;
             }
         }
     }
-   
+
     template <typename F>
     inline void RasterizeConservativeSerial(const Triangle& t, int2 r, F f, void* context = nullptr) { RasterizeTriImpl<RasterMode::OverConservative, false, false>(t, r, float2{0,0}, f, context); };
 
@@ -638,12 +591,9 @@ namespace omm
     inline void RasterizeLine(const Line& l, int2 r, F f, void* context = nullptr) { RasterizeLineImpl<false, false>(l, r, float2{ 0,0 }, f, context); };
 
     template <typename F>
-    inline void RasterizeConservativeSerialLine(const Line& l, int2 r, F f, void* context = nullptr) { RasterizeLineConservativeImpl<false, false>(l, r, float2{ 0,0 }, f, context); };
+    inline void RasterizeConservativeLine(const Line& l, int2 r, F f, void* context = nullptr) { RasterizeLineConservativeImpl(l, r, float2{ 0,0 }, f, context); };
 
     template <typename F>
-    inline void RasterizeLineConservative(const Line& l, int2 r, F f, void* context = nullptr) { RasterizeLineConservativeImpl<false, false>(l, r, float2{ 0,0 }, f, context); };
-
-    template <typename F>
-    inline void RasterizeConservativeSerialLineWithOffset(const Line& l, int2 r, float2 offset, F f, void* context = nullptr) { RasterizeLineConservativeImpl<false, false>(l, r, offset, f, context); };
+    inline void RasterizeConservativeLineWithOffset(const Line& l, int2 r, float2 offset, F f, void* context = nullptr) { RasterizeLineConservativeImpl(l, r, offset, f, context); };
 
 } // namespace omm

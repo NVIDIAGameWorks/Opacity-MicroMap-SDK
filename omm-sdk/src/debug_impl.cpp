@@ -191,16 +191,34 @@ namespace omm
 
             omm::Triangle t = FetchUVTriangle(desc.texCoords, texCoordStrideInBytes, desc.texCoordFormat, triangleIndices);
 
-#if 0
-            if (IsDegenerate(t))
+            if (t.GetIsDegenerate())
             {
-                float2 p[3] = { t.p0, t.p1, t.p2 };
-                const float2 halfway = 0.5f * (p[1] - p[0]);
-                const float2 halfwayRot = float2(halfway.y, -halfway.x);
-                p[2] = 0.5f * halfwayRot + halfway + p[0];
-                t = Triangle(p[0], p[1], p[2]);
+                // Takes a degenerate triangle and turns it to a generate(?) one by extruding the center point a bit perpendicular.
+                auto DeDegenerateTriangle = [](const float2& p0, const float2& pMiddle, const float2& p2)->float2 {
+                    const float2 pDist = p2 - p0;
+                    const float2 offsetVec = float2(pDist.y, -pDist.x);
+                    return 0.5f * offsetVec + pMiddle;
+                 };
+
+                const float d01 = glm::distance(t.p0, t.p1);
+                const float d02 = glm::distance(t.p0, t.p2);
+                const float d12 = glm::distance(t.p1, t.p2);
+
+                if (d01 > d02 && d01 > d12) {
+                    // p2 is between p0 and p1
+                    t.p2 = DeDegenerateTriangle(t.aabb_s, t.p2, t.aabb_e);
+                }
+                else if (d02 > d01 && d02 > d12) {
+                    // p1 is between p0 and p2
+                    t.p1 = DeDegenerateTriangle(t.aabb_s, t.p1, t.aabb_e);
+                }
+                else {
+                    // p0 is between p1 and p2
+                    t.p0 = DeDegenerateTriangle(t.aabb_s, t.p0, t.aabb_e);
+                }
+
+                t = omm::Triangle(t.p0, t.p1, t.p2);
             }
-#endif
 
             omm::Triangle macroTriangle = t;
 
