@@ -80,17 +80,17 @@ private:
     struct Triangle
     {
         // private
-        float _Sign(float2 p1, float2 p2, float2 p3)
+        float _Sign(const float2& p1, const float2& p2, const float2& p3)
         {
             return (p1.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p3.y);
         }
         // public
-        void Init(float2 v0, float2 v1, float2 v2)
+        void Init(const float2& v0, const float2& v1, const float2& v2)
         {
             _v0 = v0; _v1 = v1; _v2 = v2;
         }
 
-        bool PointInTriangle(float2 pt)
+        bool PointInTriangle(const float2& pt)
         {
             float d1, d2, d3;
             bool has_neg, has_pos;
@@ -236,8 +236,8 @@ private:
     }
 public:
 
-    template<ommCpuTextureFormat eFormat, ommTextureAddressMode eTextureAddressMode, TilingMode eTilingMode>
-    static void run(int2 pixel, float3* bc, Coverage coverage, void* ctx)
+    template<ommCpuTextureFormat eFormat, ommTextureAddressMode eTextureAddressMode, TilingMode eTilingMode, bool bIsDegenerate>
+    static void run(int2 pixel, void* ctx)
     {
         // We add +0.5 here in order to compensate for the raster offset.
         const float2 pixelf = (float2)pixel + 0.5f;
@@ -258,11 +258,13 @@ public:
 
 
         // ~~~ Look for internal extremes ~~~ 
+		if (!bIsDegenerate)
         {
             const bool IsOpaque0 = p->alphaCutoff < gatherRed.x;
             const bool IsOpaque1 = p->alphaCutoff < gatherRed.y;
             const bool IsOpaque2 = p->alphaCutoff < gatherRed.z;
             const bool IsOpaque3 = p->alphaCutoff < gatherRed.w;
+
 
             Triangle t;
             t.Init(p->triangle->p0, p->triangle->p1, p->triangle->p2);
@@ -333,11 +335,11 @@ public:
             }
             else
             {
-                for (uint32_t edge = 0; edge < 3; ++edge) {
-
+                if (bIsDegenerate)
+                {
                     // Transform the edge to the local coordinate system of the texel.
-                    const float2 p0 = (float2)p->size * p->triangle->getP(edge % 3) - pixelf;
-                    const float2 p1 = (float2)p->size * p->triangle->getP((edge + 1) % 3) - pixelf;
+                    const float2 p0 = (float2)p->size * p->triangle->aabb_s - pixelf;
+                    const float2 p1 = (float2)p->size * p->triangle->aabb_e - pixelf;
 
                     // Hyperbolic paraboloid (3D surface) => Hyperbola (2D line)
                     // f(x, y) = a + b * x + c * y + d * x * y where f(x, y) = p->alphaCutoff =>
@@ -348,9 +350,30 @@ public:
                     {
                         p->vmCoverage->numAboveAlpha += 1;
                         p->vmCoverage->numBelowAlpha += 1;
-                        break;
                     }
                 }
+                else
+                {
+                    for (uint32_t edge = 0; edge < 3; ++edge) 
+                    {
+                        // Transform the edge to the local coordinate system of the texel.
+                        const float2 p0 = (float2)p->size * p->triangle->getP(edge % 3) - pixelf;
+                        const float2 p1 = (float2)p->size * p->triangle->getP((edge + 1) % 3) - pixelf;
+
+                        // Hyperbolic paraboloid (3D surface) => Hyperbola (2D line)
+                        // f(x, y) = a + b * x + c * y + d * x * y where f(x, y) = p->alphaCutoff =>
+                        // a - alpha + b * x + c * y + d * x * y = 0  
+                        const float4 h(a - p->alphaCutoff, b, c, d);
+
+                        if (TestEdgeHyperbolaIntersection(p0, p1, h))
+                        {
+                            p->vmCoverage->numAboveAlpha += 1;
+                            p->vmCoverage->numBelowAlpha += 1;
+                            break;
+                        }
+                    }
+                }
+                
             }
         }
     }
@@ -371,7 +394,7 @@ struct ConservativeBilinearKernel
     };
 
     template<ommCpuTextureFormat eFormat, ommTextureAddressMode eTextureAddressMode, TilingMode eTilingMode>
-    static void run(int2 pixel, float3* bc, Coverage coverage, void* ctx)
+    static void run(int2 pixel, void* ctx)
     {
         // We add +0.5 here in order to compensate for the raster offset.
         const float2 pixelf = (float2)pixel + 0.5f;

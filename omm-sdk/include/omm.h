@@ -15,8 +15,8 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include <stddef.h>
 
 #define OMM_VERSION_MAJOR 1
-#define OMM_VERSION_MINOR 5
-#define OMM_VERSION_BUILD 1
+#define OMM_VERSION_MINOR 6
+#define OMM_VERSION_BUILD 0
 
 #define OMM_MAX_TRANSIENT_POOL_BUFFERS 8
 
@@ -420,6 +420,13 @@ typedef struct ommCpuBakeInputDesc
    const ommFormat*         formats;
    // Determines how to promote mixed states
    ommUnknownStatePromotion unknownStatePromotion;
+   // Determines the state of unresolvable(nan/inf UV-triangles) and disabled triangles. Note that degenerate triangles (points/lines) will be resolved correctly.
+   union
+   {
+       OMM_DEPRECATED_MSG("unresolvedTriState has been deprecated, please use unresolvedTriState instead")
+       ommSpecialIndex     degenTriState;
+       ommSpecialIndex     unresolvedTriState;
+   };
    // Determines the state of unresolvable/degenerate triangles (nan/inf or zeroa area UV-triangles)
    ommSpecialIndex          degenTriState;
    // Micro triangle count is 4^N, where N is the subdivision level.
@@ -466,6 +473,7 @@ inline ommCpuBakeInputDesc ommCpuBakeInputDescDefault()
    v.format                        = ommFormat_OC1_4_State;
    v.formats                       = NULL;
    v.unknownStatePromotion         = ommUnknownStatePromotion_ForceOpaque;
+   v.unresolvedTriState            = ommSpecialIndex_FullyUnknownOpaque;
    v.degenTriState                 = ommSpecialIndex_FullyUnknownOpaque;
    v.maxSubdivisionLevel           = 8;
    v.subdivisionLevels             = NULL;
