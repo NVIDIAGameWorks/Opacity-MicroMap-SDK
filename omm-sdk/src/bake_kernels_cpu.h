@@ -60,15 +60,15 @@ static ommOpacityState GetStateFromCoverage(ommFormat vmFormat, ommUnknownStateP
     }
 };
 
-// private
-
 // ~~~~~~ LevelLineIntersectionKernel ~~~~~~ 
 // 
 struct LevelLineIntersectionKernel
 {
     struct Params {
-        OmmCoverage             vmCoverage;
-        Triangle                triangle;
+        OmmCoverage*            vmCoverage;
+        const Triangle*         triangle;
+        float2                  invSize;
+        int2                    size;
         const TextureImpl*      texture;
         float                   alphaCutoff;
         float                   borderAlpha;
@@ -239,7 +239,7 @@ private:
 public:
 
     template<ommCpuTextureFormat eFormat, ommTextureAddressMode eTextureAddressMode, TilingMode eTilingMode, bool bIsDegenerate, bool bTexIsPow2>
-    static void run(int2 pixel, float3* bc, Coverage coverage, void* ctx)
+    static void run(int2 pixel, void* ctx)
     {
         Params* p = (Params*)ctx;
 
@@ -293,10 +293,10 @@ public:
 
             //if (coverage == Coverage::PartiallyCovered)
             {
-                IsInside0 = p->triangle.PointInTriangle(p0x0);
-                IsInside1 = p->triangle.PointInTriangle(p0x1);
-                IsInside2 = p->triangle.PointInTriangle(p1x1);
-                IsInside3 = p->triangle.PointInTriangle(p1x0);
+                IsInside0 = p->triangle->PointInTriangle(p0x0);
+                IsInside1 = p->triangle->PointInTriangle(p0x1);
+                IsInside2 = p->triangle->PointInTriangle(p1x1);
+                IsInside3 = p->triangle->PointInTriangle(p1x0);
             }
 
             bool IsOpaque = false;
@@ -315,12 +315,12 @@ public:
             IsTransparent |= IsInside3 && !IsOpaque3;
 
             if (IsOpaque) {
-                p->vmCoverage.numAboveAlpha += 1;
+                p->vmCoverage->numAboveAlpha += 1;
             }
 
             if (IsTransparent)
             {
-                p->vmCoverage.numBelowAlpha += 1;
+                p->vmCoverage->numBelowAlpha += 1;
             }
 
             // We've already concluded it's unknown -> return!
@@ -346,11 +346,11 @@ public:
             {
                 ///< All points on the same level. Alpha cutoff is either entierly above, or entierly below.
                 if (p->alphaCutoff < a) {
-                    p->vmCoverage.numAboveAlpha += 1;
+                    p->vmCoverage->numAboveAlpha += 1;
                 }
                 else
                 {
-                    p->vmCoverage.numBelowAlpha += 1;
+                    p->vmCoverage->numBelowAlpha += 1;
                 }
             }
             else
@@ -358,8 +358,8 @@ public:
                 if (bIsDegenerate)
                 {
                     // Transform the edge to the local coordinate system of the texel.
-                    const float2 p0 = (float2)p->size * p->triangle->aabb_s - pixelf;
-                    const float2 p1 = (float2)p->size * p->triangle->aabb_e - pixelf;
+                    float2 p0 = (float2)p->size * p->triangle->aabb_s - pixelf;
+                    float2 p1 = (float2)p->size * p->triangle->aabb_e - pixelf;
 
                     // Hyperbolic paraboloid (3D surface) => Hyperbola (2D line)
                     // f(x, y) = a + b * x + c * y + d * x * y where f(x, y) = p->alphaCutoff =>
@@ -368,8 +368,8 @@ public:
 
                     if (TestEdgeHyperbolaIntersection(p0, p1, h))
                     {
-                        p->vmCoverage.numAboveAlpha += 1;
-                        p->vmCoverage.numBelowAlpha += 1;
+                        p->vmCoverage->numAboveAlpha += 1;
+                        p->vmCoverage->numBelowAlpha += 1;
                     }
                 }
                 else
@@ -377,8 +377,8 @@ public:
                     for (uint32_t edge = 0; edge < 3; ++edge) 
                     {
                         // Transform the edge to the local coordinate system of the texel.
-                        const float2 p0 = (float2)p->size * p->triangle->getP(edge % 3) - pixelf;
-                        const float2 p1 = (float2)p->size * p->triangle->getP((edge + 1) % 3) - pixelf;
+                        float2 p0 = (float2)p->size * p->triangle->getP(edge % 3) - pixelf;
+                        float2 p1 = (float2)p->size * p->triangle->getP((edge + 1) % 3) - pixelf;
 
                         // Hyperbolic paraboloid (3D surface) => Hyperbola (2D line)
                         // f(x, y) = a + b * x + c * y + d * x * y where f(x, y) = p->alphaCutoff =>

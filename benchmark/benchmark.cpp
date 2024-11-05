@@ -38,7 +38,7 @@ protected:
 				std::istreambuf_iterator<char>());
 		};
 
-		auto data = readFile("C:\\Users\\jdeligiannis\\Downloads\\myExpensiveBakeJob_80mb.bin");
+		auto data = readFile("C:\\Users\\Admin\\Downloads\\myExpensiveBakeJob.bin");
 
 		omm::Cpu::BlobDesc blob;
 		blob.data = data.data();
@@ -144,13 +144,14 @@ BENCHMARK_DEFINE_F(OMMBake, BakeOnlySmallest)(benchmark::State& st) {
 }
 
 
-#if 0
+#if 1
 BENCHMARK_REGISTER_F(OMMBake, Default)->Unit(benchmark::kSecond)->Name("Default");
 #endif
 
+#if 0
+
 BENCHMARK_REGISTER_F(OMMBake, BakeOnlySmallest)->Unit(benchmark::kSecond)->Name("BakeOnlySmallest");
 
-#if 0
 BENCHMARK_REGISTER_F(OMMBake, DisableFineClassification)->Unit(benchmark::kSecond)->Name("DisableFineClassification");
 
 BENCHMARK_REGISTER_F(OMMBake, EnableWrapping)->Unit(benchmark::kSecond)->Name("EnableWrapping");

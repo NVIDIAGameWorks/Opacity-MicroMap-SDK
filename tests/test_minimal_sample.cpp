@@ -14,7 +14,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 #include <fstream>
 
-#pragma optimize("", off)
+// #pragma optimize("", off)
 
 class Profiler {
 public:
