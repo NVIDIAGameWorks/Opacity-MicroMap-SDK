@@ -17,6 +17,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #define IMMINTRIN_ENABLED (0)
 #endif
 
+#include "math.h"
 #include <stdint.h>
 
 namespace omm
@@ -61,6 +62,28 @@ namespace omm
         z = x | (y << 1);
         return z;
     }
+
+#ifdef _MSC_VER
+#include <intrin.h>
+    uint32_t __inline ctz(uint32_t value)
+    {
+        unsigned long trailing_zero = 0;
+
+        if (_BitScanForward(&trailing_zero, value))
+        {
+            return trailing_zero;
+        }
+        else
+        {
+            // This is undefined, I better choose 32 than 0
+            return 32;
+        }
+    }
+    uint2 __inline ctz(uint2 value)
+    {
+        return uint2(ctz(value.x), ctz(value.y));
+    }
+#endif
 
     inline uint64_t bit_interleave(uint32_t x, uint32_t y)
     {

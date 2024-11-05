@@ -61,6 +61,10 @@ namespace omm
             return m_mips[mip].size;
         }
 
+        const int2& GetSizeLog2(int32_t mip) const {
+            return m_mips[mip].sizeLog2;
+        }
+
         const float2& GetSizef(int32_t mip) const {
             return m_mips[mip].sizef;
         }
@@ -139,6 +143,7 @@ namespace omm
         struct Mips
         {
             int2 size;
+            int2 sizeLog2;
             float2 sizef;
             bool sizeIsPow2;
             float2 rcpSize;
@@ -269,6 +274,8 @@ namespace omm
                 os.read(reinterpret_cast<char*>(&mip.numElements), sizeof(mip.numElements));
                 os.read(reinterpret_cast<char*>(&mip.dataOffsetSAT), sizeof(mip.dataOffsetSAT));
 
+                mip.sizeLog2.x = ctz(mip.size.x);
+                mip.sizeLog2.y = ctz(mip.size.y);
                 mip.sizef = (float2)mip.size;
                 mip.sizeIsPow2 = isPow2(mip.size.x) && isPow2(mip.size.y);
             }

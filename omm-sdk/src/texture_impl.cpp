@@ -93,6 +93,8 @@ namespace omm
         for (uint32_t mipIt = 0; mipIt < desc.mipCount; ++mipIt)
         {
             m_mips[mipIt].size = { desc.mips[mipIt].width, desc.mips[mipIt].height };
+            m_mips[mipIt].sizeLog2.x = ctz(m_mips[mipIt].size.x);
+            m_mips[mipIt].sizeLog2.y = ctz(m_mips[mipIt].size.y);
             m_mips[mipIt].sizef = (float2)m_mips[mipIt].size;
             m_mips[mipIt].sizeMinusOne = m_mips[mipIt].size - 1;
             m_mips[mipIt].rcpSize = 1.f / (float2)m_mips[mipIt].size;
@@ -260,7 +262,7 @@ namespace omm
         float2 pixel = p * (float2)(m_mips[mip].size)-0.5f;
         float2 pixelFloor = glm::floor(pixel);
         int2 coords[omm::TexelOffset::MAX_NUM];
-        omm::GatherTexCoord4(mode, m_mips[mip].sizeIsPow2, int2(pixelFloor), m_mips[mip].size, coords);
+        omm::GatherTexCoord4(mode, m_mips[mip].sizeIsPow2, int2(pixelFloor), m_mips[mip].size, m_mips[mip].sizeLog2, coords);
 
         float a = (float)Load(coords[omm::TexelOffset::I0x0], mip);
         float b = (float)Load(coords[omm::TexelOffset::I0x1], mip);

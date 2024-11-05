@@ -758,10 +758,10 @@ namespace Cpu
                                     const float2 faabb_s = (subTri.aabb_s * (float2)texture->GetSize(mip)) - 0.5f;
                                     const float2 faabb_e = (subTri.aabb_e * (float2)texture->GetSize(mip)) - 0.5f;
                                     int2 iaabb_s[TexelOffset::MAX_NUM];
-                                    omm::GatherTexCoord4<eTextureAddressMode, bTexIsPow2>(glm::floor(faabb_s), texture->GetSize(mip), iaabb_s);
+                                    omm::GatherTexCoord4<eTextureAddressMode, bTexIsPow2>(glm::floor(faabb_s), texture->GetSize(mip), texture->GetSizeLog2(mip), iaabb_s);
 
                                     int2 iaabb_e[TexelOffset::MAX_NUM];
-                                    omm::GatherTexCoord4<eTextureAddressMode, bTexIsPow2>(glm::floor(faabb_e), texture->GetSize(mip), iaabb_e);
+                                    omm::GatherTexCoord4<eTextureAddressMode, bTexIsPow2>(glm::floor(faabb_e), texture->GetSize(mip), texture->GetSizeLog2(mip), iaabb_e);
 
                                     const int2 aabb_s = iaabb_s[TexelOffset::I0x0];
                                     const int2 aabb_e = iaabb_e[TexelOffset::I1x1];
@@ -917,7 +917,7 @@ namespace Cpu
                                         float2 pixelOffset = -float2(0.5, 0.5);
 
                                         OmmCoverage vmCoverage = { 0, };
-                                        ConservativeBilinearKernel::Params params = { &vmCoverage,  texture->GetRcpSize(mip), rasterSize, texture, desc.alphaCutoff, desc.runtimeSamplerDesc.borderAlpha, mip };
+                                        ConservativeBilinearKernel::Params params = { &vmCoverage,  texture->GetRcpSize(mip), rasterSize, texture->GetSizeLog2(mip), texture, desc.alphaCutoff, desc.runtimeSamplerDesc.borderAlpha, mip };
 
                                         Triangle subTri0 = Triangle(subTri.aabb_s, float2(subTri.aabb_e.x, subTri.aabb_s.y), float2(subTri.aabb_s.x, subTri.aabb_e.y));
                                         Triangle subTri1 = Triangle(subTri.aabb_e, float2(subTri.aabb_e.x, subTri.aabb_s.y), float2(subTri.aabb_s.x, subTri.aabb_e.y));
@@ -940,11 +940,12 @@ namespace Cpu
                                         uint32_t mip = 0;
                                         OMM_ASSERT(texture->GetMipCount() == 1);
                                         const int2 rasterSize = texture->GetSize(mip);
+                                        const int2 rasterSizeLog2 = texture->GetSizeLog2(mip);
 
                                         float2 pixelOffset = -float2(0.5, 0.5);
 
                                         OmmCoverage vmCoverage = { 0, };
-                                        ConservativeBilinearKernel::Params params = { &vmCoverage,  texture->GetRcpSize(mip), rasterSize, texture, desc.alphaCutoff, desc.runtimeSamplerDesc.borderAlpha, mip };
+                                        ConservativeBilinearKernel::Params params = { &vmCoverage,  texture->GetRcpSize(mip), rasterSize, rasterSizeLog2, texture, desc.alphaCutoff, desc.runtimeSamplerDesc.borderAlpha, mip };
 
                                         auto kernel = &ConservativeBilinearKernel::run<eFormat, eTextureAddressMode, eTilingMode, bTexIsPow2>;
                                         RasterizeConservativeSerialWithOffsetCoverage(subTri, rasterSize, pixelOffset, kernel, &params);
@@ -963,6 +964,7 @@ namespace Cpu
                                     OmmCoverage*        vmState;
                                     float2              invSize;
                                     int2                size;
+                                    int2                sizeLog2;
                                     ommSamplerDesc      runtimeSamplerDesc;
                                     const TextureImpl* texture;
                                     float               alphaCutoff;
@@ -976,7 +978,8 @@ namespace Cpu
                                     for (uint32_t mipIt = 0; mipIt < texture->GetMipCount(); ++mipIt)
                                     {
                                         const int2 rasterSize = texture->GetSize(mipIt);
-                                        KernelParams params = { nullptr, texture->GetRcpSize(mipIt), rasterSize, desc.runtimeSamplerDesc, texture, desc.alphaCutoff, desc.runtimeSamplerDesc.borderAlpha, mipIt };
+                                        const int2 rasterSizeLog2 = texture->GetSizeLog2(mipIt);
+                                        KernelParams params = { nullptr, texture->GetRcpSize(mipIt), rasterSize, rasterSizeLog2,desc.runtimeSamplerDesc, texture, desc.alphaCutoff, desc.runtimeSamplerDesc.borderAlpha, mipIt };
 
                                         params.vmState = &vmCoverage;
 
@@ -984,7 +987,7 @@ namespace Cpu
                                         {
                                             KernelParams* p = (KernelParams*)ctx;
 
-                                            const int2 coord = omm::GetTexCoord<eTextureAddressMode, bTexIsPow2>(pixel, p->size);
+                                            const int2 coord = omm::GetTexCoord<eTextureAddressMode, bTexIsPow2>(pixel, p->size, p->sizeLog2);
 
                                             const bool isBorder = eTextureAddressMode == ommTextureAddressMode_Border && (coord.x == kTexCoordBorder || coord.y == kTexCoordBorder);
                                             const float alpha = isBorder ? p->borderAlpha : p->texture->template Load<eFormat, eTilingMode>(coord, p->mipIt);
@@ -1504,7 +1507,7 @@ namespace Cpu
                         constexpr const uint32_t k = 13;
                         const int2 qSize = int2(1u << k, 1u << k);
                         const int2 qUV = int2(float2(qSize) * ((vm.uvTri.p0 + vm.uvTri.p1 + vm.uvTri.p2) / 3.f));
-                        const int2 qPosMirrored = GetTexCoord<ommTextureAddressMode_MirrorOnce, false>(qUV, qSize);
+                        const int2 qPosMirrored = GetTexCoord<ommTextureAddressMode_MirrorOnce, false>(qUV, qSize, {0,0});
                         OMM_ASSERT(qPosMirrored.x >= 0 && qPosMirrored.y >= 0);
                         const uint64_t mCode = xy_to_morton(qPosMirrored.x, qPosMirrored.y);
                         OMM_ASSERT(mCode < (1ull << (k << 1ull)));

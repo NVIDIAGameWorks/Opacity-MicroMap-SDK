@@ -250,7 +250,7 @@ public:
         const float2 invPixelf = pixelf * invSize;
 
         int2 coord00, coord10, coord01, coord11;
-        omm::GatherTexCoord4<eTextureAddressMode, bTexIsPow2>(pixel, p->texture->GetSize(p->mipLevel), coord00, coord10, coord01, coord11);
+        omm::GatherTexCoord4<eTextureAddressMode, bTexIsPow2>(pixel, p->texture->GetSize(p->mipLevel), p->texture->GetSizeLog2(p->mipLevel), coord00, coord10, coord01, coord11);
 
         auto IsBorder = [](int2 coord) {
             return (coord.x == kTexCoordBorder || coord.y == kTexCoordBorder);
@@ -407,6 +407,7 @@ struct ConservativeBilinearKernel
         OmmCoverage*            vmCoverage;
         float2                  invSize;
         int2                    size;
+        int2                    sizeLog2;
         const TextureImpl*      texture;
         float                   alphaCutoff;
         float                   borderAlpha;
@@ -421,7 +422,7 @@ struct ConservativeBilinearKernel
 
         Params* p = (Params*)ctx;
         int2 coord[TexelOffset::MAX_NUM];
-        omm::GatherTexCoord4<eTextureAddressMode, bTexIsPow2>(int2(pixelf), p->size, coord);
+        omm::GatherTexCoord4<eTextureAddressMode, bTexIsPow2>(int2(pixelf), p->size, p->sizeLog2, coord);
 
         auto IsBorder = [](int2 coord) {
             return eTextureAddressMode == ommTextureAddressMode_Border && (coord.x == kTexCoordBorder || coord.y == kTexCoordBorder);
