@@ -16,17 +16,42 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 namespace omm
 {
-    enum class WindingOrder : uint8_t {
-        CW,
-        CCW,
+    struct Line
+    {
+        Line() = default;
+        Line& operator=(const Line&) = default;
+        Line(const float2& _p0, const float2& _p1) :
+            p0(_p0),
+            p1(_p1)
+        {
+            aabb_s = { std::min(p0.x, p1.x), std::min(p0.y, p1.y) };
+            aabb_e = { std::max(p0.x, p1.x), std::max(p0.y, p1.y) };
+        }
+
+        float2 p0;
+        float2 p1;
+        float2 aabb_s;     //< Start point of the aabb
+        float2 aabb_e;     //< End point of the aabb
     };
 
-    static inline WindingOrder GetWinding(const float2 _p0, const float2 _p1, const float2 _p2) {
-        double3 a = double3(_p2 - _p0, 0);
-        double3 b = double3(_p1 - _p0, 0);
+    static bool IsInvalid(const float2& p0, const float2& p1, const float2& p2)
+    {
+        const bool anyNan = glm::any(glm::isnan(p0)) || glm::any(glm::isnan(p1)) || glm::any(glm::isnan(p2));
+        const bool anyInf = glm::any(glm::isinf(p0)) || glm::any(glm::isinf(p1)) || glm::any(glm::isinf(p2));
+        return anyNan || anyInf;
+    }
+
+    static inline bool IsDegenerate(const float2& p0, const float2& p1, const float2& p2) {
+        float area = 0.5f * std::abs(p0.x * (p1.y - p2.y) + p1.x * (p2.y - p0.y) + p2.x * (p0.y - p1.y));
+        return area < 1e-9;
+    }
+
+    static inline bool IsCCW(const float2& p0, const float2& p1, const float2& p2) {
+        double3 a = double3(p2 - p0, 0);
+        double3 b = double3(p1 - p0, 0);
         const double3 N = glm::cross(a, b);
         const double Nz = N.z;
-        return Nz < 0 ? WindingOrder::CCW : WindingOrder::CW;
+        return Nz < 0;
     }
 
 #define CACHED_POINT_IN_TRI (1)
@@ -38,8 +63,7 @@ namespace omm
         Triangle(const float2& _p0, const float2& _p1, const float2& _p2) :
             p0(_p0),
             p1(_p1),
-            p2(_p2),
-            _winding(GetWinding(p0, p1, p2))
+            p2(_p2)
         {
 #if CACHED_POINT_IN_TRI
             p0p2 = p0 - p2;
@@ -50,13 +74,27 @@ namespace omm
             aabb_e = { std::max(std::max(p0.x, p1.x), p2.x), std::max(std::max(p0.y, p1.y), p2.y) };
         }
 
-        float2 getP(uint32_t index) const {
+        inline float2 getP(uint32_t index) const {
             if (index == 0)
                 return p0;
             else if (index == 1)
                 return p1;
             OMM_ASSERT(index == 2);
             return p2;
+        }
+
+        inline bool GetIsInvalid() const {
+            return IsInvalid(p0, p1, p2);
+        }
+
+        inline bool GetIsDegenerate() const {
+            return IsDegenerate(p0, p1, p2);
+        }
+
+        inline bool GetIsCCW() const {
+            OMM_ASSERT(!GetIsInvalid());
+            OMM_ASSERT(!GetIsDegenerate());
+            return IsCCW(p0, p1, p2);
         }
 
 #if CACHED_POINT_IN_TRI
@@ -96,9 +134,8 @@ namespace omm
         float2 p1p0;
         float2 p2p1;
 #endif
-        float2 aabb_s;     //< Start point of the aabb
-        float2 aabb_e;     //< End point of the aabb
-        WindingOrder _winding; //< This matters when calculating barycentrics during rasterization.
+        float2 aabb_s;         //< Start point of the aabb
+        float2 aabb_e;         //< End point of the aabb
     };
 
     static float GetArea2D(const float2& p0, const float2& p1, const float2& p2) {
@@ -124,13 +161,6 @@ namespace omm
         hash_combine(seed, t.p1);
         hash_combine(seed, t.p2);
         return seed;
-    }
-
-    static inline WindingOrder GetWinding(const Triangle& t) {
-        float2 a = t.p2 - t.p0;
-        float2 b = t.p1 - t.p0;
-        const float Nz = a.x * b.y - a.y * b.x;
-        return Nz < 0 ? WindingOrder::CCW : WindingOrder::CW;
     }
 
     static float float16ToFloat32(uint16_t fp16)

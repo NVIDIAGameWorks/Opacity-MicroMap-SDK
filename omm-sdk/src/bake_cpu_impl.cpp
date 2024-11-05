@@ -49,7 +49,8 @@ namespace Cpu
         EnableWrapping                  = 1u << 11,
         EnableSnapping                  = 1u << 12,
         EnableStochasticClassification  = 1u << 13,
-        EnableBakeOnlySmallest          = 1u << 14
+        EnableBakeOnlySmallest          = 1u << 14,
+        EnableEdgeHeuristic             = 1u << 15
     };
 
     constexpr void ValidateInternalBakeFlags()
@@ -78,7 +79,8 @@ namespace Cpu
             enableAABBTesting(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableAABBTesting) == (uint32_t)BakeFlagsInternal::EnableAABBTesting),
             disableRemovePoorQualityOMM(((uint32_t)flags& (uint32_t)BakeFlagsInternal::DisableRemovePoorQualityOMM) == (uint32_t)BakeFlagsInternal::DisableRemovePoorQualityOMM),
             disableLevelLineIntersection(((uint32_t)flags& (uint32_t)BakeFlagsInternal::DisableLevelLineIntersection) == (uint32_t)BakeFlagsInternal::DisableLevelLineIntersection),
-            disableFineClassification(((uint32_t)flags& (uint32_t)BakeFlagsInternal::DisableFineClassification) == (uint32_t)BakeFlagsInternal::DisableFineClassification)
+            disableFineClassification(((uint32_t)flags& (uint32_t)BakeFlagsInternal::DisableFineClassification) == (uint32_t)BakeFlagsInternal::DisableFineClassification),
+            enableEdgeHeuristic(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableEdgeHeuristic) == (uint32_t)BakeFlagsInternal::EnableEdgeHeuristic)
         { }
         const bool enableInternalThreads;
         const bool disableSpecialIndices;
@@ -94,6 +96,7 @@ namespace Cpu
         const bool disableRemovePoorQualityOMM;
         const bool disableLevelLineIntersection;
         const bool disableFineClassification;
+        const bool enableEdgeHeuristic;
     };
 
     BakerImpl::~BakerImpl()
@@ -481,7 +484,7 @@ namespace Cpu
         OmmArrayDataVector vmStates;
     };
 
-    static const uint32_t CalculateSuitableSubdivisionLevel(const ommCpuBakeInputDesc& desc, const Triangle& uvTri, uint2 texSize)
+    static const uint32_t ComputeAreaHeuristic(const ommCpuBakeInputDesc& desc, const Triangle& uvTri, uint2 texSize)
     {
         auto GetNextPow2 = [](uint v)->uint
         {
@@ -512,7 +515,6 @@ namespace Cpu
         // Solves the following eqn:
         // targetPixelArea / (4^N) = pixelUvArea 
 
-        // Questionable heuristic... micro-triangle should cover 8x8 pixel region?
         const float targetPixelArea = desc.dynamicSubdivisionScale * desc.dynamicSubdivisionScale;
         const uint ratio = uint(pixelUvArea / targetPixelArea);
         const uint ratioNextPow2 = GetNextPow2(ratio);
@@ -523,19 +525,38 @@ namespace Cpu
         return std::min<uint>(SubdivisionLevel, desc.maxSubdivisionLevel);
     }
 
-    static bool IsDegenerate(const Triangle& t)
+    static const uint32_t ComputeEdgeHeuristic(const ommCpuBakeInputDesc& desc, const Triangle& uvTri, uint2 texSize)
     {
-        const bool anyNan = glm::any(glm::isnan(t.p0)) || glm::any(glm::isnan(t.p1)) || glm::any(glm::isnan(t.p2));
-        const bool anyInf = glm::any(glm::isinf(t.p0)) || glm::any(glm::isinf(t.p1)) || glm::any(glm::isinf(t.p2));
-        
-        const float3 N = glm::cross(float3(t.p2 - t.p0, 0), float3(t.p1 - t.p0, 0));
-        const float N2 = N.z * N.z;
-        const bool bIsZeroArea = N2 < 1e-9;
+        // Adapted from 3.1.1 https://fileadmin.cs.lth.se/graphics/research/papers/2024/succinct_opacity_micromaps/paper-author-version.pdf
+        const float2 ve0 = (float2)texSize * (uvTri.p1 - uvTri.p0);
+        const float2 ve1 = (float2)texSize * (uvTri.p2 - uvTri.p0);
+        const float2 ve2 = (float2)texSize * (uvTri.p2 - uvTri.p1);
 
-        return anyNan || anyInf || bIsZeroArea;
+        const float le0 = glm::dot(ve0, ve0);
+        const float le1 = glm::dot(ve1, ve1);
+        const float le2 = glm::dot(ve2, ve2);
+
+        const float eMax = std::max({ le0, le1, le2 });
+
+        const float n = eMax < 1e-6 ? 0 : std::log2(eMax) / 2.f - std::log2(desc.dynamicSubdivisionScale);
+
+        const int SubdivisionLevel = (int)std::ceil(n);
+        return std::clamp<int>(SubdivisionLevel, 0, desc.maxSubdivisionLevel);
     }
 
-    static int32_t GetSubdivisionLevelForPrimitive(const ommCpuBakeInputDesc& desc, uint32_t i, const Triangle& uvTri, uint2 texSize)
+    static const uint32_t CalculateSuitableSubdivisionLevel(const ommCpuBakeInputDesc& desc, const Options& options, const Triangle& uvTri, uint2 texSize)
+    {
+        if (uvTri.GetIsDegenerate() || options.enableEdgeHeuristic)
+        {
+            return ComputeEdgeHeuristic(desc, uvTri, texSize);
+        }
+        else
+        {
+            return ComputeAreaHeuristic(desc, uvTri, texSize);
+        }
+    }
+
+    static int32_t GetSubdivisionLevelForPrimitive(const ommCpuBakeInputDesc& desc, const Options& options, uint32_t i, const Triangle& uvTri, uint2 texSize)
     {
         if (desc.subdivisionLevels && desc.subdivisionLevels[i] <= 12)
         {
@@ -547,12 +568,27 @@ namespace Cpu
 
         if (enableDynamicSubdivisionLevel)
         {
-            return CalculateSuitableSubdivisionLevel(desc, uvTri, texSize);
+            return CalculateSuitableSubdivisionLevel(desc, options, uvTri, texSize);
         }
         else
         {
             return desc.maxSubdivisionLevel;
         }
+    }
+
+    static bool GetIsInvalid(const Options& options, const Triangle& uvTriangle)
+    {
+        if (uvTriangle.GetIsInvalid())
+        {
+            return true;
+        }
+
+        if (options.disableLevelLineIntersection && uvTriangle.GetIsDegenerate())
+        {
+            return true; // we only support degen triangles in level line intersection mode.
+        }
+
+        return false;
     }
 
     namespace impl
@@ -613,7 +649,7 @@ namespace Cpu
             {
                 const uint32_t texCoordStrideInBytes = desc.texCoordStrideInBytes == 0 ? GetTexCoordFormatSize(desc.texCoordFormat) : desc.texCoordStrideInBytes;
 
-                uint32_t numDegenTri = 0;
+                uint32_t numDisabledTri = 0;
 
                 for (int32_t i = 0; i < triangleCount; ++i)
                 {
@@ -651,14 +687,13 @@ namespace Cpu
                         uvTri = Triangle(p0, p1, p2);
                     }
 
-                    const int32_t subdivisionLevel = GetSubdivisionLevelForPrimitive(desc, i, uvTri, texture->GetSize(0 /*always based on mip 0*/));
+                    const int32_t subdivisionLevel = GetSubdivisionLevelForPrimitive(desc, options, i, uvTri, texture->GetSize(0 /*always based on mip 0*/));
 
                     const bool bIsDisabled = subdivisionLevel == kDisabledPrimitive;
-                    const bool bIsDegenerate = IsDegenerate(uvTri);
-
-                    if (bIsDisabled || bIsDegenerate)
+                    
+                    if (bIsDisabled || GetIsInvalid(options, uvTri))
                     {
-                        numDegenTri++;
+                        numDisabledTri++;
                         continue; // These indices will be set to special index unknown later.
                     }
 
@@ -692,11 +727,11 @@ namespace Cpu
                     }
                 }
 
-                if (options.enableValidation && numDegenTri != 0)
+                if (options.enableValidation && numDisabledTri != 0)
                 {
-                    const char* specialIndex = ToString(desc.degenTriState);
-                    log.Infof("[Info] - The workload consists of %d degenerate triangles, these will be classified as Fully Unknown Opaque (this behaviour can be changed by degenTriState).",
-                        numDegenTri, specialIndex);
+                    const char* specialIndex = ToString(desc.unresolvedTriState);
+                    log.Infof("[Info] - The workload consists of %d unclassifiable triangles, these will be classified as unresolvedTriState = %s.",
+                        numDisabledTri, specialIndex);
                 }
             }
             return ommResult_SUCCESS;
@@ -848,6 +883,12 @@ namespace Cpu
             return ommResult_SUCCESS;
         }
 
+        enum TriangleClass
+        {
+            Normal,
+            Degenerate
+        };
+
         enum class ResampleMode
         {
             Quality,
@@ -855,7 +896,7 @@ namespace Cpu
             Performance
         };
 
-        template<ommCpuTextureFormat eFormat, TilingMode eTilingMode, ommTextureAddressMode eTextureAddressMode, ommTextureFilterMode eFilterMode, bool bTexIsPow2, ResampleMode eResampleMode>
+        template<ommCpuTextureFormat eFormat, TilingMode eTilingMode, ommTextureAddressMode eTextureAddressMode, ommTextureFilterMode eFilterMode, TriangleClass eTriangleClass, bool bTexIsPow2, ResampleMode eResampleMode>
         static ommResult ResampleFine(const ommCpuBakeInputDesc& desc, const Logger& log, const Options& options, vector<OmmWorkItem>& vmWorkItems)
         {
             if (options.enableAABBTesting && !options.disableLevelLineIntersection)
@@ -880,6 +921,17 @@ namespace Cpu
                         {
                             // Subdivide the input triangle in to smaller triangles. They will be "bird-curve" ordered.
                             OmmWorkItem& workItem = vmWorkItems[workItemIt];
+                            const bool isDegenerate = workItem.uvTri.GetIsDegenerate();
+
+                            if (eTriangleClass == TriangleClass::Normal && isDegenerate)
+                            {
+                                continue;
+                            }
+
+                            if (eTriangleClass == TriangleClass::Degenerate && !isDegenerate)
+                            {
+                                continue;
+                            }
 
                             const uint32_t numMicroTriangles = omm::bird::GetNumMicroTriangles(workItem.subdivisionLevel);
 
@@ -927,6 +979,18 @@ namespace Cpu
                                                 params.vmCoverage.numBelowAlpha++;
 
                                             RasterizeConservativeSerialWithOffsetCoverage(params.triangle, rasterSize, pixelOffset, kernel, &params);
+
+                                            if constexpr (eTriangleClass == TriangleClass::Normal)
+                                            {
+                                                auto kernel = &LevelLineIntersectionKernel::run<eFormat, eTextureAddressMode, eTilingMode, false /*degenerate*/>;
+                                                RasterizeConservativeSerialWithOffsetCoverage(params.triangle, rasterSize, pixelOffset, kernel, &params);
+                                            }
+                                            else
+                                            {
+                                                auto kernel = &LevelLineIntersectionKernel::run<eFormat, eTextureAddressMode, eTilingMode, true /*degenerate*/>;
+                                                Line l(subTri.aabb_s, subTri.aabb_e);
+                                                RasterizeConservativeLineWithOffset(l, rasterSize, pixelOffset, kernel, &params);
+                                            }
 
                                             OMM_ASSERT(params.vmCoverage.numAboveAlpha != 0 || params.vmCoverage.numBelowAlpha != 0);
                                             const ommOpacityState state = GetStateFromCoverage(desc.format, desc.unknownStatePromotion, desc.alphaCutoffGreater, desc.alphaCutoffLessEqual, params.vmCoverage);
@@ -1018,7 +1082,7 @@ namespace Cpu
 
                                         params.vmState = &vmCoverage;
 
-                                        auto kernel = [](int2 pixel, float3* bc, void* ctx)
+                                        auto kernel = [](int2 pixel, void* ctx)
                                         {
                                             KernelParams* p = (KernelParams*)ctx;
 
@@ -1664,7 +1728,7 @@ namespace Cpu
             // Set special indices...
             {
                 res.ommIndexBuffer.resize(triangleCount);
-                std::fill(res.ommIndexBuffer.begin(), res.ommIndexBuffer.end(), (int32_t)desc.degenTriState);
+                std::fill(res.ommIndexBuffer.begin(), res.ommIndexBuffer.end(), (int32_t)desc.unresolvedTriState);
                 for (const OmmWorkItem& vm : vmWorkItems) 
 				{
                     for (uint32_t primitiveIndex : vm.primitiveIndices)

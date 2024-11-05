@@ -54,7 +54,7 @@ namespace {
 			return tex;
 		}
 
-		omm::Cpu::BakeInputDesc CreateDefaultBakeInputDesc(uint32_t triangleCount = 256, const float alphaCutoff = 0.3f, bool forceDegenTris = false) {
+		omm::Cpu::BakeInputDesc CreateDefaultBakeInputDesc(uint32_t triangleCount = 256, const float alphaCutoff = 0.3f, bool forceInvalidTris = false) {
 
 			vmtest::TextureFP32 texture(1024, 1024, 1, false, alphaCutoff, [](int i, int j, int w, int h, int mip) {
 				if ((i) % 2 != (j) % 2)
@@ -76,8 +76,8 @@ namespace {
 				for (uint32_t j = 0; j < 3; ++j) {
 					_indices[3 * i + j] = 3 * i + j;
 					_texCoords[3 * i + j] = float2(distr(eng), distr(eng));
-					if (forceDegenTris)
-						_texCoords[3 * i + j].x = 0.f;
+					if (forceInvalidTris)
+						_texCoords[3 * i + j].x = std::numeric_limits<float>::infinity();
 				}
 			}
 
@@ -194,11 +194,11 @@ namespace {
 					 " This is unusually large and may result in long bake times." }, omm::Result::SUCCESS);
 	}
 
-	TEST_F(LogTest, Validation_DegenerateTriangles)
+	TEST_F(LogTest, Validation_InvalidTriangles)
 	{
 		InitBaker(true /*set callback*/);
 		omm::Cpu::BakeInputDesc desc = CreateDefaultBakeInputDesc(256, 0.5f, true /*forceDegen*/);
-		Bake(desc, { "[Info] - The workload consists of 256 degenerate triangles, these will be classified as Fully Unknown Opaque (this behaviour can be changed by degenTriState)." }, omm::Result::SUCCESS);
+		Bake(desc, { "[Info] - The workload consists of 256 unclassifiable triangles, these will be classified as unresolvedTriState = Fully Unknown Opaque." }, omm::Result::SUCCESS);
 	}
 
 	TEST_F(LogTest, InvalidParameter_ValidationWithoutLog)
