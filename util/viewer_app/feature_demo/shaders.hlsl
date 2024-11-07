@@ -20,10 +20,13 @@
 * DEALINGS IN THE SOFTWARE.
 */
 
+Texture2D t_Texture : register(t0);
+SamplerState s_Sampler : register(s0);
+
 static const float2 g_positions[] = {
-	float2(-0.5, -0.5),
-	float2(0, 0.5),
-	float2(0.5, -0.5)
+    float2(-0.99, -0.99),
+	float2(0, 0.99),
+	float2(0.99, -0.99)
 };
 
 static const float3 g_colors[] = {
@@ -48,5 +51,7 @@ void main_ps(
 	out float4 o_color : SV_Target0
 )
 {
-	o_color = float4(i_color, 1);
+    float2 pixel = float2(i_pos.x * 0.5 + 0.5, i_pos.y*0.5 + 0.5);
+    float4 clr = t_Texture.SampleLevel(s_Sampler, (pixel + 0.5f) / 256.f, 0);
+    o_color = float4(clr.xy, 0, 1);
 }

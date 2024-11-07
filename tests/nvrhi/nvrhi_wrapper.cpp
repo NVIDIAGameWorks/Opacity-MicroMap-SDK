@@ -16,11 +16,51 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include <nvrhi/d3d12.h>
 #include <nvrhi/validation.h>
 
-#include <atlbase.h>
+#include <comdef.h> // for _com_ptr_t (optional, for convenience)
 #include <dxgi.h>
 #include <d3d12.h>
 
 #include <nvrhi/validation.h>
+
+template <typename T>
+class ComPtrWrapper {
+public:
+	ComPtrWrapper() : ptr_(nullptr) {}
+	ComPtrWrapper(T* ptr) : ptr_(ptr) {
+		if (ptr_) ptr_->AddRef();
+	}
+
+	~ComPtrWrapper() {
+		if (ptr_) ptr_->Release();
+	}
+
+	ComPtrWrapper(const ComPtrWrapper& other) : ptr_(other.ptr_) {
+		if (ptr_) ptr_->AddRef();
+	}
+
+	ComPtrWrapper(ComPtrWrapper&& other) noexcept : ptr_(other.ptr_) {
+		other.ptr_ = nullptr;
+	}
+
+	ComPtrWrapper& operator=(const ComPtrWrapper& other) {
+		if (this != &other) {
+			if (ptr_) ptr_->Release();
+			ptr_ = other.ptr_;
+			if (ptr_) ptr_->AddRef();
+		}
+		return *this;
+	}
+
+	// Access underlying pointer
+	T* Get() const { return ptr_; }
+	T** GetAddressOf() { return &ptr_; }
+	T* operator->() const { return ptr_; }
+	operator bool() const { return ptr_ != nullptr; }
+
+private:
+	T* ptr_;
+};
+
 
 namespace {
 
@@ -38,18 +78,18 @@ namespace {
 		}
 	};
 
-	static CComPtr<IDXGIAdapter> FindAdapter(const std::wstring& targetName)
+	static ComPtrWrapper<IDXGIAdapter> FindAdapter(const std::wstring& targetName)
 	{
-		CComPtr<IDXGIAdapter> targetAdapter;
-		CComPtr<IDXGIFactory1> DXGIFactory;
-		HRESULT hres = CreateDXGIFactory1(IID_PPV_ARGS(&DXGIFactory));
+		ComPtrWrapper<IDXGIAdapter> targetAdapter;
+		ComPtrWrapper<IDXGIFactory1> DXGIFactory;
+		HRESULT hres = CreateDXGIFactory1(IID_PPV_ARGS(DXGIFactory.GetAddressOf()));
 		assert(hres == S_OK);
 
 		unsigned int adapterNo = 0;
 		while (SUCCEEDED(hres))
 		{
-			CComPtr<IDXGIAdapter> pAdapter;
-			hres = DXGIFactory->EnumAdapters(adapterNo, &pAdapter);
+			ComPtrWrapper<IDXGIAdapter> pAdapter;
+			hres = DXGIFactory->EnumAdapters(adapterNo, pAdapter.GetAddressOf());
 
 			if (SUCCEEDED(hres))
 			{
@@ -86,8 +126,8 @@ namespace {
 		{
 			nvrhi::d3d12::DeviceDesc deviceDesc;
 			deviceDesc.errorCB = &DefaultMessageCallback::GetInstance();
-			deviceDesc.pDevice = device12;
-			deviceDesc.pGraphicsCommandQueue = graphicsQueue;
+			deviceDesc.pDevice = device12.Get();
+			deviceDesc.pGraphicsCommandQueue = graphicsQueue.Get();
 			deviceDesc.pComputeCommandQueue = nullptr;
 			deviceDesc.pCopyCommandQueue = nullptr;
 
@@ -105,8 +145,8 @@ namespace {
 		{
 			if (desc.enableDebugRuntime)
 			{
-				CComPtr<ID3D12Debug> debugController;
-				if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))))
+				ComPtrWrapper<ID3D12Debug> debugController;
+				if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(debugController.GetAddressOf()))))
 				{
 					debugController->EnableDebugLayer();
 				}
@@ -115,15 +155,15 @@ namespace {
 			targetAdapter = FindAdapter(desc.adapterNameSubstring);
 
 			HRESULT hr = D3D12CreateDevice(
-				targetAdapter,
+				targetAdapter.Get(),
 				D3D_FEATURE_LEVEL_12_0,
-				IID_PPV_ARGS(&device12));
+				IID_PPV_ARGS(device12.GetAddressOf()));
 			assert(hr == S_OK);
 
 			if (desc.enableDebugRuntime)
 			{
-				CComPtr<ID3D12InfoQueue> pInfoQueue;
-				device12->QueryInterface(&pInfoQueue);
+				ComPtrWrapper<ID3D12InfoQueue> pInfoQueue;
+				device12->QueryInterface(pInfoQueue.GetAddressOf());
 
 				if (pInfoQueue)
 				{
@@ -138,7 +178,7 @@ namespace {
 			queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
 			queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
 			queueDesc.NodeMask = 1;
-			hr = device12->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&graphicsQueue));
+			hr = device12->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(graphicsQueue.GetAddressOf()));
 			assert(hr == S_OK);
 			graphicsQueue->SetName(L"Graphics Queue");
 		}
@@ -150,9 +190,9 @@ namespace {
 	private:
 		const NVRHIContext::InitParams desc;
 		nvrhi::DeviceHandle nvrhiDevice;
-		CComPtr<IDXGIAdapter> targetAdapter;
-		CComPtr<ID3D12Device> device12;
-		CComPtr<ID3D12CommandQueue> graphicsQueue;
+		ComPtrWrapper<IDXGIAdapter> targetAdapter;
+		ComPtrWrapper<ID3D12Device> device12;
+		ComPtrWrapper<ID3D12CommandQueue> graphicsQueue;
 	};
 
 }  // namespace

@@ -46,6 +46,8 @@ namespace omm
 
         float Bilinear(ommTextureAddressMode mode, const float2& p, int32_t mip) const;
 
+        ommResult FillTextureDesc(ommCpuTextureDesc& desc) const;
+
         TilingMode GetTilingMode() const {
             return m_tilingMode;
         }
@@ -91,7 +93,6 @@ namespace omm
         {
             OMM_ASSERT(InTexture(s, mip));
             OMM_ASSERT(InTexture(e, mip));
-#if 1
             uint32_t* dataSAT = (uint32_t*)(m_dataSAT + m_mips[mip].dataOffsetSAT);
 
             int32_t s_x_minus_one = (s.x - 1);
@@ -103,32 +104,25 @@ namespace omm
             const uint32_t D = dataSAT[e.x + (e.y) * m_mips[mip].size.x];
             int32_t sum = D + A - B - C;
             return sum;
-#else
-
-            uint32_t sumTrue = 0;
-            for (int j = s.y; j <= e.y; ++j)
-            {
-                for (int i = s.x; i <= e.x; ++i)
-                {
-                    const float val = Load(int2(i, j), mip);
-                    sumTrue += val > m_alphaCutoff;
-                }
-            }
-            return sumTrue;
-#endif
         }
 
         template<class TMemoryStreamBuf>
         void Serialize(TMemoryStreamBuf& buffer) const;
 
         template<class TMemoryStreamBuf>
-        void Deserialize(TMemoryStreamBuf& buffer);
+        void Deserialize(TMemoryStreamBuf& buffer, int inputDescVersion);
 
     private:
+
         ommResult Validate(const ommCpuTextureDesc& desc) const;
         void Deallocate();
         template<TilingMode eTilingMode>
-        static uint64_t From2Dto1D(const int2& idx, const int2& size) {
+        static uint32_t From2Dto1D(const int2& idx, const int2& size) {
+            OMM_ASSERT(false && "Not implemented");
+            return 0;
+        }
+        template<TilingMode eTilingMode>
+        static uint2 From1Dto2D(const uint32_t idx, const int2& size) {
             OMM_ASSERT(false && "Not implemented");
             return 0;
         }
@@ -152,6 +146,7 @@ namespace omm
         vector<Mips> m_mips;
         TilingMode m_tilingMode;
         ommCpuTextureFormat m_textureFormat;
+        ommCpuTextureFlags m_textureFlags;
         float m_alphaCutoff;
         uint8_t* m_data;
         size_t m_dataSize;
@@ -184,8 +179,11 @@ namespace omm
         }
     }
 
-   	template<> uint64_t TextureImpl::From2Dto1D<TilingMode::Linear>(const int2& idx, const int2& size);
-   	template<> uint64_t TextureImpl::From2Dto1D<TilingMode::MortonZ>(const int2& idx, const int2& size);
+   	template<> uint32_t TextureImpl::From2Dto1D<TilingMode::Linear>(const int2& idx, const int2& size);
+   	template<> uint32_t TextureImpl::From2Dto1D<TilingMode::MortonZ>(const int2& idx, const int2& size);
+
+    template<> uint2 TextureImpl::From1Dto2D<TilingMode::Linear>(const uint32_t idx, const int2& size);
+    template<> uint2 TextureImpl::From1Dto2D<TilingMode::MortonZ>(const uint32_t idx, const int2& size);
 
     template<class TMemoryStreamBuf>
     void TextureImpl::Serialize(TMemoryStreamBuf& buffer) const
@@ -210,6 +208,7 @@ namespace omm
         }
 
         os.write(reinterpret_cast<const char*>(&m_tilingMode), sizeof(m_tilingMode));
+        os.write(reinterpret_cast<const char*>(&m_textureFlags), sizeof(m_textureFlags));
         os.write(reinterpret_cast<const char*>(&m_textureFormat), sizeof(m_textureFormat));
 
         os.write(reinterpret_cast<const char*>(&m_dataSize), sizeof(m_dataSize));
@@ -223,7 +222,7 @@ namespace omm
     }
 
     template<class TMemoryStreamBuf>
-    void TextureImpl::Deserialize(TMemoryStreamBuf& buffer)
+    void TextureImpl::Deserialize(TMemoryStreamBuf& buffer, int inputDescVersion)
     {
         OMM_ASSERT(m_data == nullptr);
         OMM_ASSERT(m_dataSize == 0);
@@ -252,6 +251,23 @@ namespace omm
         }
 
         os.read(reinterpret_cast<char*>(&m_tilingMode), sizeof(m_tilingMode));
+
+        if (inputDescVersion >= 2)
+        {
+            os.read(reinterpret_cast<char*>(&m_textureFlags), sizeof(m_textureFlags));
+        }
+        else
+        {
+            if (m_tilingMode == TilingMode::MortonZ)
+            {
+                m_textureFlags = ommCpuTextureFlags_None;
+            }
+            else
+            {
+                m_textureFlags = ommCpuTextureFlags_DisableZOrder;
+            }
+        }
+
         os.read(reinterpret_cast<char*>(&m_textureFormat), sizeof(m_textureFormat));
 
         os.read(reinterpret_cast<char*>(&m_dataSize), sizeof(m_dataSize));

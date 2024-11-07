@@ -400,6 +400,8 @@ namespace omm
 
       static inline Result CreateTexture(Baker baker, const TextureDesc& desc, Texture* outTexture);
 
+      static inline Result FillTextureDesc(Texture* texture, TextureDesc* outDesc);
+
       static inline Result DestroyTexture(Baker baker, Texture texture);
 
       static inline Result Bake(Baker baker, const BakeInputDesc& bakeInputDesc, BakeResult* outBakeResult);
@@ -969,6 +971,10 @@ namespace omm
         static inline Result CreateTexture(Baker baker, const TextureDesc& desc, Texture* outTexture)
         {
             return (Result)ommCpuCreateTexture((ommBaker)baker, reinterpret_cast<const ommCpuTextureDesc*>(&desc), (ommCpuTexture*)outTexture);
+        }
+        static inline Result FillTextureDesc(Texture texture, TextureDesc* outDesc)
+        {
+            return (Result)ommCpuFillTextureDesc((ommCpuTexture)texture, reinterpret_cast<ommCpuTextureDesc*>(outDesc));
         }
         static inline Result DestroyTexture(Baker baker, Texture texture)
         {

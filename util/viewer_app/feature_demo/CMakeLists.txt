@@ -35,7 +35,7 @@ donut_compile_shaders_all_platforms(
 )
 
 add_executable(${project} WIN32 ${sources})
-target_link_libraries(${project} donut_app donut_engine)
+target_link_libraries(${project} donut_app donut_engine omm-sdk)
 add_dependencies(${project} ${project}_shaders)
 set_target_properties(${project} PROPERTIES FOLDER ${folder})
 

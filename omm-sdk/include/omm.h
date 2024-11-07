@@ -551,6 +551,8 @@ inline ommCpuDeserializedDesc ommCpuDeserializedDescDefault()
 
 OMM_API ommResult ommCpuCreateTexture(ommBaker baker, const ommCpuTextureDesc* desc, ommCpuTexture* outTexture);
 
+OMM_API ommResult ommCpuFillTextureDesc(ommCpuTexture texture, ommCpuTextureDesc* outDesc);
+
 OMM_API ommResult ommCpuDestroyTexture(ommBaker baker, ommCpuTexture texture);
 
 OMM_API ommResult ommCpuBake(ommBaker baker, const ommCpuBakeInputDesc* bakeInputDesc, ommCpuBakeResult* outBakeResult);

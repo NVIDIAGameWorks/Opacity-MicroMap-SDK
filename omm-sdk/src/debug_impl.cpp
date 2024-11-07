@@ -197,9 +197,10 @@ namespace omm
             int2 srcSize;
             int2 offset;
             int2 size;
+            const int2 kMaxDim = (int2)8192;
+
             if (ClippedViewport)
             {
-                const int2 kMaxDim = (int2)8192;
                 scale = glm::max(kMaxDim / (int2)alphaFps[0].GetSize(), 1);
                 srcSize = alphaFps[0].GetSize() * scale;
 
@@ -207,7 +208,7 @@ namespace omm
                 size = int2(glm::floor(float2(srcSize) * (macroTriangle.aabb_e - macroTriangle.aabb_s))) + int2{ 1,1 };
             }
             else {
-                scale = (int2)10;
+                scale = (int2)5;
                 srcSize = alphaFps[0].GetSize() * scale;
                 offset = (int2)0;// int2(float2(srcSize)* macroTriangle.aabb_s);
                 size = srcSize;// int2(float2(srcSize)* (macroTriangle.aabb_e - macroTriangle.aabb_s)) + int2{ 1,1 };

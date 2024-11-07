@@ -369,7 +369,7 @@ namespace Cpu
         os.read(reinterpret_cast<char*>(&inputDesc.bakeFlags), sizeof(inputDesc.bakeFlags));
 
         TextureImpl* texture = Allocate<TextureImpl>(m_stdAllocator, m_stdAllocator, m_log);
-        texture->Deserialize(buffer);
+        texture->Deserialize(buffer, header.inputDescVersion);
         inputDesc.texture = CreateHandle<omm::Cpu::Texture, TextureImpl>(texture);
 
         os.read(reinterpret_cast<char*>(&inputDesc.runtimeSamplerDesc.addressingMode), sizeof(inputDesc.runtimeSamplerDesc.addressingMode));
