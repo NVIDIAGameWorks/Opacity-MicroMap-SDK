@@ -172,15 +172,6 @@ void main_ps(
     {
         color = 0.01 * alphaLerp.xxx;
     }
-    
-    #if 0
-        float2 pixel = float2(i_pos.x * 0.5 + 0.5, i_pos.y*0.5 + 0.5);
-        float4 clr = t_Texture.SampleLevel(s_Sampler, (pixel + 0.5f) / 256.f, 0);
-        o_color = float4(clr.xy, 0, 1);
-        //o_color = float4(1, 1, 0, 1);
-    #else
-        //  o_color = float4(color, 1);
-        //o_color = float4(clr.xyz, 1);
-        o_color = float4(clr.xyz + 0.5 * color, 1.0);
-    #endif
+
+    o_color = float4(clr.xyz + 0.5 * color, 1.0);
 }
