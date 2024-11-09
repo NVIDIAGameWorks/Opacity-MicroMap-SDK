@@ -32,7 +32,7 @@ if (OMM_ENABLE_GPU_TESTS)
     endif()
 endif()
 
-set(omm_tests_src_cpu util/stb_lib.cpp util/image.h util/omm.h util/omm_histogram.h util/omm_histogram.cpp test_basic.cpp test_texture.cpp test_raster.cpp test_minimal_sample.cpp test_util.cpp test_tesselator.cpp test_omm_bake_cpu.cpp test_subdiv.cpp test_omm_indexing.cpp test_omm_log.cpp )
+set(omm_tests_src_cpu util/stb_lib.cpp util/image.h util/omm.h util/omm_histogram.h util/omm_histogram.cpp test_basic.cpp test_texture.cpp test_raster_tri.cpp test_raster_line.cpp test_minimal_sample.cpp test_util.cpp test_tesselator.cpp test_omm_bake_cpu.cpp test_subdiv.cpp test_omm_indexing.cpp test_omm_log.cpp )
 add_executable(tests main.cpp ${omm_tests_src_cpu} ${omm_tests_src_gpu})
 if (OMM_ENABLE_GPU_TESTS)
     set(OMM_ENABLE_GPU_TESTS_VALUE 1)

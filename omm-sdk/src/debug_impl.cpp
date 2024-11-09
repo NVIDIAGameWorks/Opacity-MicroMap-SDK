@@ -14,7 +14,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 #include <shared/bird.h>
 #include <shared/math.h>
-#include <shared/triangle.h>
+#include <shared/geometry.h>
 #include <shared/cpu_raster.h>
 #include <shared/texture.h>
 #include <shared/parse.h>
@@ -189,7 +189,38 @@ namespace omm
             uint32_t triangleIndices[3];
             GetUInt32Indices(desc.indexFormat, desc.indexBuffer, 3ull * primIt, triangleIndices);
 
-            omm::Triangle macroTriangle = FetchUVTriangle(desc.texCoords, texCoordStrideInBytes, desc.texCoordFormat, triangleIndices);
+            omm::Triangle t = FetchUVTriangle(desc.texCoords, texCoordStrideInBytes, desc.texCoordFormat, triangleIndices);
+
+            if (t.GetIsDegenerate())
+            {
+                // Takes a degenerate triangle and turns it to a generate(?) one by extruding the center point a bit perpendicular.
+                auto DeDegenerateTriangle = [](const float2& p0, const float2& pMiddle, const float2& p2)->float2 {
+                    const float2 pDist = p2 - p0;
+                    const float2 offsetVec = float2(pDist.y, -pDist.x);
+                    return 0.5f * offsetVec + pMiddle;
+                 };
+
+                const float d01 = glm::distance(t.p0, t.p1);
+                const float d02 = glm::distance(t.p0, t.p2);
+                const float d12 = glm::distance(t.p1, t.p2);
+
+                if (d01 > d02 && d01 > d12) {
+                    // p2 is between p0 and p1
+                    t.p2 = DeDegenerateTriangle(t.aabb_s, t.p2, t.aabb_e);
+                }
+                else if (d02 > d01 && d02 > d12) {
+                    // p1 is between p0 and p2
+                    t.p1 = DeDegenerateTriangle(t.aabb_s, t.p1, t.aabb_e);
+                }
+                else {
+                    // p0 is between p1 and p2
+                    t.p0 = DeDegenerateTriangle(t.aabb_s, t.p0, t.aabb_e);
+                }
+
+                t = omm::Triangle(t.p0, t.p1, t.p2);
+            }
+
+            omm::Triangle macroTriangle = t;
 
             const bool ClippedViewport = dumpDesc.detailedCutout;
 
@@ -255,10 +286,9 @@ namespace omm
                     uint32_t mipCount = 0;
                 };
 
-                auto Kernel = [&stateColorLUT](int2 pixel, float3* bc, void* context) {
+                auto Kernel = [&stateColorLUT](int2 pixel, const float3* bc, void* context) {
 
                     RasterParams* p = (RasterParams*)context;
-
 
                     int2 dst = (pixel - p->offset);
                     if (dst.x < 0 || dst.y < 0)
@@ -308,9 +338,12 @@ namespace omm
                         float2 bc2 = p->macroTriangleIsBackfacing ? float2(bc->x, bc->y) : float2(bc->z, bc->x);
                         float2 bc2Clamp = glm::saturate(bc2);
 
+                        uint32_t numTris = omm::bird::GetNumMicroTriangles(p->subdivisionLevel);
+
                         uint32_t vmIdx = omm::bird::bary2index(bc2Clamp, p->subdivisionLevel, isUpright);
-                        vmIdx = std::clamp<uint32_t>(vmIdx, 0u, omm::bird::GetNumMicroTriangles(p->subdivisionLevel) - 1);
+                        vmIdx = std::clamp<uint32_t>(vmIdx, 0u, numTris - 1);
                         float3 vmColor = stateColorLUT[(uint32_t)p->states[vmIdx]];
+                        //float3 vmColor = float3(vmIdx, vmIdx, vmIdx) / float3(numTris, numTris, numTris);
                         if (isUpright)
                             vmColor = vmColor * 0.9f;
 
@@ -387,7 +420,7 @@ namespace omm
                 params.scale = scale;
                 params.mode = Mode::FillBackground;
                 params.highlightReuse = highlightReuse;
-                params.macroTriangleIsBackfacing = macroTriangle._winding == omm::WindingOrder::CW;
+                params.macroTriangleIsBackfacing = !macroTriangle.GetIsCCW();
                 params.mipCount = (uint32_t)alphaFps.size();
 
                 // Clone the source texture and render each individual VM on top of it. 
@@ -418,14 +451,14 @@ namespace omm
                     }
 
                     omm::Triangle t0(p00, p11, p01);
-                    omm::RasterizeConservativeParallel(t0, srcSize, Kernel, &params);
+                    omm::RasterizeConservativeParallelBarycentrics(t0, srcSize, Kernel, &params);
                     omm::Triangle t1(p00, p10, p11);
-                    omm::RasterizeConservativeParallel(t1, srcSize, Kernel, &params);
+                    omm::RasterizeConservativeParallelBarycentrics(t1, srcSize, Kernel, &params);
                 }
 
                 {  // Fill in each VM-substate color with a blend color
                     params.mode = Mode::FillOMMStates;
-                    omm::RasterizeConservativeParallel(macroTriangle, srcSize, Kernel, &params);
+                    omm::RasterizeConservativeParallelBarycentrics(macroTriangle, srcSize, Kernel, &params);
                 }
 
                 if (!dumpDesc.oneFile || primitiveCount == primIt + 1)
@@ -455,9 +488,9 @@ namespace omm
                         }
 
                         omm::Triangle t0(p00, p11, p01);
-                        omm::RasterizeConservativeParallel(t0, srcSize, Kernel, &params);
+                        omm::RasterizeConservativeParallelBarycentrics(t0, srcSize, Kernel, &params);
                         omm::Triangle t1(p00, p10, p11);
-                        omm::RasterizeConservativeParallel(t1, srcSize, Kernel, &params);
+                        omm::RasterizeConservativeParallelBarycentrics(t1, srcSize, Kernel, &params);
                     }
                 }
 

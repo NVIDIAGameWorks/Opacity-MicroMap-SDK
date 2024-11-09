@@ -42,6 +42,7 @@ namespace {
 	struct Options
 	{
 		omm::Format format = omm::Format::OC1_4_State;
+		omm::TextureAddressMode addressingMode = omm::TextureAddressMode::Clamp;
 		omm::UnknownStatePromotion unknownStatePromotion = omm::UnknownStatePromotion::Nearest;
 		bool mergeSimilar = false;
 		uint32_t mipCount = 1;
@@ -56,7 +57,8 @@ namespace {
 		bool forceCorruptedBlob = false;
 		bool forceSerializedOutput = false;
 		bool serializeCompress = false;
-		omm::SpecialIndex degenTriState = omm::SpecialIndex::FullyUnknownOpaque;
+		omm::SpecialIndex unresolvedTriState = omm::SpecialIndex::FullyUnknownOpaque;
+		float dynamicSubdivisionScale = 0.f;
 	};
 
 	static float StandardCircle(int i, int j, int w, int h, int mip)
@@ -180,7 +182,7 @@ namespace {
 			desc.texture = tex;
 			desc.format = opt.format;
 			desc.alphaMode = omm::AlphaMode::Test;
-			desc.runtimeSamplerDesc.addressingMode = omm::TextureAddressMode::Clamp;
+			desc.runtimeSamplerDesc.addressingMode = opt.addressingMode;
 			desc.runtimeSamplerDesc.filter = omm::TextureFilterMode::Linear;
 			desc.indexFormat = omm::IndexFormat::UINT_32;
 			desc.indexBuffer = triangleIndices;
@@ -194,7 +196,7 @@ namespace {
 			desc.unknownStatePromotion = opt.unknownStatePromotion;
 			desc.bakeFlags = (omm::Cpu::BakeFlags)((uint32_t)omm::Cpu::BakeFlags::EnableInternalThreads);
 			desc.maxWorkloadSize = opt.maxWorkloadSize;
-			desc.degenTriState = opt.degenTriState;
+			desc.unresolvedTriState = opt.unresolvedTriState;
 			if (opt.mergeSimilar)
 				desc.bakeFlags = (omm::Cpu::BakeFlags)((uint32_t)desc.bakeFlags | (uint32_t)omm::Cpu::BakeFlags::EnableNearDuplicateDetection);
 			if (Force32BitIndices())
@@ -202,7 +204,7 @@ namespace {
 			if (!opt.enableSpecialIndices)
 				desc.bakeFlags = (omm::Cpu::BakeFlags)((uint32_t)desc.bakeFlags | (uint32_t)omm::Cpu::BakeFlags::DisableSpecialIndices);
 
-			desc.dynamicSubdivisionScale = 0.f;
+			desc.dynamicSubdivisionScale = opt.dynamicSubdivisionScale;
 
 			omm::Cpu::BakeResult res = nullptr;
 			const omm::Cpu::BakeResultDesc* resDesc = nullptr;
@@ -2243,29 +2245,245 @@ namespace {
 			});
 	}
 
-	TEST_P(OMMBakeTestCPU, Degen_Default) {
+	TEST_P(OMMBakeTestCPU, Degen_Default_lvl1) {
 
 		uint32_t triangleIndices[3] = { 0, 1, 2, };
-		float texCoords[8] = {  0.f, 0.f, 
-								0.f, 0.437582970f,	
-								0.f, 0.221271083f };
+		float texCoords[8] = { 0.2f, 0.f,
+								0.2f, 0.437582970f,
+								0.2f, /*0.221271083f*/ 0.218791485f };
+
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, 1, { 1024, 1024 }, 3, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, &StandardCircle);
+
+		ExpectEqual(stats, {
+			.totalOpaque = 1,
+			.totalUnknownTransparent = 1,
+			.totalUnknownOpaque = 2,
+			});
+	}
+
+	TEST_P(OMMBakeTestCPU, Degen_Default_lvl2) {
+
+		uint32_t triangleIndices[3] = { 0, 1, 2, };
+		float texCoords[8] = { 0.2f, 0.f,
+								0.2f, 0.437582970f,
+								0.2f, /*0.221271083f*/ 0.218791485f };
+
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, 2, { 1024, 1024 }, 3, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, &StandardCircle);
+
+		ExpectEqual(stats, {
+			.totalOpaque = 6,
+			.totalTransparent = 3,
+			.totalUnknownTransparent = 3,
+			.totalUnknownOpaque = 4,
+			});
+	}
+
+	TEST_P(OMMBakeTestCPU, Degen_Default_Horizontal) {
+
+		uint32_t triangleIndices[3] = { 0, 1, 2, };
+		float texCoords[8] = { 0.2f, 0.2f,
+								0.3f, 0.2f,
+								0.41f, 0.2f };
+
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, 1, { 1024, 1024 }, 3, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, &StandardCircle);
+
+		ExpectEqual(stats, {
+			.totalOpaque = 0,
+			.totalTransparent = 3,
+			.totalUnknownTransparent = 1,
+			});
+	}
+
+	TEST_P(OMMBakeTestCPU, Degen_Default_Diagonal) {
+
+		uint32_t triangleIndices[3] = { 0, 1, 2, };
+		float texCoords[8] = { 0.2f, 0.2f,
+								0.3f, 0.2f,
+								0.4f, 0.2f };
+
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, 2, { 1024, 1024 }, 3, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, &StandardCircle);
+
+		ExpectEqual(stats, {
+			.totalTransparent = 13,
+			.totalUnknownTransparent = 2,
+			.totalUnknownOpaque = 1,
+			});
+	}
+
+	TEST_P(OMMBakeTestCPU, Degen_Default_lvl3) {
+
+		uint32_t triangleIndices[3] = { 0, 1, 2, };
+		float texCoords[8] = { 0.2f, 0.f,
+								0.2f, 0.437582970f,
+								0.2f, /*0.221271083f*/ 0.218791485f };
+
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, 3, { 1024, 1024 }, 3, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, &StandardCircle);
+
+		ExpectEqual(stats, {
+			.totalOpaque = 28,
+			.totalTransparent = 21,
+			.totalUnknownTransparent = 7,
+			.totalUnknownOpaque = 8,
+			});
+	}
+
+	TEST_P(OMMBakeTestCPU, Degen_Default_lvl4) {
+
+		uint32_t triangleIndices[3] = { 0, 1, 2, };
+		float texCoords[8] = { 0.2f, 0.f,
+								0.2f, 0.437582970f,
+								0.2f, /*0.221271083f*/ 0.218791485f };
 
 		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, 4, { 1024, 1024 }, 3, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, &StandardCircle);
 
 		ExpectEqual(stats, {
-			.totalFullyUnknownOpaque = 1,
-		});
+			.totalOpaque = 136,
+			.totalTransparent = 91,
+			.totalUnknownTransparent = 14,
+			.totalUnknownOpaque = 15,
+			});
 	}
 
-	TEST_P(OMMBakeTestCPU, Degen_FullyUnknownTransparent) {
+	TEST_P(OMMBakeTestCPU, Degen_Default_lvl4_wrap) {
+
+		uint32_t triangleIndices[3] = { 0, 1, 2, };
+		float texCoords[8] = {  -0.8f, 0.f,
+								-0.8f, 0.437582970f,
+								-0.8f, /*0.221271083f*/ 0.218791485f };
+		
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, 4, { 1024, 1024 }, 3, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, &StandardCircle, 
+			{ .addressingMode = omm::TextureAddressMode::Wrap, .oneFile = false, .detailedCutout = true });
+
+		ExpectEqual(stats, {
+			.totalOpaque = 136,
+			.totalTransparent = 91,
+			.totalUnknownTransparent = 14,
+			.totalUnknownOpaque = 15,
+			});
+	}
+
+	TEST_P(OMMBakeTestCPU, Degen_Default_dyn_lvl_0_1) {
+
+		uint32_t triangleIndices[3] = { 0, 1, 2, };
+		float texCoords[8] = { 0.2f, 0.f,
+								0.2f, 0.437582970f,
+								0.2f, /*0.221271083f*/ 0.218791485f };
+
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, 12, { 1024, 1024 }, 3, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, &StandardCircle, { .dynamicSubdivisionScale = 0.1f });
+
+		ExpectEqual(stats, {
+			.totalOpaque = 9642463,
+			.totalTransparent = 7108335,
+			.totalUnknownTransparent = 3771,
+			.totalUnknownOpaque = 22647,
+			});
+	}
+
+	TEST_P(OMMBakeTestCPU, Degen_Default_dyn_lvl_0_5) {
+
+		uint32_t triangleIndices[3] = { 0, 1, 2, };
+		float texCoords[8] = { 0.2f, 0.f,
+								0.2f, 0.437582970f,
+								0.2f, /*0.221271083f*/ 0.218791485f };
+
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, 12, { 1024, 1024 }, 3, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, &StandardCircle, { .dynamicSubdivisionScale = 0.5f });
+
+		ExpectEqual(stats, {
+			.totalOpaque = 601591,
+			.totalTransparent = 443211,
+			.totalUnknownTransparent = 942,
+			.totalUnknownOpaque = 2832,
+			});
+	}
+
+	TEST_P(OMMBakeTestCPU, Degen_Default_dyn_lvl_2) {
+
+		uint32_t triangleIndices[3] = { 0, 1, 2, };
+		float texCoords[8] = {  0.2f, 0.f,
+								0.2f, 0.437582970f,
+								0.2f, /*0.221271083f*/ 0.218791485f };
+
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, 12, { 1024, 1024 }, 3, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, &StandardCircle, {.dynamicSubdivisionScale = 2.f});
+
+		ExpectEqual(stats, {
+			.totalOpaque = 37333,
+			.totalTransparent = 27495,
+			.totalUnknownTransparent = 353,
+			.totalUnknownOpaque = 355,
+			});
+	}
+
+	TEST_P(OMMBakeTestCPU, Degen_Default_dyn_lvl_3) {
+
+		uint32_t triangleIndices[3] = { 0, 1, 2, };
+		float texCoords[8] = { 0.2f, 0.f,
+								0.2f, 0.437582970f,
+								0.2f, /*0.221271083f*/ 0.218791485f };
+
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, 12, { 1024, 1024 }, 3, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, &StandardCircle, { .dynamicSubdivisionScale = 3.f });
+
+		ExpectEqual(stats, {
+			.totalOpaque = 37333,
+			.totalTransparent = 27495,
+			.totalUnknownTransparent = 353,
+			.totalUnknownOpaque = 355,
+			});
+	}
+
+	TEST_P(OMMBakeTestCPU, Degen_Default_dyn_lvl_10) {
+
+		uint32_t triangleIndices[3] = { 0, 1, 2, };
+		float texCoords[8] = { 0.2f, 0.f,
+								0.2f, 0.437582970f,
+								0.2f, /*0.221271083f*/ 0.218791485f };
+
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, 12, { 1024, 1024 }, 3, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, &StandardCircle, { .dynamicSubdivisionScale = 10.f });
+
+		ExpectEqual(stats, {
+			.totalOpaque = 2266,
+			.totalTransparent = 1653,
+			.totalUnknownTransparent = 87,
+			.totalUnknownOpaque = 90,
+			});
+	}
+
+	TEST_P(OMMBakeTestCPU, Degen_Point_Transparent) {
+
+		uint32_t triangleIndices[3] = { 0, 1, 2, };
+		float texCoords[8] = { 0.2f, 0.437582970f,
+								0.2f, 0.437582970f,
+								0.2f, 0.437582970f };
+
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, 12, { 1024, 1024 }, 3, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, &StandardCircle, { .dynamicSubdivisionScale = 2.f });
+
+		ExpectEqual(stats, {
+			.totalFullyTransparent = 1,
+			});
+	}
+
+	TEST_P(OMMBakeTestCPU, Degen_Point_Opaque) {
+
+		uint32_t triangleIndices[3] = { 0, 1, 2, };
+		float texCoords[8] = { 0.2f, 0.1f,
+								0.2f, 0.1f,
+								0.2f, 0.1f };
+
+		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, 12, { 1024, 1024 }, 3, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords, &StandardCircle, { .dynamicSubdivisionScale = 2.f });
+
+		ExpectEqual(stats, {
+			.totalFullyOpaque = 1,
+			});
+	}
+
+	TEST_P(OMMBakeTestCPU, Invalid_FullyUnknownTransparent) {
 
 		uint32_t triangleIndices[3] = { 0, 1, 2, };
 		float texCoords[8] = { 0.f, 0.f,
-								0.f, 0.437582970f,
+								0.f, std::numeric_limits<float>::quiet_NaN(),
 								0.f, 0.221271083f };
 
 		omm::Debug::Stats stats = GetOmmBakeStatsFP32(0.5f, 4, { 1024, 1024 }, 3, triangleIndices, omm::TexCoordFormat::UV32_FLOAT, texCoords,
-			&StandardCircle, { .degenTriState = omm::SpecialIndex::FullyUnknownTransparent });
+			&StandardCircle, { .unresolvedTriState = omm::SpecialIndex::FullyUnknownTransparent });
 
 		ExpectEqual(stats, {
 			.totalFullyUnknownTransparent = 1,

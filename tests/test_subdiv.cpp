@@ -368,7 +368,7 @@ namespace {
 
 		// Raster macro triangle with colors
 		ImageRGB imageA(size, { 0, 0, 0 });
-		omm::RasterizeConservativeSerial(t, size, [subdivLvl, numSubTri, IndexToColor, &imageA](int2 pixel, float3* bc, void* ctc) {
+		omm::RasterizeConservativeSerialBarycentrics(t, size, [subdivLvl, numSubTri, IndexToColor, &imageA](int2 pixel, const float3* bc, void* ctc) {
 
 			bool isUpright;
 			uint32_t idx = omm::bird::bary2index(float2(bc->z, bc->x), subdivLvl, isUpright);
@@ -384,7 +384,7 @@ namespace {
 
 			omm::Triangle subTri = omm::bird::GetMicroTriangle(t, idx, subdivLvl);
 
-			omm::RasterizeConservativeSerial(subTri, int2(1024, 1024), [subdivLvl, numSubTri, IndexToColor, idx, &imageB](int2 pixel, float3* bc, void*) {
+			omm::RasterizeConservativeSerial(subTri, int2(1024, 1024), [subdivLvl, numSubTri, IndexToColor, idx, &imageB](int2 pixel, void*) {
 
 				float3 color = IndexToColor(idx, subdivLvl);
 				imageB.Store(pixel, uchar4(color.x * 255, color.y * 255, color.z * 255, 255));

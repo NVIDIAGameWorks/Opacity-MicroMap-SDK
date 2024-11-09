@@ -316,8 +316,13 @@ namespace omm
          const Format*         formats                       = nullptr;
          // Determines how to promote mixed states
          UnknownStatePromotion unknownStatePromotion         = UnknownStatePromotion::ForceOpaque;
-         // Determines the state of unresolvable/degenerate triangles (nan/inf or zeroa area UV-triangles)
-         SpecialIndex          degenTriState                 = SpecialIndex::FullyUnknownOpaque;
+         // Determines the state of unresolvable(nan/inf UV-triangles) and disabled triangles. Note that degenerate triangles (points/lines) will be resolved correctly.
+         union
+         {
+             OMM_DEPRECATED_MSG("degenTriState has been deprecated, please use unresolvedTriState instead")
+             omm::SpecialIndex     degenTriState;
+             omm::SpecialIndex     unresolvedTriState       = SpecialIndex::FullyUnknownOpaque;
+         };
          // Micro triangle count is 4^N, where N is the subdivision level.
          // maxSubdivisionLevel level must be in range [0, 12].
          // When dynamicSubdivisionScale is enabled maxSubdivisionLevel is the max subdivision level allowed.
