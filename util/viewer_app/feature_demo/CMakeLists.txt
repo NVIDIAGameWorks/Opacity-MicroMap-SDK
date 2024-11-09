@@ -27,11 +27,13 @@ file(GLOB sources "*.cpp" "*.h")
 set(project basic_triangle)
 set(folder "Examples/Basic Triangle")
 
-donut_compile_shaders_all_platforms(
+donut_compile_shaders(
     TARGET ${project}_shaders
     CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/shaders.cfg
+    SOURCES ${shaders}
     FOLDER ${folder}
-    OUTPUT_BASE ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders/${project}
+    DXIL ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders/${project}/dxil
+    SPIRV_DXC ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders/${project}/spirv
 )
 
 add_executable(${project} WIN32 ${sources})

@@ -24,8 +24,16 @@
 #include <donut/engine/ShaderFactory.h>
 #include <donut/app/DeviceManager.h>
 #include <donut/core/log.h>
+#include <donut/core/math/math.h>
 #include <donut/core/vfs/VFS.h>
 #include <nvrhi/utils.h>
+#include <donut/app/imgui_console.h>
+#include <donut/app/imgui_renderer.h>
+
+using namespace donut;
+using namespace donut::math;
+
+#include "shader_cb.h"
 
 #include <fstream>
 #include <vector>
@@ -97,23 +105,78 @@ private:
     omm::Baker _baker;
 };
 
-class BasicTriangle : public app::IRenderPass
+struct UIData
 {
-private:
-    nvrhi::ShaderHandle m_VertexShader;
-    nvrhi::ShaderHandle m_PixelShader;
-    nvrhi::BindingLayoutHandle m_BindingLayout;
-    nvrhi::BindingSetHandle m_BindingSets;
-    nvrhi::GraphicsPipelineHandle m_Pipeline;
-    nvrhi::SamplerHandle m_LinearSampler;
-    nvrhi::CommandListHandle m_CommandList;
-    nvrhi::TextureHandle m_Texture;
-    OmmLibrary m_ommLib;
+    bool ShowUI = true;
+
+    int primitiveStart = 0;
+    int primitiveEnd = 1;
+    float zoom = 1.f;
+    float2 offset = 0.f;
+    float2 prevOffset = 0.f;
+
+    bool overrideMaxSubdivisionLevel = false;
+    int maxSubdivisionLevel = 0;
+    bool overrideNearDuplicateDetection = false;
+    bool enableNearDuplicateDetection = false;
+
+    bool rebake = false;
+};
+
+class OmmGpuData
+{
+    OmmLibrary _lib;
+    const UIData& _uiData;
+    nvrhi::SamplerHandle _sampler;
+    nvrhi::TextureHandle _alphaTexture = nullptr;
+    nvrhi::BufferHandle _texCoordBuffer = nullptr;
+    nvrhi::BufferHandle _indexBuffer = nullptr;
+    nvrhi::BufferHandle _ommIndexBuffer = nullptr;
+    nvrhi::BufferHandle _ommDesc = nullptr;
+    nvrhi::BufferHandle _ommArrayData = nullptr;
+    nvrhi::CommandListHandle _commandList = nullptr;
+    nvrhi::IDevice* _device = nullptr;
+    omm::Cpu::BakeResult _result = 0;
+    const omm::Cpu::BakeResultDesc* _resultDesc = nullptr;
+    uint32_t _indexCount = 0;
 
 public:
-    using IRenderPass::IRenderPass;
+    OmmGpuData(const UIData& uiData):_uiData(uiData)
+    {
+    }
 
-    std::vector<uint8_t> LoadDataFile(const std::string& fileName)
+    ~OmmGpuData()
+    {
+    }
+
+    void Init(const std::string& fileName, nvrhi::IDevice* device)
+    {
+        _sampler = nullptr;
+        _alphaTexture = nullptr;
+        _texCoordBuffer = nullptr;
+        _indexBuffer = nullptr;
+        _ommIndexBuffer = nullptr;
+        _ommDesc = nullptr;
+        _ommArrayData = nullptr;
+        _commandList = nullptr;
+
+        _device = device;
+        _commandList = device->createCommandList();
+        _LoadOmmData(fileName);
+    }
+
+    nvrhi::SamplerHandle GetSampler() const { return _sampler; }
+    nvrhi::TextureHandle GetAlphaTexture() const { return _alphaTexture; }
+    nvrhi::BufferHandle GetIndexBuffer() const { return _indexBuffer; }
+    nvrhi::BufferHandle GetTexCoordBuffer() const { return _texCoordBuffer; }
+    nvrhi::BufferHandle GetOmmIndexBuffer() const { return _ommIndexBuffer; }
+    nvrhi::BufferHandle GetOmmDesc() const { return _ommDesc; }
+    nvrhi::BufferHandle GetOmmArrayData() const { return _ommArrayData; }
+
+    uint32_t GetIndexCount() const { return _indexCount; }
+
+private:
+    std::vector<uint8_t> _LoadDataFile(const std::string& fileName)
     {
         // Open the file in binary mode and position the file pointer at the end
         std::ifstream file(fileName, std::ios::binary | std::ios::ate);
@@ -134,7 +197,35 @@ public:
         return buffer;
     }
 
-    nvrhi::TextureHandle CreateTexture(const omm::Cpu::TextureDesc& ommTex)
+    static nvrhi::SamplerAddressMode GetSampler(omm::TextureAddressMode addressMode)
+    {
+        switch (addressMode)
+        {
+        case omm::TextureAddressMode::Wrap: return nvrhi::SamplerAddressMode::Wrap;
+        case omm::TextureAddressMode::Mirror: return nvrhi::SamplerAddressMode::Mirror;
+        case omm::TextureAddressMode::Clamp: return nvrhi::SamplerAddressMode::Clamp;
+        case omm::TextureAddressMode::Border: return nvrhi::SamplerAddressMode::Border;
+        case omm::TextureAddressMode::MirrorOnce: return nvrhi::SamplerAddressMode::MirrorOnce;
+        default:
+        {
+            assert(false);
+            return nvrhi::SamplerAddressMode::Wrap;
+        }
+        }
+    }
+
+    void _InitSampler(const omm::Cpu::BakeInputDesc& input)
+    {
+        nvrhi::SamplerAddressMode addressMode = GetSampler(input.runtimeSamplerDesc.addressingMode);
+        
+        auto samplerDesc = nvrhi::SamplerDesc()
+            .setAllFilters(false)
+            .setAllAddressModes(addressMode);
+        samplerDesc.setAllFilters(true);
+        _sampler = _device->createSampler(samplerDesc);
+    }
+
+    void _InitTexture(const omm::Cpu::TextureDesc& ommTex)
     {
         nvrhi::TextureDesc d;
         d.height = ommTex.mips[0].height;
@@ -143,31 +234,122 @@ public:
         d.initialState = nvrhi::ResourceStates::ShaderResource;
         d.keepInitialState = true;
         d.debugName = "AlphaTexture";
-        nvrhi::TextureHandle tex = GetDevice()->createTexture(d);
+        _alphaTexture = _device->createTexture(d);
 
         size_t texelSize = ommTex.format == omm::Cpu::TextureFormat::FP32 ? sizeof(float) : sizeof(uint8_t);
 
-        m_CommandList->open();
-        m_CommandList->setEnableAutomaticBarriers(true);
-       // memset((void*)ommTex.mips[0].textureData, 0xFF, texelSize * ommTex.mips[0].rowPitch * ommTex.mips[0].height);
-        m_CommandList->writeTexture(tex, 0, 0, ommTex.mips[0].textureData, texelSize * ommTex.mips[0].rowPitch);
-
-        m_CommandList->close();
-        GetDevice()->executeCommandList(m_CommandList);
-        GetDevice()->waitForIdle();
-
-        return tex;
+        _commandList->open();
+        _commandList->setEnableAutomaticBarriers(true);
+        _commandList->writeTexture(_alphaTexture, 0, 0, ommTex.mips[0].textureData, texelSize * ommTex.mips[0].rowPitch);
+        _commandList->close();
+        _device->executeCommandList(_commandList);
+        _device->waitForIdle();
     }
 
-    nvrhi::TextureHandle LoadOmmData(const std::string& fileName)
+    void _InitBuffers(const omm::Cpu::BakeInputDesc& input)
     {
-        std::vector<uint8_t> data = LoadDataFile(fileName);
+        {
+            nvrhi::BufferDesc ib;
+            ib.debugName = "IndexBuffer";
+            ib.byteSize = input.indexCount * (input.indexFormat == omm::IndexFormat::UINT_32 ? 4 : 2);
+            ib.format = input.indexFormat == omm::IndexFormat::UINT_32 ? nvrhi::Format::R32_UINT : nvrhi::Format::R16_UINT;
+            ib.initialState = nvrhi::ResourceStates::ShaderResource;
+            ib.keepInitialState = true;
+            ib.isIndexBuffer = true;
+            _indexBuffer = _device->createBuffer(ib);
+        }
+
+        {
+            _indexCount = input.indexCount;
+
+            uint32_t maxTexCoordIndex = 0;
+            for (uint32_t i = 0; i < input.indexCount; ++i)
+            {
+                if (input.indexFormat == omm::IndexFormat::UINT_16)
+                {
+                    uint16_t val = ((uint16_t*)input.indexBuffer)[i];
+                    maxTexCoordIndex = std::max<uint32_t>(maxTexCoordIndex, val);
+                }
+                else
+                {
+                    assert(input.indexFormat == omm::IndexFormat::UINT_32);
+                    uint32_t val = ((uint32_t*)input.indexBuffer)[i];
+                    maxTexCoordIndex = std::max(maxTexCoordIndex, val);
+                }
+            }
+
+            const size_t texCoordBufferSize = (maxTexCoordIndex + 1) * (input.texCoordFormat == omm::TexCoordFormat::UV32_FLOAT ? 4 : 2);
+
+            assert(input.texCoordFormat == omm::TexCoordFormat::UV32_FLOAT);
+
+            nvrhi::BufferDesc texCoord;
+            texCoord.debugName = "TexCoordBuffer";
+            texCoord.byteSize = texCoordBufferSize * 2;
+            texCoord.format = input.texCoordFormat == omm::TexCoordFormat::UV32_FLOAT ? nvrhi::Format::RG32_FLOAT : nvrhi::Format::RG16_FLOAT;
+            texCoord.initialState = nvrhi::ResourceStates::ShaderResource;
+            texCoord.keepInitialState = true;
+            texCoord.isVertexBuffer = true;
+            _texCoordBuffer = _device->createBuffer(texCoord);
+        }
+
+        {
+            nvrhi::BufferDesc ommIB;
+            ommIB.debugName = "OmmIndexBuffer";
+            ommIB.byteSize = _resultDesc->indexCount * (_resultDesc->indexFormat == omm::IndexFormat::UINT_32 ? 4 : 2);
+            ommIB.format = _resultDesc->indexFormat == omm::IndexFormat::UINT_32 ? nvrhi::Format::R32_SINT : nvrhi::Format::R16_SINT;
+            ommIB.initialState = nvrhi::ResourceStates::ShaderResource;
+            ommIB.keepInitialState = true;
+            ommIB.canHaveTypedViews = true;
+            _ommIndexBuffer = _device->createBuffer(ommIB);
+        }
+
+        if (_resultDesc->descArrayCount != 0)
+        {
+            nvrhi::BufferDesc ommDesc;
+            ommDesc.debugName = "OmmDescBuffer";
+            ommDesc.byteSize = _resultDesc->descArrayCount * sizeof(omm::Cpu::OpacityMicromapDesc);
+            ommDesc.format = nvrhi::Format::UNKNOWN;
+            ommDesc.initialState = nvrhi::ResourceStates::ShaderResource;
+            ommDesc.structStride = sizeof(omm::Cpu::OpacityMicromapDesc);
+            ommDesc.keepInitialState = true;
+            _ommDesc = _device->createBuffer(ommDesc);
+        }
+
+        if (_resultDesc->arrayDataSize != 0)
+        {
+            nvrhi::BufferDesc ommArray;
+            ommArray.debugName = "OmmArrayBuffer";
+            ommArray.byteSize = _resultDesc->arrayDataSize;
+            //ommArray.format = nvrhi::Format::R32_UINT;
+            ommArray.initialState = nvrhi::ResourceStates::ShaderResource;
+            ommArray.keepInitialState = true;
+            ommArray.canHaveRawViews = true;
+            _ommArrayData = _device->createBuffer(ommArray);
+        }
+
+        _commandList->open();
+        _commandList->setEnableAutomaticBarriers(true);
+        _commandList->writeBuffer(_indexBuffer, input.indexBuffer, _indexBuffer->getDesc().byteSize);
+        _commandList->writeBuffer(_texCoordBuffer, input.texCoords, _texCoordBuffer->getDesc().byteSize);
+        _commandList->writeBuffer(_ommIndexBuffer, _resultDesc->indexBuffer, _ommIndexBuffer->getDesc().byteSize);
+        if (_ommDesc)
+            _commandList->writeBuffer(_ommDesc, _resultDesc->descArray, _ommDesc->getDesc().byteSize);
+        if (_ommArrayData)
+            _commandList->writeBuffer(_ommArrayData, _resultDesc->arrayData, _ommArrayData->getDesc().byteSize);
+        _commandList->close();
+        _device->executeCommandList(_commandList);
+        _device->waitForIdle();
+    }
+#pragma optimize("", off)
+    void _LoadOmmData(const std::string& fileName)
+    {
+        std::vector<uint8_t> data = _LoadDataFile(fileName);
 
         omm::Cpu::BlobDesc blobDesc;
         blobDesc.data = data.data();
         blobDesc.size = data.size();
 
-        omm::Baker baker = m_ommLib.GetBaker();
+        omm::Baker baker = _lib.GetBaker();
 
         omm::Cpu::DeserializedResult res;
         OMM_ABORT_ON_ERROR(omm::Cpu::Deserialize(baker, blobDesc, &res));
@@ -175,49 +357,108 @@ public:
         const omm::Cpu::DeserializedDesc* deserializeDesc = nullptr;
         OMM_ABORT_ON_ERROR(omm::Cpu::GetDeserializedDesc(res, &deserializeDesc));
 
+        assert(deserializeDesc->numInputDescs > 0);
+
         nvrhi::TextureHandle tex;
-        if (deserializeDesc->numInputDescs > 0)
+        
+        omm::Cpu::BakeInputDesc input = deserializeDesc->inputDescs[0];
+        omm::Cpu::TextureMipDesc mips[16];
+        omm::Cpu::TextureDesc texDesc;
+        texDesc.mips = mips;
+
+        OMM_ABORT_ON_ERROR(omm::Cpu::FillTextureDesc(input.texture, &texDesc));
+        std::vector<uint8_t> textureData(texDesc.mips[0].width * texDesc.mips[0].height);
+
+        mips[0].textureData = (const void*)textureData.data();
+
+        OMM_ABORT_ON_ERROR(omm::Cpu::FillTextureDesc(input.texture, &texDesc));
         {
-            omm::Cpu::BakeInputDesc input = deserializeDesc->inputDescs[0];
             reinterpret_cast<uint32_t&>(input.bakeFlags) |= uint32_t(omm::Cpu::BakeFlags::EnableInternalThreads);
+            reinterpret_cast<uint32_t&>(input.bakeFlags) |= uint32_t(omm::Cpu::BakeFlags::Force32BitIndices);
+            //reinterpret_cast<uint32_t&>(input.bakeFlags) |= uint32_t(omm::Cpu::BakeFlags::DisableSpecialIndices);
             input.maxWorkloadSize = 0xFFFFFFFFFFFFFFFF;
-            omm::Cpu::TextureMipDesc mips[16];
-            omm::Cpu::TextureDesc texDesc;
-            texDesc.mips = mips;
+           // input.maxSubdivisionLevel = 10;
+           // input.dynamicSubdivisionScale = 0.f;
 
-            OMM_ABORT_ON_ERROR(omm::Cpu::FillTextureDesc(input.texture, &texDesc));
-            std::vector<uint8_t> textureData(texDesc.mips[0].width * texDesc.mips[0].height);
+            if (_uiData.overrideMaxSubdivisionLevel)
+            {
+                input.maxSubdivisionLevel = _uiData.maxSubdivisionLevel;
+                input.dynamicSubdivisionScale = 0.f;
+            }
 
-            mips[0].textureData = (const void*)textureData.data();
+            if (_uiData.overrideNearDuplicateDetection)
+            {
+                if (_uiData.enableNearDuplicateDetection)
+                {
+                    reinterpret_cast<uint32_t&>(input.bakeFlags) |= uint32_t(omm::Cpu::BakeFlags::EnableNearDuplicateDetection);
+                }
+                else
+                {
+                    reinterpret_cast<uint32_t&>(input.bakeFlags) &= ~uint32_t(omm::Cpu::BakeFlags::EnableNearDuplicateDetection);
+                }
+            }
 
-            OMM_ABORT_ON_ERROR(omm::Cpu::FillTextureDesc(input.texture, &texDesc));
-
-#if 0
             omm::Cpu::Texture textureClone;
             OMM_ABORT_ON_ERROR(omm::Cpu::CreateTexture(baker, texDesc, &textureClone));
 
             input.texture = textureClone;
 
-            omm::Cpu::BakeResult bakeResult;
-            OMM_ABORT_ON_ERROR(omm::Cpu::Bake(baker, input, &bakeResult));
+            OMM_ABORT_ON_ERROR(omm::Cpu::Bake(baker, input, &_result));
 
-            const omm::Cpu::BakeResultDesc* resultDesc;
-            OMM_ABORT_ON_ERROR(omm::Cpu::GetBakeResultDesc(bakeResult, &resultDesc));
+            OMM_ABORT_ON_ERROR(omm::Cpu::GetBakeResultDesc(_result, &_resultDesc));
 
+            omm::Debug::Stats stats;
+            OMM_ABORT_ON_ERROR(omm::Debug::GetStats(baker, _resultDesc, &stats));
+
+#if 0
             omm::Debug::SaveImagesDesc debugDesc;
             debugDesc.path = "OmmBakeOutput";
+            debugDesc.detailedCutout = true;
             debugDesc.filePostfix = "_SearchForMe";
             OMM_ABORT_ON_ERROR(omm::Debug::SaveAsImages(baker, input, resultDesc, debugDesc));
 
             OMM_ABORT_ON_ERROR(omm::Cpu::DestroyTexture(baker, textureClone));
 #endif
 
-            tex = CreateTexture(texDesc);
         }
 
-        OMM_ABORT_ON_ERROR(omm::Cpu::DestroyDeserializedResult(res));
+        _InitSampler(input);
+        _InitTexture(texDesc);
+        _InitBuffers(input);
 
-        return tex;
+        OMM_ABORT_ON_ERROR(omm::Cpu::DestroyDeserializedResult(res));
+    }
+};
+
+class BasicTriangle : public app::IRenderPass
+{
+private:
+    nvrhi::BufferHandle m_ConstantBuffer;
+    nvrhi::ShaderHandle m_VertexShader;
+    nvrhi::ShaderHandle m_PixelShader;
+    nvrhi::BindingLayoutHandle m_BindingLayout;
+    nvrhi::BindingSetHandle m_BindingSets;
+    nvrhi::GraphicsPipelineHandle m_Pipeline;
+    nvrhi::SamplerHandle m_LinearSampler;
+    nvrhi::InputLayoutHandle m_InputLayout;
+    nvrhi::CommandListHandle m_CommandList;
+    OmmGpuData m_ommData;
+    UIData& m_ui;
+    std::shared_ptr<engine::ShaderFactory> m_ShaderFactory;
+
+public:
+    using IRenderPass::IRenderPass;
+
+    BasicTriangle(app::DeviceManager* deviceManager, UIData& ui):IRenderPass(deviceManager),m_ui(ui), m_ommData(ui){}
+
+    std::shared_ptr<engine::ShaderFactory> GetShaderFactory()
+    {
+        return m_ShaderFactory;
+    }
+
+    const OmmGpuData& GetOmmGpuData() const
+    {
+        return m_ommData;
     }
 
     bool Init()
@@ -225,10 +466,10 @@ public:
         std::filesystem::path appShaderPath = app::GetDirectoryWithExecutable() / "shaders/basic_triangle" /  app::GetShaderTypeName(GetDevice()->getGraphicsAPI());
         
         auto nativeFS = std::make_shared<vfs::NativeFileSystem>();
-        engine::ShaderFactory shaderFactory(GetDevice(), nativeFS, appShaderPath);
+        m_ShaderFactory = std::make_shared<engine::ShaderFactory>(GetDevice(), nativeFS, appShaderPath);
 
-        m_VertexShader = shaderFactory.CreateShader("shaders.hlsl", "main_vs", nullptr, nvrhi::ShaderType::Vertex);
-        m_PixelShader = shaderFactory.CreateShader("shaders.hlsl", "main_ps", nullptr, nvrhi::ShaderType::Pixel);
+        m_VertexShader = m_ShaderFactory->CreateShader("shaders.hlsl", "main_vs", nullptr, nvrhi::ShaderType::Vertex);
+        m_PixelShader = m_ShaderFactory->CreateShader("shaders.hlsl", "main_ps", nullptr, nvrhi::ShaderType::Pixel);
 
         if (!m_VertexShader || !m_PixelShader)
         {
@@ -237,8 +478,9 @@ public:
         
         m_CommandList = GetDevice()->createCommandList();
 
-        m_Texture = LoadOmmData("E:\\git\\Opacity-MicroMap-SDK\\bin\\myExpensiveBakeJob.bin");
-
+        // m_ommData.Init("E:\\git\\Opacity-MicroMap-SDK\\bin\\myExpensiveBakeJob.bin", GetDevice());
+        m_ommData.Init("E:\\git\\Opacity-MicroMap-SDK\\util\\viewer_app\\feature_demo\\data\\test9.bin", GetDevice());
+    
         return true;
     }
 
@@ -254,24 +496,34 @@ public:
     
     void Render(nvrhi::IFramebuffer* framebuffer) override
     {
+        if (m_ui.rebake)
+        {
+            m_ui.rebake = false;
+            GetDevice()->waitForIdle();
+            m_ommData.Init("E:\\git\\Opacity-MicroMap-SDK\\util\\viewer_app\\feature_demo\\data\\test9.bin", GetDevice());
+            m_Pipeline = nullptr;
+            m_BindingLayout = nullptr;
+            m_BindingSets = nullptr;
+        }
+
         if (!m_Pipeline)
         {
-            auto samplerDesc = nvrhi::SamplerDesc()
-                .setAllFilters(false)
-                .setAllAddressModes(nvrhi::SamplerAddressMode::Wrap);
-            samplerDesc.setAllFilters(true);
-            m_LinearSampler = GetDevice()->createSampler(samplerDesc);
+            m_ConstantBuffer = GetDevice()->createBuffer(nvrhi::utils::CreateVolatileConstantBufferDesc(sizeof(Constants), "Constants", 16));
 
-            struct ConstantBufferEntry
-            {
-                uint32_t pad[4];
-            };
+            nvrhi::VertexAttributeDesc vertexAttr;
+            vertexAttr.name = "SV_POSITION";
+            vertexAttr.format = nvrhi::Format::RG32_FLOAT;
+            vertexAttr.elementStride = sizeof(float) * 2;
+            m_InputLayout = GetDevice()->createInputLayout(&vertexAttr, 1, m_VertexShader);
 
             nvrhi::BindingSetDesc bindingSetDesc;
             bindingSetDesc.bindings = {
-                // nvrhi::BindingSetItem::ConstantBuffer(0, m_ConstantBuffer, nvrhi::BufferRange(sizeof(ConstantBufferEntry), sizeof(ConstantBufferEntry))),
-                 nvrhi::BindingSetItem::Texture_SRV(0, m_Texture),
-                 nvrhi::BindingSetItem::Sampler(0, m_LinearSampler)
+                nvrhi::BindingSetItem::ConstantBuffer(0, m_ConstantBuffer),
+                nvrhi::BindingSetItem::Sampler(0, m_ommData.GetSampler()),
+                nvrhi::BindingSetItem::Texture_SRV(0, m_ommData.GetAlphaTexture()),
+                nvrhi::BindingSetItem::TypedBuffer_SRV(1, m_ommData.GetOmmIndexBuffer()),
+                nvrhi::BindingSetItem::StructuredBuffer_SRV(2, m_ommData.GetOmmDesc()),
+                nvrhi::BindingSetItem::RawBuffer_SRV(3, m_ommData.GetOmmArrayData()),
             };
 
             // Create the binding layout (if it's empty -- so, on the first iteration) and the binding set.
@@ -286,29 +538,196 @@ public:
             psoDesc.primType = nvrhi::PrimitiveType::TriangleList;
             psoDesc.renderState.depthStencilState.depthTestEnable = false;
             psoDesc.bindingLayouts = { m_BindingLayout };
+            psoDesc.inputLayout = m_InputLayout;
+            psoDesc.renderState.rasterState.setFrontCounterClockwise(false);
 
+           psoDesc.renderState.rasterState.setCullNone();
+            
             m_Pipeline = GetDevice()->createGraphicsPipeline(psoDesc, framebuffer);
         }
 
         m_CommandList->open();
 
+        Constants constants;
+        constants.texSize = donut::math::uint2(m_ommData.GetAlphaTexture()->getDesc().width, m_ommData.GetAlphaTexture()->getDesc().height);
+        constants.invTexSize = float2(1.f / constants.texSize.x, 1.f / constants.texSize.y);
+        constants.zoom = m_ui.zoom;
+        constants.offset = m_ui.offset + m_ui.prevOffset;
+        constants.primitiveOffset = m_ui.primitiveStart;
+
+        m_CommandList->writeBuffer(m_ConstantBuffer, &constants, sizeof(constants));
+
         nvrhi::utils::ClearColorAttachment(m_CommandList, framebuffer, 0, nvrhi::Color(0.f));
+
+        int sizePerIndex = m_ommData.GetIndexBuffer()->getDesc().format == nvrhi::Format::R32_UINT ? 4 : 2;
+
+        nvrhi::IndexBufferBinding indexBinding;
+        indexBinding.buffer = m_ommData.GetIndexBuffer();
+        indexBinding.format = m_ommData.GetIndexBuffer()->getDesc().format;
+        indexBinding.offset = 3 * m_ui.primitiveStart * sizePerIndex;
+
+        nvrhi::VertexBufferBinding vertexBinding;
+        vertexBinding.buffer = m_ommData.GetTexCoordBuffer();
+        vertexBinding.slot = 0;
+        vertexBinding.offset = 0;
 
         nvrhi::GraphicsState state;
         state.pipeline = m_Pipeline;
         state.framebuffer = framebuffer;
         state.viewport.addViewportAndScissorRect(framebuffer->getFramebufferInfo().getViewport());
         state.bindings = { m_BindingSets };
+        state.setIndexBuffer(indexBinding);
+        state.addVertexBuffer(vertexBinding);
         m_CommandList->setGraphicsState(state);
 
         nvrhi::DrawArguments args;
-        args.vertexCount = 3;
-        m_CommandList->draw(args);
+        args.vertexCount = 3 * (m_ui.primitiveEnd - m_ui.primitiveStart);// m_ommData.GetIndexCount();
+        m_CommandList->drawIndexed(args);
 
         m_CommandList->close();
         GetDevice()->executeCommandList(m_CommandList);
     }
 
+};
+
+class UIRenderer : public donut::app::ImGui_Renderer
+{
+private:
+    std::unique_ptr<donut::app::ImGui_Console> m_console;
+    UIData& m_ui;
+    std::shared_ptr<engine::ShaderFactory> m_ShaderFactory;
+    std::shared_ptr<BasicTriangle> m_app;
+    bool m_mouseDown = false;
+    float2 m_mousePos = float2(0, 0);
+    float2 m_referencePos = float2(0, 0);
+    int2 m_windowSize = 0;
+public:
+    UIRenderer(donut::app::DeviceManager* deviceManager, std::shared_ptr<BasicTriangle> app, UIData& ui)
+        : ImGui_Renderer(deviceManager)
+        , m_app(app)
+        , m_ui(ui)
+    {
+        std::filesystem::path frameworkShaderPath = app::GetDirectoryWithExecutable() / "shaders/framework" / app::GetShaderTypeName(GetDevice()->getGraphicsAPI());
+        auto rootFs = std::make_shared<vfs::RootFileSystem>();
+        rootFs->mount("/shaders/donut", frameworkShaderPath);
+        m_ShaderFactory = std::make_shared<engine::ShaderFactory>(GetDevice(), rootFs, "/shaders");
+        ImGui::GetIO().IniFilename = nullptr;
+
+        UpdateWindowSize();
+    }
+
+    void Init()
+    {
+        donut::app::ImGui_Renderer::Init(m_ShaderFactory);
+    }
+
+protected:
+    virtual bool MouseButtonUpdate(int button, int action, int mods)
+    {
+        if (donut::app::ImGui_Renderer::MouseButtonUpdate(button, action, mods))
+            return true;
+
+        if (button == 0)
+        {
+            if (action == 1)
+            {
+                m_mouseDown = true;
+                m_referencePos = m_mousePos;
+            }
+            else
+            {
+                m_ui.prevOffset += m_ui.offset;
+                m_ui.offset = float2(0,0);
+                m_mouseDown = false;
+            }
+        }
+        return false;
+    }
+    virtual bool MousePosUpdate(double xpos, double ypos)
+    {
+        if (donut::app::ImGui_Renderer::MousePosUpdate(xpos, ypos))
+            return true;
+
+        m_mousePos = float2((float)xpos, (float)ypos);
+        if (m_mouseDown)
+        {
+            m_ui.offset = (2.f / (float2)m_windowSize) * (m_referencePos - m_mousePos) / m_ui.zoom;
+            m_ui.offset.x = -m_ui.offset.x;
+        }
+        return false;
+    }
+
+    virtual bool MouseScrollUpdate(double xoffset, double yoffset)
+    {
+        if (donut::app::ImGui_Renderer::MouseScrollUpdate(xoffset, yoffset))
+            return true;
+        m_ui.zoom += 0.1f * m_ui.zoom * (float)yoffset;
+
+        return false;
+    }
+
+protected:
+
+    void UpdateWindowSize()
+    {
+        GetDeviceManager()->GetWindowDimensions(m_windowSize.x, m_windowSize.y);
+    }
+
+    virtual void buildUI(void) override
+    {
+        if (!m_ui.ShowUI)
+            return;
+
+        const auto& io = ImGui::GetIO();
+
+        UpdateWindowSize();
+
+        ImGui::SetNextWindowPos(ImVec2(10.f, 10.f), 0);
+        ImGui::Begin("Settings", 0, ImGuiWindowFlags_AlwaysAutoResize);
+        ImGui::Text("Renderer: %s", GetDeviceManager()->GetRendererString());
+        double frameTime = GetDeviceManager()->GetAverageFrameTimeSeconds();
+        if (frameTime > 0.0)
+            ImGui::Text("%.3f ms/frame (%.1f FPS)", frameTime * 1e3, 1.0 / frameTime);
+
+        int maxPrimitiveCount = m_app->GetOmmGpuData().GetIndexCount() / 3;
+        if (ImGui::SliderInt("Primitive Start", &m_ui.primitiveStart, 0, maxPrimitiveCount - 1, "%d"))
+        {
+            if (m_ui.primitiveStart >= m_ui.primitiveEnd)
+                m_ui.primitiveEnd = m_ui.primitiveStart + 1;
+        }
+
+        if (ImGui::SliderInt("Primitive End", &m_ui.primitiveEnd, 1, maxPrimitiveCount, "%d"))
+        {
+            if (m_ui.primitiveStart >= m_ui.primitiveEnd)
+                m_ui.primitiveStart = m_ui.primitiveEnd - 1;
+        }
+
+        ImGui::Checkbox("Override Max Subdivision Level", &m_ui.overrideMaxSubdivisionLevel);
+
+        {
+            ImGui::BeginDisabled(!m_ui.overrideMaxSubdivisionLevel);
+            ImGui::SliderInt("Max Subdivision Level", &m_ui.maxSubdivisionLevel, 0, 12);
+            ImGui::EndDisabled();
+        }
+
+        ImGui::Checkbox("Override Near Duplicate Detection", &m_ui.overrideNearDuplicateDetection);
+
+        {
+            ImGui::BeginDisabled(!m_ui.overrideNearDuplicateDetection);
+            ImGui::Checkbox("Near Duplicate Detection", &m_ui.enableNearDuplicateDetection);
+            ImGui::EndDisabled();
+        }
+
+        if (ImGui::Button("Rebake"))
+        {
+            m_ui.rebake = true;
+        }
+
+        // m_app->GetStats
+        // ImGui::Text("%d", )
+
+        ImGui::End();
+    }
 };
 
 #ifdef WIN32
@@ -333,12 +752,18 @@ int main(int __argc, const char** __argv)
     }
     
     {
-        BasicTriangle example(deviceManager);
-        if (example.Init())
+        UIData ui;
+        std::shared_ptr<BasicTriangle> example = std::make_shared<BasicTriangle>(deviceManager, ui);
+        example->Init();
+        std::shared_ptr<UIRenderer> gui = std::make_shared<UIRenderer>(deviceManager, example, ui);
+        gui->Init();
+        //if (example->Init())
         {
-            deviceManager->AddRenderPassToBack(&example);
+            deviceManager->AddRenderPassToBack(example.get());
+            deviceManager->AddRenderPassToBack(gui.get());
             deviceManager->RunMessageLoop();
-            deviceManager->RemoveRenderPass(&example);
+            deviceManager->RemoveRenderPass(example.get());
+            deviceManager->RemoveRenderPass(gui.get());
         }
     }
     

@@ -252,7 +252,7 @@ namespace omm
 
         os.read(reinterpret_cast<char*>(&m_tilingMode), sizeof(m_tilingMode));
 
-        if (inputDescVersion >= 2)
+        if (inputDescVersion >= 3)
         {
             os.read(reinterpret_cast<char*>(&m_textureFlags), sizeof(m_textureFlags));
         }
