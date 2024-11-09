@@ -145,9 +145,12 @@ void main_ps(
     const uint bitOffset = (is2State ? 1 : 2) * (microIndex % statesPerDW);
     const uint state = (stateDW >> bitOffset) & (is2State ? 0x1u : 0x3u);
     float3 clr = MicroStateColor(state);
+
     clr *= 0.5;
     if (isUpright)
-        clr *= 0.5;
+    {
+        clr *= 0.5f;
+    }
     
     float alphaLerp = t_Texture.SampleLevel(s_Sampler, i_texCoord, 0).r;
     const float e = 0.0001f;

@@ -62,23 +62,38 @@ void main_ps(
     t_Texture.GetDimensions(0, dim.x, dim.y, mipNum);
     
     const int2 texel = (int2) round(i_uv * dim);
+    const float2 texelf = (float2) i_uv * dim;
     
     float3 checker = float3(0, 0, 0);
-    if (((texel.x / dim.x) & 1) == ((texel.y / dim.y) & 1))
+    
+    const float size = 0.5f;
+    
+    const float maxDD = max(max(ddx(texelf.x), ddx(texelf.y)), max(ddy(texelf.x), ddy(texelf.y)));
+    
+    const float fade = clamp(maxDD / size, 0, 1);
+    
+    // if (maxDD < size)  // Micro Tiles (entire textures)
     {
-        checker += float3(0.1, 0.1, 0.1);
+        const float clr = lerp(0.3f, 0.0f, fade);
+        if ((texel.x & 1) == (texel.y & 1))
+        {
+            checker += clr.xxx;
+        }
     }
-    else
-    {
-        // checker += float3(0.05, 0.0, 0.0);
+
+    { // Macro Tiles (entire textures)
+        const float clr = lerp(0.0f, 0.1f, fade);
+        if (((texel.x / dim.x) & 1) == ((texel.y / dim.y) & 1))
+        {
+            checker += float3(clr, clr, clr);
+        }
+        else
+        {
+           // checker += float3(0, 0, clr);
+        }
     }
     
     const float alpha = 0.5 * t_Texture.SampleLevel(s_Sampler, i_uv, 0).r;
-    
-    if ((texel.x & 1) == (texel.y & 1))
-    {
-        checker += float3(0.2, 0.2, 0.2);
-    }
     
     o_rgba = float4(alpha.xxx + checker, 0.5);
 }

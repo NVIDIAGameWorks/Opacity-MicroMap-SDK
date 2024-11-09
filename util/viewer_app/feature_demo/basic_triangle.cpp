@@ -798,6 +798,12 @@ protected:
         if (donut::app::ImGui_Renderer::MousePosUpdate(xpos, ypos))
             return true;
 
+        float scaleX, scaleY;
+        GetDeviceManager()->GetDPIScaleInfo(scaleX, scaleY);
+
+        xpos *= scaleX;
+        ypos *= scaleY;
+
         m_mousePos = float2((float)xpos, (float)ypos);
         if (m_mouseDown)
         {
@@ -976,6 +982,9 @@ int main(int __argc, const char** __argv)
     deviceParams.enableDebugRuntime = true; 
     deviceParams.enableNvrhiValidationLayer = true;
 #endif
+    deviceParams.enablePerMonitorDPI = true;
+    deviceParams.backBufferWidth = 2 * 1280;
+    deviceParams.backBufferHeight = 2 * 720;
 
     if (!deviceManager->CreateWindowDeviceAndSwapChain(deviceParams, g_WindowTitle))
     {
