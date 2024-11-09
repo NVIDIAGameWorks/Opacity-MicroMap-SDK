@@ -47,6 +47,7 @@ namespace Cpu
         DisableFineClassification       = 1u << 9,
         EnableNearDuplicateDetectionBruteForce = 1u << 10,
         EnableEdgeHeuristic             = 1u << 11,
+        CleanBadOmms                    = 1u << 12,
     };
 
     constexpr void ValidateInternalBakeFlags()
@@ -72,7 +73,8 @@ namespace Cpu
             disableRemovePoorQualityOMM(((uint32_t)flags& (uint32_t)BakeFlagsInternal::DisableRemovePoorQualityOMM) == (uint32_t)BakeFlagsInternal::DisableRemovePoorQualityOMM),
             disableLevelLineIntersection(((uint32_t)flags& (uint32_t)BakeFlagsInternal::DisableLevelLineIntersection) == (uint32_t)BakeFlagsInternal::DisableLevelLineIntersection),
             disableFineClassification(((uint32_t)flags& (uint32_t)BakeFlagsInternal::DisableFineClassification) == (uint32_t)BakeFlagsInternal::DisableFineClassification),
-            enableEdgeHeuristic(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableEdgeHeuristic) == (uint32_t)BakeFlagsInternal::EnableEdgeHeuristic)
+            enableEdgeHeuristic(((uint32_t)flags& (uint32_t)BakeFlagsInternal::EnableEdgeHeuristic) == (uint32_t)BakeFlagsInternal::EnableEdgeHeuristic),
+            enableCleanBadOmms(((uint32_t)flags& (uint32_t)BakeFlagsInternal::CleanBadOmms) == (uint32_t)BakeFlagsInternal::CleanBadOmms)
         { }
         const bool enableInternalThreads;
         const bool disableSpecialIndices;
@@ -85,6 +87,7 @@ namespace Cpu
         const bool disableLevelLineIntersection;
         const bool disableFineClassification;
         const bool enableEdgeHeuristic;
+        const bool enableCleanBadOmms;
     };
 
     BakerImpl::~BakerImpl()

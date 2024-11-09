@@ -100,7 +100,7 @@ static uint bary2index(float2 bc, uint level, out bool isUpright)
     return dbary2index(iu, iv, iw, level);
 }
 
-float3 MicroStateColor(uint state)
+float3 MicroStateColor(int state)
 {
     if (state == 0)
         return float3(0, 0, 1.f);
@@ -120,11 +120,16 @@ void main_ps(
 	out float4 o_color : SV_Target0
 )
 {
+    if (g_constants.mode == 1) // wireframe
+    {
+        o_color = float4(1, 0, 0, 1.0);
+        return;
+    }
     int ommIndex = t_OmmIndexBuffer[i_primitiveId + g_constants.primitiveOffset];
     
     if (ommIndex < 0)
     {
-        o_color = float4(1, 1, 1, 1);
+        o_color = float4(MicroStateColor(-(ommIndex + 1)), 0.5);
         return;
     }
     
@@ -157,7 +162,7 @@ void main_ps(
     float3 color = float3(0, 0, 0);
     if (isIntersection)
     {
-        o_color = float4(1,0,0, 1);
+        o_color = float4(1, 0, 0, 1.0);
         return;
     }
     else
@@ -173,6 +178,6 @@ void main_ps(
     #else
         //  o_color = float4(color, 1);
         //o_color = float4(clr.xyz, 1);
-        o_color = float4(clr.xyz + 0.5 * color, 1);
+        o_color = float4(clr.xyz + 0.5 * color, 1.0);
     #endif
 }

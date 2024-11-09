@@ -28,4 +28,7 @@ struct Constants
 	float zoom;
 	float2 offset;
 	uint primitiveOffset;
+
+	uint mode; // 0 = lines, 1 = fill
+	uint3 pad;
 };

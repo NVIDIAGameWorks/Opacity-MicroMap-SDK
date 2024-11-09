@@ -105,22 +105,38 @@ private:
     omm::Baker _baker;
 };
 
+enum class FlagOverride
+{
+    Default,
+    Enable,
+    Disable
+};
+
 struct UIData
 {
     bool ShowUI = true;
 
+    int selectedFile = 0;
     int primitiveStart = 0;
-    int primitiveEnd = 1;
+    int primitiveEnd = -1;
     float zoom = 1.f;
     float2 offset = 0.f;
     float2 prevOffset = 0.f;
 
+    FlagOverride enableSpecialIndices = FlagOverride::Default;
     bool overrideMaxSubdivisionLevel = false;
     int maxSubdivisionLevel = 0;
+    bool overrideSubdivisionScale = false;
+    float subdivisionScale = 0;
     bool overrideNearDuplicateDetection = false;
     bool enableNearDuplicateDetection = false;
+    bool overrideEdgeHeuristic = false;
+    bool enableEdgeHeuristic = false;
+    bool overrideRejectionThreshold = false;
+    float rejectionThreshold = 0.f;
 
     bool rebake = false;
+    bool recompile = true;
 };
 
 class OmmGpuData
@@ -138,6 +154,7 @@ class OmmGpuData
     nvrhi::IDevice* _device = nullptr;
     omm::Cpu::BakeResult _result = 0;
     const omm::Cpu::BakeResultDesc* _resultDesc = nullptr;
+    omm::Debug::Stats _stats;
     uint32_t _indexCount = 0;
 
 public:
@@ -174,6 +191,8 @@ public:
     nvrhi::BufferHandle GetOmmArrayData() const { return _ommArrayData; }
 
     uint32_t GetIndexCount() const { return _indexCount; }
+    const omm::Cpu::BakeResultDesc* GetResult() const { return _resultDesc; }
+    const omm::Debug::Stats& GetStats() const { return _stats; }
 
 private:
     std::vector<uint8_t> _LoadDataFile(const std::string& fileName)
@@ -374,16 +393,27 @@ private:
         OMM_ABORT_ON_ERROR(omm::Cpu::FillTextureDesc(input.texture, &texDesc));
         {
             reinterpret_cast<uint32_t&>(input.bakeFlags) |= uint32_t(omm::Cpu::BakeFlags::EnableInternalThreads);
-            reinterpret_cast<uint32_t&>(input.bakeFlags) |= uint32_t(omm::Cpu::BakeFlags::Force32BitIndices);
-            //reinterpret_cast<uint32_t&>(input.bakeFlags) |= uint32_t(omm::Cpu::BakeFlags::DisableSpecialIndices);
             input.maxWorkloadSize = 0xFFFFFFFFFFFFFFFF;
            // input.maxSubdivisionLevel = 10;
            // input.dynamicSubdivisionScale = 0.f;
 
+            if (_uiData.enableSpecialIndices == FlagOverride::Enable)
+            {
+                reinterpret_cast<uint32_t&>(input.bakeFlags) &= ~uint32_t(omm::Cpu::BakeFlags::DisableSpecialIndices);
+            }
+            else if (_uiData.enableSpecialIndices == FlagOverride::Disable)
+            {
+                reinterpret_cast<uint32_t&>(input.bakeFlags) |= uint32_t(omm::Cpu::BakeFlags::DisableSpecialIndices);
+            }
+
             if (_uiData.overrideMaxSubdivisionLevel)
             {
                 input.maxSubdivisionLevel = _uiData.maxSubdivisionLevel;
-                input.dynamicSubdivisionScale = 0.f;
+            }
+
+            if (_uiData.overrideSubdivisionScale)
+            {
+                input.dynamicSubdivisionScale = _uiData.subdivisionScale;
             }
 
             if (_uiData.overrideNearDuplicateDetection)
@@ -398,6 +428,24 @@ private:
                 }
             }
 
+            if (_uiData.overrideEdgeHeuristic)
+            {
+                uint32_t kEdgeHeuristic = 1u << 11u;
+                if (_uiData.enableEdgeHeuristic)
+                {
+                    reinterpret_cast<uint32_t&>(input.bakeFlags) |= uint32_t(kEdgeHeuristic);
+                }
+                else
+                {
+                    reinterpret_cast<uint32_t&>(input.bakeFlags) &= ~uint32_t(kEdgeHeuristic);
+                }
+            }
+
+            if (_uiData.overrideRejectionThreshold)
+            {
+                input.rejectionThreshold = _uiData.rejectionThreshold;
+            }
+
             omm::Cpu::Texture textureClone;
             OMM_ABORT_ON_ERROR(omm::Cpu::CreateTexture(baker, texDesc, &textureClone));
 
@@ -407,8 +455,7 @@ private:
 
             OMM_ABORT_ON_ERROR(omm::Cpu::GetBakeResultDesc(_result, &_resultDesc));
 
-            omm::Debug::Stats stats;
-            OMM_ABORT_ON_ERROR(omm::Debug::GetStats(baker, _resultDesc, &stats));
+            OMM_ABORT_ON_ERROR(omm::Debug::GetStats(baker, _resultDesc, &_stats));
 
 #if 0
             omm::Debug::SaveImagesDesc debugDesc;
@@ -436,12 +483,22 @@ private:
     nvrhi::BufferHandle m_ConstantBuffer;
     nvrhi::ShaderHandle m_VertexShader;
     nvrhi::ShaderHandle m_PixelShader;
+
+    nvrhi::ShaderHandle m_BackgroundVS;
+    nvrhi::ShaderHandle m_BackgroundPS;
+    nvrhi::GraphicsPipelineHandle m_BackgroundPSO;
+
     nvrhi::BindingLayoutHandle m_BindingLayout;
     nvrhi::BindingSetHandle m_BindingSets;
     nvrhi::GraphicsPipelineHandle m_Pipeline;
+    nvrhi::GraphicsPipelineHandle m_PipelineWireFrame;
+
     nvrhi::SamplerHandle m_LinearSampler;
     nvrhi::InputLayoutHandle m_InputLayout;
     nvrhi::CommandListHandle m_CommandList;
+    std::vector<std::filesystem::path> m_ommFiles;
+    std::string m_ommFile = "E:\\git\\Opacity-MicroMap-SDK\\util\\viewer_app\\feature_demo\\data\\test19.bin";
+    //std::string m_ommFile = "E:\\git\\Opacity-MicroMap-SDK\\util\\viewer_app\\feature_demo\\data\\myExpensiveBakeJob.bin";
     OmmGpuData m_ommData;
     UIData& m_ui;
     std::shared_ptr<engine::ShaderFactory> m_ShaderFactory;
@@ -456,6 +513,11 @@ public:
         return m_ShaderFactory;
     }
 
+    const std::vector<std::filesystem::path>& GetOmmFiles() const
+    {
+        return m_ommFiles;
+    }
+
     const OmmGpuData& GetOmmGpuData() const
     {
         return m_ommData;
@@ -463,30 +525,47 @@ public:
 
     bool Init()
     {
-        std::filesystem::path appShaderPath = app::GetDirectoryWithExecutable() / "shaders/basic_triangle" /  app::GetShaderTypeName(GetDevice()->getGraphicsAPI());
-        
-        auto nativeFS = std::make_shared<vfs::NativeFileSystem>();
-        m_ShaderFactory = std::make_shared<engine::ShaderFactory>(GetDevice(), nativeFS, appShaderPath);
-
-        m_VertexShader = m_ShaderFactory->CreateShader("shaders.hlsl", "main_vs", nullptr, nvrhi::ShaderType::Vertex);
-        m_PixelShader = m_ShaderFactory->CreateShader("shaders.hlsl", "main_ps", nullptr, nvrhi::ShaderType::Pixel);
-
-        if (!m_VertexShader || !m_PixelShader)
+        std::string path = "E:\\git\\Opacity-MicroMap-SDK\\util\\viewer_app\\feature_demo\\data\\";
+        for (const auto& entry : std::filesystem::directory_iterator(path))
         {
-            return false;
+            m_ommFiles.push_back(entry.path());
         }
-        
+
+        std::filesystem::path appShaderPath = app::GetDirectoryWithExecutable() / "shaders/basic_triangle" /  app::GetShaderTypeName(GetDevice()->getGraphicsAPI());
+        std::filesystem::path frameworkShaderPath = app::GetDirectoryWithExecutable() / "shaders/framework" / app::GetShaderTypeName(GetDevice()->getGraphicsAPI());
+
+        //auto nativeFS = std::make_shared<vfs::NativeFileSystem>();
+        auto rootFs = std::make_shared<vfs::RootFileSystem>();
+        rootFs->mount("basic_triangle", appShaderPath);
+        rootFs->mount("donut", frameworkShaderPath);
+
+        m_ShaderFactory = std::make_shared<engine::ShaderFactory>(GetDevice(), rootFs, "");
+
         m_CommandList = GetDevice()->createCommandList();
 
-        // m_ommData.Init("E:\\git\\Opacity-MicroMap-SDK\\bin\\myExpensiveBakeJob.bin", GetDevice());
-        m_ommData.Init("E:\\git\\Opacity-MicroMap-SDK\\util\\viewer_app\\feature_demo\\data\\test9.bin", GetDevice());
+        m_ommData.Init(m_ommFile, GetDevice());
     
         return true;
     }
 
+    void ClearAllResource()
+    {
+        m_Pipeline = nullptr;
+        m_BindingLayout = nullptr;
+        m_BindingSets = nullptr;
+        m_BackgroundPSO = nullptr;
+        m_VertexShader = nullptr;
+        m_PixelShader = nullptr;
+        m_BackgroundVS = nullptr;
+        m_BackgroundPS = nullptr;
+
+        m_ShaderFactory->ClearCache();
+    }
+
     void BackBufferResizing() override
     { 
-        m_Pipeline = nullptr;
+        ClearAllResource();
+        m_ui.recompile = false;
     }
 
     void Animate(float fElapsedTimeSeconds) override
@@ -496,18 +575,27 @@ public:
     
     void Render(nvrhi::IFramebuffer* framebuffer) override
     {
-        if (m_ui.rebake)
+        if (m_ui.rebake || m_ui.recompile)
         {
-            m_ui.rebake = false;
             GetDevice()->waitForIdle();
-            m_ommData.Init("E:\\git\\Opacity-MicroMap-SDK\\util\\viewer_app\\feature_demo\\data\\test9.bin", GetDevice());
-            m_Pipeline = nullptr;
-            m_BindingLayout = nullptr;
-            m_BindingSets = nullptr;
+            if (m_ui.rebake)
+            {
+                m_ommData.Init(m_ommFiles[m_ui.selectedFile].string(), GetDevice());
+            }
+            
+            ClearAllResource();
+            m_ui.rebake = false;
+            m_ui.recompile = false;
         }
 
         if (!m_Pipeline)
         {
+            m_VertexShader = m_ShaderFactory->CreateShader("basic_triangle/shaders.hlsl", "main_vs", nullptr, nvrhi::ShaderType::Vertex);
+            m_PixelShader = m_ShaderFactory->CreateShader("basic_triangle/shaders.hlsl", "main_ps", nullptr, nvrhi::ShaderType::Pixel);
+
+            m_BackgroundVS = m_ShaderFactory->CreateShader("basic_triangle/background_vs_ps.hlsl", "main_vs", nullptr, nvrhi::ShaderType::Vertex);
+            m_BackgroundPS = m_ShaderFactory->CreateShader("basic_triangle/background_vs_ps.hlsl", "main_ps", nullptr, nvrhi::ShaderType::Pixel);
+
             m_ConstantBuffer = GetDevice()->createBuffer(nvrhi::utils::CreateVolatileConstantBufferDesc(sizeof(Constants), "Constants", 16));
 
             nvrhi::VertexAttributeDesc vertexAttr;
@@ -540,10 +628,35 @@ public:
             psoDesc.bindingLayouts = { m_BindingLayout };
             psoDesc.inputLayout = m_InputLayout;
             psoDesc.renderState.rasterState.setFrontCounterClockwise(false);
+            psoDesc.renderState.rasterState.fillMode = nvrhi::RasterFillMode::Wireframe;
+            psoDesc.renderState.rasterState.setCullNone();
 
-           psoDesc.renderState.rasterState.setCullNone();
+            // nvrhi::BlendState::RenderTarget blendState;
+            // blendState.setBlendEnable(true);
+            // blendState.setSrcBlend(nvrhi::BlendFactor::SrcAlpha);
+            // blendState.setDestBlend(nvrhi::BlendFactor::InvSrcAlpha);
+
+           // psoDesc.renderState.blendState.setRenderTarget(0, blendState);
             
+            m_PipelineWireFrame = GetDevice()->createGraphicsPipeline(psoDesc, framebuffer);
+            
+            psoDesc.renderState.rasterState.fillMode = nvrhi::RasterFillMode::Fill;
             m_Pipeline = GetDevice()->createGraphicsPipeline(psoDesc, framebuffer);
+        }
+
+        if (!m_BackgroundPSO)
+        {
+            nvrhi::GraphicsPipelineDesc psoDesc;
+            psoDesc.VS = m_BackgroundVS;
+            psoDesc.PS = m_BackgroundPS;
+            psoDesc.primType = nvrhi::PrimitiveType::TriangleStrip;
+            psoDesc.renderState.depthStencilState.depthTestEnable = false;
+            psoDesc.bindingLayouts = { m_BindingLayout };
+           // psoDesc.inputLayout = m_InputLayout;
+           // psoDesc.renderState.rasterState.setFrontCounterClockwise(true);
+            psoDesc.renderState.rasterState.setCullNone();
+
+            m_BackgroundPSO = GetDevice()->createGraphicsPipeline(psoDesc, framebuffer);
         }
 
         m_CommandList->open();
@@ -554,6 +667,7 @@ public:
         constants.zoom = m_ui.zoom;
         constants.offset = m_ui.offset + m_ui.prevOffset;
         constants.primitiveOffset = m_ui.primitiveStart;
+        constants.mode = 0;
 
         m_CommandList->writeBuffer(m_ConstantBuffer, &constants, sizeof(constants));
 
@@ -571,18 +685,53 @@ public:
         vertexBinding.slot = 0;
         vertexBinding.offset = 0;
 
-        nvrhi::GraphicsState state;
-        state.pipeline = m_Pipeline;
-        state.framebuffer = framebuffer;
-        state.viewport.addViewportAndScissorRect(framebuffer->getFramebufferInfo().getViewport());
-        state.bindings = { m_BindingSets };
-        state.setIndexBuffer(indexBinding);
-        state.addVertexBuffer(vertexBinding);
-        m_CommandList->setGraphicsState(state);
+        {
+            nvrhi::GraphicsState state;
+            state.pipeline = m_BackgroundPSO;
+            state.framebuffer = framebuffer;
+            state.viewport.addViewportAndScissorRect(framebuffer->getFramebufferInfo().getViewport());
+            state.bindings = { m_BindingSets };
+            m_CommandList->setGraphicsState(state);
 
-        nvrhi::DrawArguments args;
-        args.vertexCount = 3 * (m_ui.primitiveEnd - m_ui.primitiveStart);// m_ommData.GetIndexCount();
-        m_CommandList->drawIndexed(args);
+            nvrhi::DrawArguments args;
+            args.vertexCount = 4;
+            m_CommandList->draw(args);
+        }
+
+        {
+            nvrhi::GraphicsState state;
+            state.pipeline = m_Pipeline;
+            state.framebuffer = framebuffer;
+            state.viewport.addViewportAndScissorRect(framebuffer->getFramebufferInfo().getViewport());
+            state.bindings = { m_BindingSets };
+            state.setIndexBuffer(indexBinding);
+            state.addVertexBuffer(vertexBinding);
+            m_CommandList->setGraphicsState(state);
+
+            nvrhi::DrawArguments args;
+            args.vertexCount = 3 * (m_ui.primitiveEnd - m_ui.primitiveStart);
+            m_CommandList->drawIndexed(args);
+        }
+
+        constants.mode = 1;
+        m_CommandList->writeBuffer(m_ConstantBuffer, &constants, sizeof(constants));
+
+        {
+            nvrhi::GraphicsState state;
+            state.pipeline = m_PipelineWireFrame;
+            state.framebuffer = framebuffer;
+            state.viewport.addViewportAndScissorRect(framebuffer->getFramebufferInfo().getViewport());
+            state.bindings = { m_BindingSets };
+            state.setIndexBuffer(indexBinding);
+            state.addVertexBuffer(vertexBinding);
+            m_CommandList->setGraphicsState(state);
+
+            nvrhi::DrawArguments args;
+            args.vertexCount = 3 * (m_ui.primitiveEnd - m_ui.primitiveStart);
+            m_CommandList->drawIndexed(args);
+        }
+
+        
 
         m_CommandList->close();
         GetDevice()->executeCommandList(m_CommandList);
@@ -610,6 +759,7 @@ public:
         std::filesystem::path frameworkShaderPath = app::GetDirectoryWithExecutable() / "shaders/framework" / app::GetShaderTypeName(GetDevice()->getGraphicsAPI());
         auto rootFs = std::make_shared<vfs::RootFileSystem>();
         rootFs->mount("/shaders/donut", frameworkShaderPath);
+
         m_ShaderFactory = std::make_shared<engine::ShaderFactory>(GetDevice(), rootFs, "/shaders");
         ImGui::GetIO().IniFilename = nullptr;
 
@@ -690,6 +840,33 @@ protected:
             ImGui::Text("%.3f ms/frame (%.1f FPS)", frameTime * 1e3, 1.0 / frameTime);
 
         int maxPrimitiveCount = m_app->GetOmmGpuData().GetIndexCount() / 3;
+
+        if (m_ui.primitiveEnd == -1)
+        {
+            m_ui.primitiveEnd = maxPrimitiveCount;
+        }
+
+        auto& files = m_app->GetOmmFiles();
+        auto selected = files[m_ui.selectedFile].filename().string();
+
+        if (ImGui::BeginCombo("Combo Box", selected.c_str())) // Pass in the label and the current item
+        {
+            for (int i = 0; i < files.size(); i++)
+            {
+                auto file = files[i].filename().string();
+
+                bool is_selected = (m_ui.selectedFile == i);
+                if (ImGui::Selectable(file.c_str(), is_selected))
+                {
+                   // m_ui.rebake = true;
+                    m_ui.selectedFile = i;
+                }
+                if (is_selected)
+                    ImGui::SetItemDefaultFocus();
+            }
+            ImGui::EndCombo();
+        }
+
         if (ImGui::SliderInt("Primitive Start", &m_ui.primitiveStart, 0, maxPrimitiveCount - 1, "%d"))
         {
             if (m_ui.primitiveStart >= m_ui.primitiveEnd)
@@ -702,11 +879,26 @@ protected:
                 m_ui.primitiveStart = m_ui.primitiveEnd - 1;
         }
 
+        ImGui::Text("Enable Special Indices");
+        ImGui::RadioButton("Default", (int*) & m_ui.enableSpecialIndices, 0);
+        ImGui::SameLine();
+        ImGui::RadioButton("Enable", (int*)&m_ui.enableSpecialIndices, 1);
+        ImGui::SameLine();
+        ImGui::RadioButton("Disable", (int*)&m_ui.enableSpecialIndices, 2);
+
         ImGui::Checkbox("Override Max Subdivision Level", &m_ui.overrideMaxSubdivisionLevel);
 
         {
             ImGui::BeginDisabled(!m_ui.overrideMaxSubdivisionLevel);
             ImGui::SliderInt("Max Subdivision Level", &m_ui.maxSubdivisionLevel, 0, 12);
+            ImGui::EndDisabled();
+        }
+
+        ImGui::Checkbox("Override Subdivision Scale", &m_ui.overrideSubdivisionScale);
+
+        {
+            ImGui::BeginDisabled(!m_ui.overrideSubdivisionScale);
+            ImGui::SliderFloat("Subdivision Scale", &m_ui.subdivisionScale, 0.f, 10.f);
             ImGui::EndDisabled();
         }
 
@@ -718,13 +910,53 @@ protected:
             ImGui::EndDisabled();
         }
 
+        ImGui::Checkbox("Override Edge Heuristic", &m_ui.overrideEdgeHeuristic);
+
+        {
+            ImGui::BeginDisabled(!m_ui.overrideEdgeHeuristic);
+            ImGui::Checkbox("Edge Heuristic", &m_ui.enableEdgeHeuristic);
+            ImGui::EndDisabled();
+        }
+
+        ImGui::Checkbox("Override Rejection Threshold", &m_ui.overrideRejectionThreshold);
+
+        {
+            ImGui::BeginDisabled(!m_ui.overrideRejectionThreshold);
+            ImGui::SliderFloat("Rejection Threshold", &m_ui.rejectionThreshold, 0.f, 1.f);
+            ImGui::EndDisabled();
+        }
+
         if (ImGui::Button("Rebake"))
         {
             m_ui.rebake = true;
         }
 
-        // m_app->GetStats
-        // ImGui::Text("%d", )
+        if (ImGui::Button("Recompile"))
+        {
+            m_ui.recompile = true;
+        }
+
+        ImGui::Separator();
+
+        if (const omm::Cpu::BakeResultDesc* result = m_app->GetOmmGpuData().GetResult())
+        {
+            ImGui::Text("Array Data Size %.4f mb", result->arrayDataSize / (1024.f*1024.f));
+        }
+
+        omm::Debug::Stats stats = m_app->GetOmmGpuData().GetStats();
+        const float known = (float)stats.totalOpaque + stats.totalTransparent;
+        const float unknown = (float)stats.totalUnknownTransparent + stats.totalUnknownOpaque;
+
+        ImGui::Text("Known %.2f%%", 100.f *known / (known + unknown));
+        ImGui::Text("Total Opaque %llu", stats.totalOpaque);
+        ImGui::Text("Total Transparent %llu", stats.totalTransparent);
+        ImGui::Text("Total Unknown Transparent %llu", stats.totalUnknownTransparent);
+        ImGui::Text("Total Unknown Opaque %llu", stats.totalUnknownOpaque);
+
+        ImGui::Text("Total Fully Opaque %llu", stats.totalFullyOpaque);
+        ImGui::Text("Total Fully Transparent %llu", stats.totalFullyTransparent);
+        ImGui::Text("Total Fully Unknown Transparent %llu", stats.totalFullyUnknownTransparent);
+        ImGui::Text("Total Fully Unknown Opaque %llu", stats.totalFullyUnknownOpaque);
 
         ImGui::End();
     }
