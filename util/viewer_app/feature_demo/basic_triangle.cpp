@@ -105,6 +105,23 @@ private:
     omm::Baker _baker;
 };
 
+class SimpleProfiler {
+public:
+    SimpleProfiler(const std::string& name) : name_(name), start_(std::chrono::high_resolution_clock::now()) {
+       // std::cout << "Profiling started: " << name_ << std::endl;
+    }
+
+    ~SimpleProfiler() {
+        auto end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start_).count();
+       // std::cout << "Profiling ended: " << name_ << " - Duration: " << duration << " microseconds" << std::endl;
+    }
+
+private:
+    std::string name_;
+    std::chrono::high_resolution_clock::time_point start_;
+};
+
 enum class FlagOverride
 {
     Default,
@@ -155,6 +172,8 @@ class OmmGpuData
     omm::Cpu::BakeResult _result = 0;
     const omm::Cpu::BakeResultDesc* _resultDesc = nullptr;
     omm::Debug::Stats _stats;
+    uint64_t _bakeTimeInMs = 0;
+    uint64_t _bakeTimeInSeconds = 0;
     uint32_t _indexCount = 0;
 
 public:
@@ -193,6 +212,8 @@ public:
     uint32_t GetIndexCount() const { return _indexCount; }
     const omm::Cpu::BakeResultDesc* GetResult() const { return _resultDesc; }
     const omm::Debug::Stats& GetStats() const { return _stats; }
+    const uint64_t GetBakeTimeInMs() const { return _bakeTimeInMs; }
+    const uint64_t GetBakeTimeInSeconds() const { return _bakeTimeInSeconds; }
 
 private:
     std::vector<uint8_t> _LoadDataFile(const std::string& fileName)
@@ -451,7 +472,13 @@ private:
 
             input.texture = textureClone;
 
-            OMM_ABORT_ON_ERROR(omm::Cpu::Bake(baker, input, &_result));
+            {
+                auto start = std::chrono::high_resolution_clock::now();                
+                OMM_ABORT_ON_ERROR(omm::Cpu::Bake(baker, input, &_result));
+                auto end = std::chrono::high_resolution_clock::now();
+                _bakeTimeInMs = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+                _bakeTimeInSeconds = std::chrono::duration_cast<std::chrono::seconds>(end - start).count();
+            }
 
             OMM_ABORT_ON_ERROR(omm::Cpu::GetBakeResultDesc(_result, &_resultDesc));
 
@@ -497,8 +524,6 @@ private:
     nvrhi::InputLayoutHandle m_InputLayout;
     nvrhi::CommandListHandle m_CommandList;
     std::vector<std::filesystem::path> m_ommFiles;
-    std::string m_ommFile = "E:\\git\\Opacity-MicroMap-SDK\\util\\viewer_app\\feature_demo\\data\\test19.bin";
-    //std::string m_ommFile = "E:\\git\\Opacity-MicroMap-SDK\\util\\viewer_app\\feature_demo\\data\\myExpensiveBakeJob.bin";
     OmmGpuData m_ommData;
     UIData& m_ui;
     std::shared_ptr<engine::ShaderFactory> m_ShaderFactory;
@@ -531,6 +556,10 @@ public:
             m_ommFiles.push_back(entry.path());
         }
 
+        std::sort(m_ommFiles.begin(), m_ommFiles.end(), [](const std::filesystem::path& a, const std::filesystem::path& b) {
+            return a.filename().string() < b.filename().string();
+        });
+
         std::filesystem::path appShaderPath = app::GetDirectoryWithExecutable() / "shaders/basic_triangle" /  app::GetShaderTypeName(GetDevice()->getGraphicsAPI());
         std::filesystem::path frameworkShaderPath = app::GetDirectoryWithExecutable() / "shaders/framework" / app::GetShaderTypeName(GetDevice()->getGraphicsAPI());
 
@@ -543,7 +572,7 @@ public:
 
         m_CommandList = GetDevice()->createCommandList();
 
-        m_ommData.Init(m_ommFile, GetDevice());
+        m_ommData.Init(m_ommFiles[0].string(), GetDevice());
     
         return true;
     }
@@ -885,6 +914,15 @@ protected:
                 m_ui.primitiveStart = m_ui.primitiveEnd - 1;
         }
 
+        ImGui::Separator();
+
+        uint width = m_app->GetOmmGpuData().GetAlphaTexture()->getDesc().width;
+        uint height = m_app->GetOmmGpuData().GetAlphaTexture()->getDesc().height;
+
+        ImGui::Text("Alpha Texture %dx%d", width, height);
+
+        ImGui::Separator();
+
         ImGui::Text("Enable Special Indices");
         ImGui::RadioButton("Default", (int*) & m_ui.enableSpecialIndices, 0);
         ImGui::SameLine();
@@ -931,6 +969,8 @@ protected:
             ImGui::SliderFloat("Rejection Threshold", &m_ui.rejectionThreshold, 0.f, 1.f);
             ImGui::EndDisabled();
         }
+
+        ImGui::Text("Last bake time %llus, (%llu ms)", m_app->GetOmmGpuData().GetBakeTimeInSeconds(), m_app->GetOmmGpuData().GetBakeTimeInMs());
 
         if (ImGui::Button("Rebake"))
         {
