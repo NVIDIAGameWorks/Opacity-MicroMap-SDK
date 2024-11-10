@@ -122,7 +122,7 @@ private:
     std::chrono::high_resolution_clock::time_point start_;
 };
 
-enum class FlagOverride
+enum class Bool3
 {
     Default,
     Enable,
@@ -140,7 +140,9 @@ struct UIData
     float2 offset = 0.f;
     float2 prevOffset = 0.f;
 
-    FlagOverride enableSpecialIndices = FlagOverride::Default;
+    Bool3 enableSpecialIndices = Bool3::Default;
+    Bool3 enableTextureAlphaCutoff = Bool3::Default;
+
     bool overrideMaxSubdivisionLevel = false;
     int maxSubdivisionLevel = 0;
     bool overrideSubdivisionScale = false;
@@ -412,17 +414,19 @@ private:
         mips[0].textureData = (const void*)textureData.data();
 
         OMM_ABORT_ON_ERROR(omm::Cpu::FillTextureDesc(input.texture, &texDesc));
+
+
         {
             reinterpret_cast<uint32_t&>(input.bakeFlags) |= uint32_t(omm::Cpu::BakeFlags::EnableInternalThreads);
             input.maxWorkloadSize = 0xFFFFFFFFFFFFFFFF;
            // input.maxSubdivisionLevel = 10;
            // input.dynamicSubdivisionScale = 0.f;
 
-            if (_uiData.enableSpecialIndices == FlagOverride::Enable)
+            if (_uiData.enableSpecialIndices == Bool3::Enable)
             {
                 reinterpret_cast<uint32_t&>(input.bakeFlags) &= ~uint32_t(omm::Cpu::BakeFlags::DisableSpecialIndices);
             }
-            else if (_uiData.enableSpecialIndices == FlagOverride::Disable)
+            else if (_uiData.enableSpecialIndices == Bool3::Disable)
             {
                 reinterpret_cast<uint32_t&>(input.bakeFlags) |= uint32_t(omm::Cpu::BakeFlags::DisableSpecialIndices);
             }
@@ -467,6 +471,15 @@ private:
                 input.rejectionThreshold = _uiData.rejectionThreshold;
             }
 
+            if (_uiData.enableTextureAlphaCutoff == Bool3::Enable)
+            {
+                texDesc.alphaCutoff = input.alphaCutoff;
+            }
+            else if (_uiData.enableTextureAlphaCutoff == Bool3::Disable)
+            {
+                texDesc.alphaCutoff = -1.f;
+            }
+
             omm::Cpu::Texture textureClone;
             OMM_ABORT_ON_ERROR(omm::Cpu::CreateTexture(baker, texDesc, &textureClone));
 
@@ -484,16 +497,7 @@ private:
 
             OMM_ABORT_ON_ERROR(omm::Debug::GetStats(baker, _resultDesc, &_stats));
 
-#if 0
-            omm::Debug::SaveImagesDesc debugDesc;
-            debugDesc.path = "OmmBakeOutput";
-            debugDesc.detailedCutout = true;
-            debugDesc.filePostfix = "_SearchForMe";
-            OMM_ABORT_ON_ERROR(omm::Debug::SaveAsImages(baker, input, resultDesc, debugDesc));
-
             OMM_ABORT_ON_ERROR(omm::Cpu::DestroyTexture(baker, textureClone));
-#endif
-
         }
 
         _InitSampler(input);
@@ -878,7 +882,7 @@ protected:
 
         if (m_ui.primitiveEnd == -1)
         {
-            m_ui.primitiveEnd = maxPrimitiveCount;
+            m_ui.primitiveEnd = std::min(maxPrimitiveCount, 1000);
         }
 
         auto& files = m_app->GetOmmFiles();
@@ -923,12 +927,17 @@ protected:
 
         ImGui::Separator();
 
-        ImGui::Text("Enable Special Indices");
-        ImGui::RadioButton("Default", (int*) & m_ui.enableSpecialIndices, 0);
+        ImGui::RadioButton("Special Indices Default", (int*) & m_ui.enableSpecialIndices, 0);
         ImGui::SameLine();
-        ImGui::RadioButton("Enable", (int*)&m_ui.enableSpecialIndices, 1);
+        ImGui::RadioButton("Special Indices Enable", (int*)&m_ui.enableSpecialIndices, 1);
         ImGui::SameLine();
-        ImGui::RadioButton("Disable", (int*)&m_ui.enableSpecialIndices, 2);
+        ImGui::RadioButton("Special Indices Disable", (int*)&m_ui.enableSpecialIndices, 2);
+
+        ImGui::RadioButton("Alpha Cutoff Default", (int*)&m_ui.enableTextureAlphaCutoff, 0);
+        ImGui::SameLine();
+        ImGui::RadioButton("Alpha Cutoff Enable", (int*)&m_ui.enableTextureAlphaCutoff, 1);
+        ImGui::SameLine();
+        ImGui::RadioButton("Alpha Cutoff Disable", (int*)&m_ui.enableTextureAlphaCutoff, 2);
 
         ImGui::Checkbox("Override Max Subdivision Level", &m_ui.overrideMaxSubdivisionLevel);
 
