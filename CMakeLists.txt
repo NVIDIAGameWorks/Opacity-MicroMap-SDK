@@ -4,6 +4,10 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/gtest)
 	option(OMM_ENABLE_TESTS "Enable unit test" ON)
 endif()
 
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/benchmark)
+	option(OMM_ENABLE_BENCHMARK "Enable benchmark" ON)
+endif()
+
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/omm-sdk/src/version.h" ver_h)
 string(REGEX MATCH "VERSION_MAJOR ([0-9]*)" _ ${ver_h})
 set(ver_major ${CMAKE_MATCH_1})
@@ -37,6 +41,10 @@ add_subdirectory(thirdparty)
 add_subdirectory(shared)
 add_subdirectory(omm-sdk)
 add_subdirectory(integration)
+
+if (OMM_ENABLE_BENCHMARK)
+    add_subdirectory(benchmark)
+endif()
 
 if (OMM_ENABLE_TESTS)
     add_subdirectory(tests)

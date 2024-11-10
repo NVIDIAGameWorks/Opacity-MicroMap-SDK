@@ -10,17 +10,23 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 #pragma once
 
+#define GLM_FORCE_INLINE 
+//#define GLM_FORCE_XYZW_ONLY
+#define GLM_FORCE_INTRINSICS
+//#define GLM_FORCE_AVX2
 #include <glm/glm.hpp>
 #include <glm/gtx/hash.hpp>
 #include <glm/gtx/compatibility.hpp>
 
+#define OMM_GLM_DEFINE_DEFAULT_P glm::aligned_lowp 
+
 using double2 = glm::vec<2, double, glm::highp>;
 using double3 = glm::vec<3, double, glm::highp>;
 using double4 = glm::vec<4, double, glm::highp>;
-using float4 = glm::vec4;
-using float3 = glm::vec3;
-using float2 = glm::vec2;
-using float1 = glm::vec1;
+using float4 = glm::vec<4, float, OMM_GLM_DEFINE_DEFAULT_P>;
+using float3 = glm::vec<3, float, OMM_GLM_DEFINE_DEFAULT_P>;
+using float2 = glm::vec<2, float, OMM_GLM_DEFINE_DEFAULT_P>;
+using float1 = glm::vec<1, float, OMM_GLM_DEFINE_DEFAULT_P>;
 using bool2 = glm::bvec1;
 using int2 = glm::ivec2;
 using int4 = glm::ivec4;

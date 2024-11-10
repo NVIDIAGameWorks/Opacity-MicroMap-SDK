@@ -14,6 +14,10 @@ set(XXHASH_BUILD_XXHSUM OFF)
 add_subdirectory("xxHash/cmake_unofficial")
 set_property(TARGET xxhash PROPERTY FOLDER "${OMM_PROJECT_FOLDER}/Thirdparty") 
 
+# gbenchmark
+set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
+add_subdirectory("benchmark")
+
 # stb
 add_library(stb_lib INTERFACE)
 target_include_directories(stb_lib INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/stb>)

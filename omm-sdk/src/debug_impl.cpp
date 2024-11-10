@@ -63,7 +63,7 @@ namespace omm
 
         T Sample(ommTextureAddressMode mode, const float2& p) const {
             const int2 pi = (int2)(glm::floor(p * float2(_size)));
-            const int2 idx = omm::GetTexCoord(mode, pi, _size);
+            const int2 idx = omm::GetTexCoord(mode, false, pi, _size, { 0,0 });
             return Load(idx);
         }
 
@@ -72,7 +72,7 @@ namespace omm
 
             float2 pixelOffset = float2(p * (float2)_size - 0.5f);
             int2 coords[omm::TexelOffset::MAX_NUM];
-            omm::GatherTexCoord4(mode, int2(glm::floor(pixelOffset)), _size, coords);
+            omm::GatherTexCoord4(mode, false, int2(glm::floor(pixelOffset)), _size, {0,0}, coords);
 
             const float2 weight = glm::fract(pixelOffset);
             T2 a = (T2)Load(coords[omm::TexelOffset::I0x0]);
@@ -328,7 +328,7 @@ namespace omm
                         {
                             rgb = 255.f * float4(1.f - p->srcAlphaFp[p->mip].Sample(p->runtimeSamplerDesc.addressingMode, uv));
                         }
-                        const uchar4 finalRGBA = uchar4(rgb.r, rgb.g, rgb.b, 255);
+                        const uchar4 finalRGBA = uchar4(rgb.x, rgb.y, rgb.z, 255);
                         p->target->value().Store(dst, finalRGBA);
                     }
                     else if (p->mode == Mode::FillOMMStates)
@@ -353,7 +353,7 @@ namespace omm
                         //const float3 blend = glm::lerp(vmColor, prevVal, 0.75f);
                         const float3 blend = glm::lerp(vmColor, prevVal, 0.5f);
                         const float3 finalRGB = tint * blend;
-                        const uchar4 finalRGBA = uchar4(finalRGB.r * 255.f, finalRGB.g * 255.f,  finalRGB.b * 255.f, 255);
+                        const uchar4 finalRGBA = uchar4(finalRGB.x * 255.f, finalRGB.y * 255.f,  finalRGB.z * 255.f, 255);
                         p->target->value().Store(dst, finalRGBA);
                     }
                     else if (p->mode == Mode::DrawContourLine)
@@ -381,7 +381,7 @@ namespace omm
                             const bool isContour = (trans != 0 && opaque != 0) || (std::abs(delta) < epsilon);
                             if (isContour) {
                                 const float3 finalRGB = isContour ? float3(1.f, 0, 0) : float3(1.f, 0, 0);
-                                const uchar4 finalRGBA = uchar4(finalRGB.r * 255.f, finalRGB.g * 255.f, finalRGB.b * 255.f, 255);
+                                const uchar4 finalRGBA = uchar4(finalRGB.x * 255.f, finalRGB.y * 255.f, finalRGB.z * 255.f, 255);
                                 p->target->value().Store(dst, finalRGBA);
                             }
                         }

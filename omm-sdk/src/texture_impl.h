@@ -44,6 +44,9 @@ namespace omm
 
         float Load(const int2& texCoord, int32_t mip) const;
 
+        template<ommCpuTextureFormat eFormat, TilingMode eTilingMode, ommTextureAddressMode eMode, bool bTexIsPow2>
+        float Bilinear(const float2& p, int32_t mip) const;
+
         float Bilinear(ommTextureAddressMode mode, const float2& p, int32_t mip) const;
 
         ommResult FillTextureDesc(ommCpuTextureDesc& desc) const;
@@ -56,11 +59,23 @@ namespace omm
             return m_textureFormat;
         }
 
-        int2 GetSize(int32_t mip) const {
+        const int2& GetSize(int32_t mip) const {
             return m_mips[mip].size;
         }
 
-        float2 GetRcpSize(int32_t mip) const {
+        const int2& GetSizeLog2(int32_t mip) const {
+            return m_mips[mip].sizeLog2;
+        }
+
+        const float2& GetSizef(int32_t mip) const {
+            return m_mips[mip].sizef;
+        }
+
+        bool SizeIsPow2() const {
+            return m_mips[0].sizeIsPow2;
+        }
+
+        const float2& GetRcpSize(int32_t mip) const {
             return m_mips[mip].rcpSize;
         }
 
@@ -127,7 +142,7 @@ namespace omm
             return 0;
         }
     private:
-        static constexpr uint2  kMaxDim = int2(65536);
+        static inline uint2  kMaxDim = int2(65536);
         static constexpr size_t kAlignment = 64;
 
         StdAllocator<uint8_t> m_stdAllocator;
@@ -136,6 +151,9 @@ namespace omm
         struct Mips
         {
             int2 size;
+            int2 sizeLog2;
+            float2 sizef;
+            bool sizeIsPow2;
             float2 rcpSize;
             int2 sizeMinusOne;
             uintptr_t dataOffset;
@@ -163,6 +181,7 @@ namespace omm
         OMM_ASSERT(texCoord.y >= 0);
         OMM_ASSERT(texCoord.x < m_mips[mip].size.x);
         OMM_ASSERT(texCoord.y < m_mips[mip].size.y);
+        OMM_ASSERT(texCoord.y < m_mips[mip].size.y);
         OMM_ASSERT(glm::all(glm::notEqual(texCoord, kTexCoordBorder2)));
         OMM_ASSERT(glm::all(glm::notEqual(texCoord, kTexCoordInvalid2)));
         const uint64_t idx = From2Dto1D<eTilingMode>(texCoord, m_mips[mip].size);
@@ -179,11 +198,33 @@ namespace omm
         }
     }
 
+
+    template<ommCpuTextureFormat eFormat, TilingMode eTilingMode, ommTextureAddressMode eMode, bool bTexIsPow2>
+    float TextureImpl::Bilinear(const float2& p, int32_t mip) const
+    {
+        float2 pixel = p * (float2)(m_mips[mip].size) - 0.5f;
+        float2 pixelFloor = glm::floor(pixel);
+        int2 coords[omm::TexelOffset::MAX_NUM];
+        omm::GatherTexCoord4<eMode, bTexIsPow2>(int2(pixelFloor), m_mips[mip].size, coords);
+
+        float a = Load<eFormat, eTilingMode>(coords[omm::TexelOffset::I0x0], mip);
+        float b = Load<eFormat, eTilingMode>(coords[omm::TexelOffset::I0x1], mip);
+        float c = Load<eFormat, eTilingMode>(coords[omm::TexelOffset::I1x0], mip);
+        float d = Load<eFormat, eTilingMode>(coords[omm::TexelOffset::I1x1], mip);
+
+        const float2 weight = glm::fract(pixel);
+        float ac = glm::lerp<float>(a, c, weight.x);
+        float bd = glm::lerp<float>(b, d, weight.x);
+        float bilinearValue = glm::lerp(ac, bd, weight.y);
+        return bilinearValue;
+    }
+
    	template<> uint32_t TextureImpl::From2Dto1D<TilingMode::Linear>(const int2& idx, const int2& size);
    	template<> uint32_t TextureImpl::From2Dto1D<TilingMode::MortonZ>(const int2& idx, const int2& size);
 
     template<> uint2 TextureImpl::From1Dto2D<TilingMode::Linear>(const uint32_t idx, const int2& size);
     template<> uint2 TextureImpl::From1Dto2D<TilingMode::MortonZ>(const uint32_t idx, const int2& size);
+
 
     template<class TMemoryStreamBuf>
     void TextureImpl::Serialize(TMemoryStreamBuf& buffer) const
@@ -247,6 +288,11 @@ namespace omm
                 os.read(reinterpret_cast<char*>(&mip.dataOffset), sizeof(mip.dataOffset));
                 os.read(reinterpret_cast<char*>(&mip.numElements), sizeof(mip.numElements));
                 os.read(reinterpret_cast<char*>(&mip.dataOffsetSAT), sizeof(mip.dataOffsetSAT));
+
+                mip.sizeLog2.x = ctz(mip.size.x);
+                mip.sizeLog2.y = ctz(mip.size.y);
+                mip.sizef = (float2)mip.size;
+                mip.sizeIsPow2 = isPow2(mip.size.x) && isPow2(mip.size.y);
             }
         }
 
