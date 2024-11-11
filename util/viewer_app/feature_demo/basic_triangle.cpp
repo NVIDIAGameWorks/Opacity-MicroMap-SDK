@@ -66,18 +66,27 @@ static void AbortOnFailure(const char* funName, omm::Result result)
     donut::log::fatal("%s returned %s", funName, ToString(result));
 }
 
+static void PopupOnFailure(const char* funName, omm::Result result)
+{
+    donut::log::error("%s returned %s", funName, ToString(result));
+}
+
 static void Log(omm::MessageSeverity severity, const char* message, void* userArg)
 {
     donut::log::message(donut::log::Severity::Info, "[omm-sdk]: %s", message);
 }
 
-#define OMM_ABORT_ON_ERROR(fun) do { \
+#define _OMM_ON_ERROR(fun, onError)do { \
     omm::Result res_##__LINE__ = fun; \
     if (res_##__LINE__ != omm::Result::SUCCESS) \
     { \
-        AbortOnFailure(#fun, res_##__LINE__); \
+        onError(#fun, res_##__LINE__); \
     } \
     } while (false)
+
+#define OMM_ABORT_ON_ERROR(fun) _OMM_ON_ERROR(fun, AbortOnFailure)
+
+#define OMM_POPUP_ON_ERROR(fun) _OMM_ON_ERROR(fun, PopupOnFailure)
 
 class OmmLibrary
 {
@@ -140,19 +149,8 @@ struct UIData
     float2 offset = 0.f;
     float2 prevOffset = 0.f;
 
-    Bool3 enableSpecialIndices = Bool3::Default;
-    Bool3 enableTextureAlphaCutoff = Bool3::Default;
-
-    bool overrideMaxSubdivisionLevel = false;
-    int maxSubdivisionLevel = 0;
-    bool overrideSubdivisionScale = false;
-    float subdivisionScale = 0;
-    bool overrideNearDuplicateDetection = false;
-    bool enableNearDuplicateDetection = false;
-    bool overrideEdgeHeuristic = false;
-    bool enableEdgeHeuristic = false;
-    bool overrideRejectionThreshold = false;
-    float rejectionThreshold = 0.f;
+    std::optional<omm::Cpu::TextureDesc> textureDesc;
+    std::optional<omm::Cpu::BakeInputDesc> input;
 
     bool rebake = false;
     bool recompile = true;
@@ -161,7 +159,11 @@ struct UIData
 class OmmGpuData
 {
     OmmLibrary _lib;
-    const UIData& _uiData;
+    UIData& m_ui;
+
+    std::string _fileName;
+    std::vector<uint8_t> _data;
+
     nvrhi::SamplerHandle _sampler;
     nvrhi::TextureHandle _alphaTexture = nullptr;
     nvrhi::BufferHandle _texCoordBuffer = nullptr;
@@ -171,24 +173,28 @@ class OmmGpuData
     nvrhi::BufferHandle _ommArrayData = nullptr;
     nvrhi::CommandListHandle _commandList = nullptr;
     nvrhi::IDevice* _device = nullptr;
+
+    omm::Cpu::TextureDesc _textureDesc;
+    omm::Cpu::BakeInputDesc _input;
     omm::Cpu::BakeResult _result = 0;
     const omm::Cpu::BakeResultDesc* _resultDesc = nullptr;
     omm::Debug::Stats _stats;
+
     uint64_t _bakeTimeInMs = 0;
     uint64_t _bakeTimeInSeconds = 0;
     uint32_t _indexCount = 0;
 
-public:
-    OmmGpuData(const UIData& uiData):_uiData(uiData)
+    void ClearAll()
     {
-    }
+        if (_result != 0)
+        {
+            OMM_ABORT_ON_ERROR(omm::Cpu::DestroyBakeResult(_result));
+            _result = 0;
+        }
+        _resultDesc = nullptr;
 
-    ~OmmGpuData()
-    {
-    }
+        _stats = {};
 
-    void Init(const std::string& fileName, nvrhi::IDevice* device)
-    {
         _sampler = nullptr;
         _alphaTexture = nullptr;
         _texCoordBuffer = nullptr;
@@ -197,11 +203,27 @@ public:
         _ommDesc = nullptr;
         _ommArrayData = nullptr;
         _commandList = nullptr;
+    }
 
+public:
+    OmmGpuData(UIData& ui):m_ui(ui)
+    {
+    }
+
+    ~OmmGpuData()
+    {
+        ClearAll();
+    }
+
+    void Bake(const std::string& fileName, nvrhi::IDevice* device)
+    {
+        ClearAll();
         _device = device;
         _commandList = device->createCommandList();
-        _LoadOmmData(fileName);
+        _RebuildOmmData(fileName);
     }
+
+    std::string GetFileName() const { return _fileName; }
 
     nvrhi::SamplerHandle GetSampler() const { return _sampler; }
     nvrhi::TextureHandle GetAlphaTexture() const { return _alphaTexture; }
@@ -212,6 +234,8 @@ public:
     nvrhi::BufferHandle GetOmmArrayData() const { return _ommArrayData; }
 
     uint32_t GetIndexCount() const { return _indexCount; }
+    const omm::Cpu::TextureDesc& GetDefaultTextureDesc() const { return _textureDesc; }
+    const omm::Cpu::BakeInputDesc& GetDefaultInput() const { return _input; }
     const omm::Cpu::BakeResultDesc* GetResult() const { return _resultDesc; }
     const omm::Debug::Stats& GetStats() const { return _stats; }
     const uint64_t GetBakeTimeInMs() const { return _bakeTimeInMs; }
@@ -220,6 +244,7 @@ public:
 private:
     std::vector<uint8_t> _LoadDataFile(const std::string& fileName)
     {
+        _fileName = fileName;
         // Open the file in binary mode and position the file pointer at the end
         std::ifstream file(fileName, std::ios::binary | std::ios::ate);
 
@@ -290,6 +315,7 @@ private:
 
     void _InitBuffers(const omm::Cpu::BakeInputDesc& input)
     {
+        if (input.indexCount != 0)
         {
             nvrhi::BufferDesc ib;
             ib.debugName = "IndexBuffer";
@@ -299,6 +325,10 @@ private:
             ib.keepInitialState = true;
             ib.isIndexBuffer = true;
             _indexBuffer = _device->createBuffer(ib);
+        }
+        else
+        {
+            _indexBuffer = nullptr;
         }
 
         {
@@ -322,18 +352,26 @@ private:
 
             const size_t texCoordBufferSize = (maxTexCoordIndex + 1) * (input.texCoordFormat == omm::TexCoordFormat::UV32_FLOAT ? 4 : 2);
 
-            assert(input.texCoordFormat == omm::TexCoordFormat::UV32_FLOAT);
+            if (texCoordBufferSize != 0)
+            {
+                assert(input.texCoordFormat == omm::TexCoordFormat::UV32_FLOAT);
 
-            nvrhi::BufferDesc texCoord;
-            texCoord.debugName = "TexCoordBuffer";
-            texCoord.byteSize = texCoordBufferSize * 2;
-            texCoord.format = input.texCoordFormat == omm::TexCoordFormat::UV32_FLOAT ? nvrhi::Format::RG32_FLOAT : nvrhi::Format::RG16_FLOAT;
-            texCoord.initialState = nvrhi::ResourceStates::ShaderResource;
-            texCoord.keepInitialState = true;
-            texCoord.isVertexBuffer = true;
-            _texCoordBuffer = _device->createBuffer(texCoord);
+                nvrhi::BufferDesc texCoord;
+                texCoord.debugName = "TexCoordBuffer";
+                texCoord.byteSize = texCoordBufferSize * 2;
+                texCoord.format = input.texCoordFormat == omm::TexCoordFormat::UV32_FLOAT ? nvrhi::Format::RG32_FLOAT : nvrhi::Format::RG16_FLOAT;
+                texCoord.initialState = nvrhi::ResourceStates::ShaderResource;
+                texCoord.keepInitialState = true;
+                texCoord.isVertexBuffer = true;
+                _texCoordBuffer = _device->createBuffer(texCoord);
+            }
+            else
+            {
+                _texCoordBuffer = nullptr;
+            }
         }
 
+        if (_resultDesc && _resultDesc->indexCount != 0)
         {
             nvrhi::BufferDesc ommIB;
             ommIB.debugName = "OmmIndexBuffer";
@@ -344,8 +382,12 @@ private:
             ommIB.canHaveTypedViews = true;
             _ommIndexBuffer = _device->createBuffer(ommIB);
         }
+        else
+        {
+            _ommIndexBuffer = nullptr;
+        }
 
-        if (_resultDesc->descArrayCount != 0)
+        if (_resultDesc && _resultDesc->descArrayCount != 0)
         {
             nvrhi::BufferDesc ommDesc;
             ommDesc.debugName = "OmmDescBuffer";
@@ -356,8 +398,12 @@ private:
             ommDesc.keepInitialState = true;
             _ommDesc = _device->createBuffer(ommDesc);
         }
+        else
+        {
+            _ommDesc = nullptr;
+        }
 
-        if (_resultDesc->arrayDataSize != 0)
+        if (_resultDesc && _resultDesc->arrayDataSize != 0)
         {
             nvrhi::BufferDesc ommArray;
             ommArray.debugName = "OmmArrayBuffer";
@@ -368,12 +414,19 @@ private:
             ommArray.canHaveRawViews = true;
             _ommArrayData = _device->createBuffer(ommArray);
         }
+        else
+        {
+            _ommArrayData = nullptr;
+        }
 
         _commandList->open();
         _commandList->setEnableAutomaticBarriers(true);
-        _commandList->writeBuffer(_indexBuffer, input.indexBuffer, _indexBuffer->getDesc().byteSize);
-        _commandList->writeBuffer(_texCoordBuffer, input.texCoords, _texCoordBuffer->getDesc().byteSize);
-        _commandList->writeBuffer(_ommIndexBuffer, _resultDesc->indexBuffer, _ommIndexBuffer->getDesc().byteSize);
+        if (_indexBuffer)
+            _commandList->writeBuffer(_indexBuffer, input.indexBuffer, _indexBuffer->getDesc().byteSize);
+        if (_texCoordBuffer)
+            _commandList->writeBuffer(_texCoordBuffer, input.texCoords, _texCoordBuffer->getDesc().byteSize);
+        if (_ommIndexBuffer)
+            _commandList->writeBuffer(_ommIndexBuffer, _resultDesc->indexBuffer, _ommIndexBuffer->getDesc().byteSize);
         if (_ommDesc)
             _commandList->writeBuffer(_ommDesc, _resultDesc->descArray, _ommDesc->getDesc().byteSize);
         if (_ommArrayData)
@@ -382,14 +435,24 @@ private:
         _device->executeCommandList(_commandList);
         _device->waitForIdle();
     }
-#pragma optimize("", off)
-    void _LoadOmmData(const std::string& fileName)
-    {
-        std::vector<uint8_t> data = _LoadDataFile(fileName);
 
+    void _RebuildOmmData(const std::string& fileName)
+    {
+        if (_fileName != fileName)
+        {
+            m_ui.input.reset();
+            m_ui.textureDesc.reset();
+            _data = _LoadDataFile(fileName);
+        }
+        
+        _RebuildOmmData();
+    }
+
+    void _RebuildOmmData()
+    {
         omm::Cpu::BlobDesc blobDesc;
-        blobDesc.data = data.data();
-        blobDesc.size = data.size();
+        blobDesc.data = _data.data();
+        blobDesc.size = _data.size();
 
         omm::Baker baker = _lib.GetBaker();
 
@@ -404,6 +467,29 @@ private:
         nvrhi::TextureHandle tex;
         
         omm::Cpu::BakeInputDesc input = deserializeDesc->inputDescs[0];
+        _input = input;
+
+        if (!m_ui.input.has_value())
+        {
+            m_ui.input = input;
+            reinterpret_cast<uint32_t&>(m_ui.input->bakeFlags) |= uint32_t(omm::Cpu::BakeFlags::EnableInternalThreads);
+            m_ui.input->maxWorkloadSize = 0xFFFFFFFFFFFFFFFF;
+        }
+
+        input = m_ui.input.value();
+            
+        input.texture = _input.texture;
+
+        input.texCoords = _input.texCoords;
+        input.texCoordStrideInBytes = _input.texCoordStrideInBytes;
+        input.texCoordFormat = _input.texCoordFormat;
+            
+        input.indexFormat = _input.indexFormat;
+        input.indexBuffer = _input.indexBuffer;
+        input.indexCount = _input.indexCount;
+
+        input.subdivisionLevels = _input.subdivisionLevels;
+        
         omm::Cpu::TextureMipDesc mips[16];
         omm::Cpu::TextureDesc texDesc;
         texDesc.mips = mips;
@@ -415,87 +501,33 @@ private:
 
         OMM_ABORT_ON_ERROR(omm::Cpu::FillTextureDesc(input.texture, &texDesc));
 
+        if (!m_ui.textureDesc.has_value())
+        {
+            m_ui.textureDesc = texDesc;
+        }
 
         {
-            reinterpret_cast<uint32_t&>(input.bakeFlags) |= uint32_t(omm::Cpu::BakeFlags::EnableInternalThreads);
-            input.maxWorkloadSize = 0xFFFFFFFFFFFFFFFF;
-           // input.maxSubdivisionLevel = 10;
-           // input.dynamicSubdivisionScale = 0.f;
-
-            if (_uiData.enableSpecialIndices == Bool3::Enable)
-            {
-                reinterpret_cast<uint32_t&>(input.bakeFlags) &= ~uint32_t(omm::Cpu::BakeFlags::DisableSpecialIndices);
-            }
-            else if (_uiData.enableSpecialIndices == Bool3::Disable)
-            {
-                reinterpret_cast<uint32_t&>(input.bakeFlags) |= uint32_t(omm::Cpu::BakeFlags::DisableSpecialIndices);
-            }
-
-            if (_uiData.overrideMaxSubdivisionLevel)
-            {
-                input.maxSubdivisionLevel = _uiData.maxSubdivisionLevel;
-            }
-
-            if (_uiData.overrideSubdivisionScale)
-            {
-                input.dynamicSubdivisionScale = _uiData.subdivisionScale;
-            }
-
-            if (_uiData.overrideNearDuplicateDetection)
-            {
-                if (_uiData.enableNearDuplicateDetection)
-                {
-                    reinterpret_cast<uint32_t&>(input.bakeFlags) |= uint32_t(omm::Cpu::BakeFlags::EnableNearDuplicateDetection);
-                }
-                else
-                {
-                    reinterpret_cast<uint32_t&>(input.bakeFlags) &= ~uint32_t(omm::Cpu::BakeFlags::EnableNearDuplicateDetection);
-                }
-            }
-
-            if (_uiData.overrideEdgeHeuristic)
-            {
-                uint32_t kEdgeHeuristic = 1u << 11u;
-                if (_uiData.enableEdgeHeuristic)
-                {
-                    reinterpret_cast<uint32_t&>(input.bakeFlags) |= uint32_t(kEdgeHeuristic);
-                }
-                else
-                {
-                    reinterpret_cast<uint32_t&>(input.bakeFlags) &= ~uint32_t(kEdgeHeuristic);
-                }
-            }
-
-            if (_uiData.overrideRejectionThreshold)
-            {
-                input.rejectionThreshold = _uiData.rejectionThreshold;
-            }
-
-            if (_uiData.enableTextureAlphaCutoff == Bool3::Enable)
-            {
-                texDesc.alphaCutoff = input.alphaCutoff;
-            }
-            else if (_uiData.enableTextureAlphaCutoff == Bool3::Disable)
-            {
-                texDesc.alphaCutoff = -1.f;
-            }
+            texDesc = m_ui.textureDesc.value();
+            texDesc.mips = mips;
 
             omm::Cpu::Texture textureClone;
             OMM_ABORT_ON_ERROR(omm::Cpu::CreateTexture(baker, texDesc, &textureClone));
 
             input.texture = textureClone;
 
+            auto start = std::chrono::high_resolution_clock::now();
+            omm::Result res = omm::Cpu::Bake(baker, input, &_result);
+            OMM_POPUP_ON_ERROR(res);
+            auto end = std::chrono::high_resolution_clock::now();
+            _bakeTimeInMs = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+            _bakeTimeInSeconds = std::chrono::duration_cast<std::chrono::seconds>(end - start).count();
+
+            if (res == omm::Result::SUCCESS)
             {
-                auto start = std::chrono::high_resolution_clock::now();                
-                OMM_ABORT_ON_ERROR(omm::Cpu::Bake(baker, input, &_result));
-                auto end = std::chrono::high_resolution_clock::now();
-                _bakeTimeInMs = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-                _bakeTimeInSeconds = std::chrono::duration_cast<std::chrono::seconds>(end - start).count();
+                OMM_ABORT_ON_ERROR(omm::Cpu::GetBakeResultDesc(_result, &_resultDesc));
+
+                OMM_ABORT_ON_ERROR(omm::Debug::GetStats(baker, _resultDesc, &_stats));
             }
-
-            OMM_ABORT_ON_ERROR(omm::Cpu::GetBakeResultDesc(_result, &_resultDesc));
-
-            OMM_ABORT_ON_ERROR(omm::Debug::GetStats(baker, _resultDesc, &_stats));
 
             OMM_ABORT_ON_ERROR(omm::Cpu::DestroyTexture(baker, textureClone));
         }
@@ -576,7 +608,7 @@ public:
 
         m_CommandList = GetDevice()->createCommandList();
 
-        m_ommData.Init(m_ommFiles[0].string(), GetDevice());
+        m_ommData.Bake(m_ommFiles[0].string(), GetDevice());
     
         return true;
     }
@@ -611,9 +643,10 @@ public:
         if (m_ui.rebake || m_ui.recompile)
         {
             GetDevice()->waitForIdle();
+
             if (m_ui.rebake)
             {
-                m_ommData.Init(m_ommFiles[m_ui.selectedFile].string(), GetDevice());
+                m_ommData.Bake(m_ommFiles[m_ui.selectedFile].string(), GetDevice());
             }
             
             ClearAllResource();
@@ -742,7 +775,7 @@ public:
             m_CommandList->setGraphicsState(state);
 
             nvrhi::DrawArguments args;
-            args.vertexCount = 3 * (m_ui.primitiveEnd - m_ui.primitiveStart);
+            args.vertexCount = 3 * std::max(0, (m_ui.primitiveEnd - m_ui.primitiveStart));
             m_CommandList->drawIndexed(args);
         }
 
@@ -760,7 +793,7 @@ public:
             m_CommandList->setGraphicsState(state);
 
             nvrhi::DrawArguments args;
-            args.vertexCount = 3 * (m_ui.primitiveEnd - m_ui.primitiveStart);
+            args.vertexCount = 3 * std::max(0, (m_ui.primitiveEnd - m_ui.primitiveStart));
             m_CommandList->drawIndexed(args);
         }
 
@@ -769,8 +802,120 @@ public:
         m_CommandList->close();
         GetDevice()->executeCommandList(m_CommandList);
     }
-
 };
+
+template<class T>
+void ImGui_CheckBoxFlag(const char* name, uint32_t ID, T& flags, T origFlags, T mask)
+{
+    bool value = (mask & flags) == mask;
+    bool origValue = (mask & origFlags) == mask;
+    
+    ImGui::BeginDisabled(origValue == value);
+
+    ImGui::PushID(ID);
+    if (ImGui::Button("Reset"))
+    {
+        flags &= ~mask;
+        flags |= origFlags & mask;
+    }
+    ImGui::PopID();
+
+    ImGui::EndDisabled();
+
+    ImGui::SameLine();
+
+    if (ImGui::Checkbox(name, &value))
+    {
+        if (value)
+        {
+            flags |= mask;
+        }
+        else
+        {
+            flags &= ~mask;
+        }
+    }
+}
+
+template<class T>
+void ImGui_SliderInt(const char* name, uint32_t ID, T& value, T origValue, int min, int max)
+{
+    ImGui::BeginDisabled(origValue == value);
+
+    ImGui::PushID(ID);
+    if (ImGui::Button("Reset"))
+    {
+        value = origValue;
+    }
+    ImGui::PopID();
+
+    ImGui::EndDisabled();
+
+    ImGui::SameLine();
+
+    int intVal = value;
+    ImGui::SliderInt(name, &intVal, min, max);
+    value = intVal;
+}
+
+void ImGui_SliderFloat(const char* name, uint32_t ID, float& value, float origValue, float min, float max)
+{
+    ImGui::BeginDisabled(origValue == value);
+
+    ImGui::PushID(ID);
+    if (ImGui::Button("Reset"))
+    {
+        value = origValue;
+    }
+    ImGui::PopID();
+
+    ImGui::EndDisabled();
+
+    ImGui::SameLine();
+
+    ImGui::SliderFloat(name, &value, min, max);
+}
+
+void ImGui_ValueUInt64(const char* name, uint32_t ID, uint64_t& value, uint64_t origValue)
+{
+    ImGui::BeginDisabled(origValue == value);
+
+    ImGui::PushID(ID);
+    if (ImGui::Button("Reset"))
+    {
+        value = origValue;
+    }
+    ImGui::PopID();
+
+    ImGui::EndDisabled();
+
+    ImGui::SameLine();
+
+    ImGuiInputTextFlags flags = ImGuiInputTextFlags_CharsHexadecimal;
+    const char* format = (flags & ImGuiInputTextFlags_CharsHexadecimal) ? "%llX" : "%llu";
+    int step = 1;
+    int step_fast = 100;
+    ImGui::InputScalar(name, ImGuiDataType_U64, (void*)&value, (void*)(step > 0 ? &step : NULL), (void*)(step_fast > 0 ? &step_fast : NULL), format, flags);
+}
+
+template<int N>
+void ImGui_Combo(const char* name, uint32_t ID, std::array<const char*, N> items, omm::TextureAddressMode& value, omm::TextureAddressMode origValue)
+{
+    ImGui::BeginDisabled(origValue == value);
+
+    ImGui::PushID(ID);
+    if (ImGui::Button("Reset"))
+    {
+        value = origValue;
+    }
+    ImGui::PopID();
+
+    ImGui::EndDisabled();
+
+    ImGui::SameLine();
+
+    ImGui::Combo(name, reinterpret_cast<int*>(&value), items.data(), (int)items.size());
+}
 
 class UIRenderer : public donut::app::ImGui_Renderer
 {
@@ -882,7 +1027,7 @@ protected:
 
         if (m_ui.primitiveEnd == -1)
         {
-            m_ui.primitiveEnd = std::min(maxPrimitiveCount, 1000);
+            m_ui.primitiveEnd = std::min(128, maxPrimitiveCount);
         }
 
         auto& files = m_app->GetOmmFiles();
@@ -897,7 +1042,6 @@ protected:
                 bool is_selected = (m_ui.selectedFile == i);
                 if (ImGui::Selectable(file.c_str(), is_selected))
                 {
-                   // m_ui.rebake = true;
                     m_ui.selectedFile = i;
                 }
                 if (is_selected)
@@ -918,91 +1062,115 @@ protected:
                 m_ui.primitiveStart = m_ui.primitiveEnd - 1;
         }
 
-        ImGui::Separator();
+        const omm::Cpu::TextureDesc& texDesc = m_app->GetOmmGpuData().GetDefaultTextureDesc();
+        const omm::Cpu::BakeInputDesc& input = m_app->GetOmmGpuData().GetDefaultInput();
+
+        uint32_t id = 0;
+
+        ImGui::SeparatorText("Texture Settings");
 
         uint width = m_app->GetOmmGpuData().GetAlphaTexture()->getDesc().width;
         uint height = m_app->GetOmmGpuData().GetAlphaTexture()->getDesc().height;
+        nvrhi::Format format = m_app->GetOmmGpuData().GetAlphaTexture()->getDesc().format;
 
-        ImGui::Text("Alpha Texture %dx%d", width, height);
+        const char* formatstr = "Format unknown";
+        if (format == nvrhi::Format::R32_FLOAT)
+            formatstr = "Float 32";
+        else if (format == nvrhi::Format::R8_UNORM)
+            formatstr = "Unorm 8";
+
+        ImGui::Text("Alpha Texture %dx%d,%s", width, height, formatstr);
+
+        ImGui_Combo<5>("Addressing Mode", id++, { "Wrap", "Mirror", "Clamp", "Border", "MirrorOnce" }, m_ui.input->runtimeSamplerDesc.addressingMode, input.runtimeSamplerDesc.addressingMode);
+
+        ImGui_CheckBoxFlag<omm::Cpu::TextureFlags>("Disable Z Order", id++, m_ui.textureDesc->flags, texDesc.flags, omm::Cpu::TextureFlags::DisableZOrder);
+
+        {
+            ImGui::BeginDisabled(texDesc.alphaCutoff == m_ui.textureDesc->alphaCutoff);
+
+            ImGui::PushID(id++);
+            if (ImGui::Button("Reset"))
+            {
+                m_ui.textureDesc->alphaCutoff = texDesc.alphaCutoff;
+            }
+            ImGui::PopID();
+
+            ImGui::EndDisabled();
+
+            ImGui::SameLine();
+
+            bool value = m_ui.textureDesc->alphaCutoff >= 0.f;
+            if (ImGui::Checkbox("Enable SAT acceleration", &value))
+            {
+                if (value)
+                {
+                    m_ui.textureDesc->alphaCutoff = input.alphaCutoff;
+                }
+                else
+                {
+                    m_ui.textureDesc->alphaCutoff = -1.f;
+                }
+            }
+        }
+
+        ImGui::SeparatorText("Bake Settings");
+
+        ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Enable Internal Threads", id++, m_ui.input->bakeFlags, input.bakeFlags, omm::Cpu::BakeFlags::EnableInternalThreads);
+        ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Disable Special Indices", id++, m_ui.input->bakeFlags, input.bakeFlags, omm::Cpu::BakeFlags::DisableSpecialIndices);
+        ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Force 32 Bit Indices", id++, m_ui.input->bakeFlags, input.bakeFlags, omm::Cpu::BakeFlags::Force32BitIndices);
+        ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Disable Duplicate Detection", id++, m_ui.input->bakeFlags, input.bakeFlags, omm::Cpu::BakeFlags::DisableDuplicateDetection);
+        ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Enable Near-Duplicate Detection", id++, m_ui.input->bakeFlags, input.bakeFlags, omm::Cpu::BakeFlags::EnableNearDuplicateDetection);
+        ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Enable Validation", id++, m_ui.input->bakeFlags, input.bakeFlags, omm::Cpu::BakeFlags::EnableValidation);
+
+        ImGui_SliderInt<uint8_t>("Max Subdivision Level", id++, m_ui.input->maxSubdivisionLevel, input.maxSubdivisionLevel, 0, 12);
+        ImGui_SliderFloat("Dynamic Subdivision Scale", id++, m_ui.input->dynamicSubdivisionScale, input.dynamicSubdivisionScale, 0.f, 10.f);
+        ImGui_SliderFloat("Rejection Threshold", id++, m_ui.input->rejectionThreshold, input.rejectionThreshold, 0.f, 1.f);
+        
+        ImGui_ValueUInt64("Max Workload Size", id++, m_ui.input->maxWorkloadSize, input.maxWorkloadSize);
+        ImGui::SeparatorText("Unofficial Bake Settings");
+
+        constexpr uint32_t kEnableAABBTesting = 1u << 6u;
+        constexpr uint32_t kDisableLevelLineIntersection = 1u << 7u;
+        constexpr uint32_t kDisableFineClassification = 1u << 8u;
+        constexpr uint32_t kEnableNearDuplicateDetectionBruteForce = 1u << 9u;
+        constexpr uint32_t kEdgeHeuristic = 1u << 10u;
+        ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Enable AABB Testing", id++, m_ui.input->bakeFlags, input.bakeFlags, (omm::Cpu::BakeFlags)kEnableAABBTesting);
+        ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Disable Level Line Intersection", id++, m_ui.input->bakeFlags, input.bakeFlags, (omm::Cpu::BakeFlags)kDisableLevelLineIntersection);
+        ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Disable Fine Classification", id++, m_ui.input->bakeFlags, input.bakeFlags, (omm::Cpu::BakeFlags)kDisableFineClassification);
+        ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Enable Near-Duplicate Detection Brute-Force", id++, m_ui.input->bakeFlags, input.bakeFlags, (omm::Cpu::BakeFlags)kEnableNearDuplicateDetectionBruteForce);
+        ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Edge Heuristic", id++, m_ui.input->bakeFlags, input.bakeFlags, (omm::Cpu::BakeFlags)kEdgeHeuristic);
 
         ImGui::Separator();
-
-        ImGui::RadioButton("Special Indices Default", (int*) & m_ui.enableSpecialIndices, 0);
-        ImGui::SameLine();
-        ImGui::RadioButton("Special Indices Enable", (int*)&m_ui.enableSpecialIndices, 1);
-        ImGui::SameLine();
-        ImGui::RadioButton("Special Indices Disable", (int*)&m_ui.enableSpecialIndices, 2);
-
-        ImGui::RadioButton("Alpha Cutoff Default", (int*)&m_ui.enableTextureAlphaCutoff, 0);
-        ImGui::SameLine();
-        ImGui::RadioButton("Alpha Cutoff Enable", (int*)&m_ui.enableTextureAlphaCutoff, 1);
-        ImGui::SameLine();
-        ImGui::RadioButton("Alpha Cutoff Disable", (int*)&m_ui.enableTextureAlphaCutoff, 2);
-
-        ImGui::Checkbox("Override Max Subdivision Level", &m_ui.overrideMaxSubdivisionLevel);
-
-        {
-            ImGui::BeginDisabled(!m_ui.overrideMaxSubdivisionLevel);
-            ImGui::SliderInt("Max Subdivision Level", &m_ui.maxSubdivisionLevel, 0, 12);
-            ImGui::EndDisabled();
-        }
-
-        ImGui::Checkbox("Override Subdivision Scale", &m_ui.overrideSubdivisionScale);
-
-        {
-            ImGui::BeginDisabled(!m_ui.overrideSubdivisionScale);
-            ImGui::SliderFloat("Subdivision Scale", &m_ui.subdivisionScale, 0.f, 10.f);
-            ImGui::EndDisabled();
-        }
-
-        ImGui::Checkbox("Override Near Duplicate Detection", &m_ui.overrideNearDuplicateDetection);
-
-        {
-            ImGui::BeginDisabled(!m_ui.overrideNearDuplicateDetection);
-            ImGui::Checkbox("Near Duplicate Detection", &m_ui.enableNearDuplicateDetection);
-            ImGui::EndDisabled();
-        }
-
-        ImGui::Checkbox("Override Edge Heuristic", &m_ui.overrideEdgeHeuristic);
-
-        {
-            ImGui::BeginDisabled(!m_ui.overrideEdgeHeuristic);
-            ImGui::Checkbox("Edge Heuristic", &m_ui.enableEdgeHeuristic);
-            ImGui::EndDisabled();
-        }
-
-        ImGui::Checkbox("Override Rejection Threshold", &m_ui.overrideRejectionThreshold);
-
-        {
-            ImGui::BeginDisabled(!m_ui.overrideRejectionThreshold);
-            ImGui::SliderFloat("Rejection Threshold", &m_ui.rejectionThreshold, 0.f, 1.f);
-            ImGui::EndDisabled();
-        }
-
-        ImGui::Text("Last bake time %llus, (%llu ms)", m_app->GetOmmGpuData().GetBakeTimeInSeconds(), m_app->GetOmmGpuData().GetBakeTimeInMs());
 
         if (ImGui::Button("Rebake"))
         {
             m_ui.rebake = true;
         }
 
-        if (ImGui::Button("Recompile"))
-        {
-            m_ui.recompile = true;
-        }
+        ImGui::SameLine();
+        ImGui::Text("Last bake time %llus, (%llu ms)", m_app->GetOmmGpuData().GetBakeTimeInSeconds(), m_app->GetOmmGpuData().GetBakeTimeInMs());
 
-        ImGui::Separator();
+        ImGui::SeparatorText("Memory");
 
         if (const omm::Cpu::BakeResultDesc* result = m_app->GetOmmGpuData().GetResult())
         {
-            ImGui::Text("Array Data Size %.4f mb", result->arrayDataSize / (1024.f*1024.f));
+            size_t arrayDataSize = result->arrayDataSize;
+            size_t indexSize = result->indexCount * (result->indexFormat == omm::IndexFormat::UINT_16 ? 2 : 4);
+            size_t descArraySize = result->descArrayCount * sizeof(omm::Cpu::OpacityMicromapDesc);
+            size_t totalSize = arrayDataSize + indexSize + descArraySize;
+            ImGui::Text("Array Data Size %.4f mb", arrayDataSize / (1024.f * 1024.f));
+            ImGui::Text("Index Data Size %.4f mb", indexSize / (1024.f * 1024.f));
+            ImGui::Text("Desc Array Size %.4f mb", descArraySize / (1024.f * 1024.f));
+            ImGui::Text("Total Size %.4f mb", totalSize / (1024.f * 1024.f));
         }
+
+        ImGui::SeparatorText("Stats");
 
         omm::Debug::Stats stats = m_app->GetOmmGpuData().GetStats();
         const float known = (float)stats.totalOpaque + stats.totalTransparent;
         const float unknown = (float)stats.totalUnknownTransparent + stats.totalUnknownOpaque;
 
-        ImGui::Text("Known %.2f%%", 100.f *known / (known + unknown));
+        ImGui::Text("Known %.2f%%", 100.f * known / (known + unknown));
         ImGui::Text("Total Opaque %llu", stats.totalOpaque);
         ImGui::Text("Total Transparent %llu", stats.totalTransparent);
         ImGui::Text("Total Unknown Transparent %llu", stats.totalUnknownTransparent);
@@ -1012,6 +1180,13 @@ protected:
         ImGui::Text("Total Fully Transparent %llu", stats.totalFullyTransparent);
         ImGui::Text("Total Fully Unknown Transparent %llu", stats.totalFullyUnknownTransparent);
         ImGui::Text("Total Fully Unknown Opaque %llu", stats.totalFullyUnknownOpaque);
+
+        if (ImGui::CollapsingHeader("Development")) {
+            if (ImGui::Button("Recompile Shaders"))
+            {
+                m_ui.recompile = true;
+            }
+        }
 
         ImGui::End();
     }

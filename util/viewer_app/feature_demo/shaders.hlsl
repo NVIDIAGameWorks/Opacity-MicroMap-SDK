@@ -153,11 +153,11 @@ void main_ps(
     }
     
     float alphaLerp = t_Texture.SampleLevel(s_Sampler, i_texCoord, 0).r;
-    const float e = 0.0001f;
+    const float2 e = 0.35f * g_constants.invTexSize;
     const float alpha00 = t_Texture.SampleLevel(s_Sampler, i_texCoord, 0).r;
-    const float alpha01 = t_Texture.SampleLevel(s_Sampler, i_texCoord + float2(e, 0.f), 0).r;
-    const float alpha10 = t_Texture.SampleLevel(s_Sampler, i_texCoord + float2(0.0f, e), 0).r;
-    const float alpha11 = t_Texture.SampleLevel(s_Sampler, i_texCoord + float2(e, e), 0).r;
+    const float alpha01 = t_Texture.SampleLevel(s_Sampler, i_texCoord + float2(e.x, 0.f), 0).r;
+    const float alpha10 = t_Texture.SampleLevel(s_Sampler, i_texCoord + float2(0.0f, e.y), 0).r;
+    const float alpha11 = t_Texture.SampleLevel(s_Sampler, i_texCoord + e, 0).r;
     const float4 alpha = float4(alpha00, alpha01, alpha10, alpha11);
     
     const bool isIntersection = any(alpha < 0.5f) && any(alpha >= 0.5f);
@@ -165,7 +165,7 @@ void main_ps(
     float3 color = float3(0, 0, 0);
     if (isIntersection)
     {
-        o_color = float4(1, 0, 0, 1.0);
+        o_color = float4(1, 1, 1, 1.0);
         return;
     }
     else
