@@ -370,6 +370,7 @@ namespace Cpu
 
         TextureImpl* texture = Allocate<TextureImpl>(m_stdAllocator, m_stdAllocator, m_log);
         texture->Deserialize(buffer, header.inputDescVersion);
+
         inputDesc.texture = CreateHandle<omm::Cpu::Texture, TextureImpl>(texture);
 
         os.read(reinterpret_cast<char*>(&inputDesc.runtimeSamplerDesc.addressingMode), sizeof(inputDesc.runtimeSamplerDesc.addressingMode));
@@ -433,6 +434,13 @@ namespace Cpu
         }
 
         os.read(reinterpret_cast<char*>(&inputDesc.maxWorkloadSize), sizeof(inputDesc.maxWorkloadSize));
+
+        if (texture->HasSAT() && header.inputDescVersion < 3)
+        {
+            // old bug: pre v2 m_alphaCutoff was not serialized, but the SAT data was:
+            // to recover this lost information we recorver the alpha cutoff from the input desc.
+            texture->SetAlphaCutoff(inputDesc.alphaCutoff);
+        }
 
         return ommResult_SUCCESS;
     }

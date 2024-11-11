@@ -87,6 +87,9 @@ namespace omm
             return m_alphaCutoff >= 0.f;
         }
 
+        void SetAlphaCutoff(float alphaCutoff) {
+            m_alphaCutoff = alphaCutoff;
+        }
         float GetAlphaCutoff() const {
             return m_alphaCutoff;
         }
@@ -250,6 +253,7 @@ namespace omm
 
         os.write(reinterpret_cast<const char*>(&m_tilingMode), sizeof(m_tilingMode));
         os.write(reinterpret_cast<const char*>(&m_textureFlags), sizeof(m_textureFlags));
+        os.write(reinterpret_cast<const char*>(&m_alphaCutoff), sizeof(m_alphaCutoff));
         os.write(reinterpret_cast<const char*>(&m_textureFormat), sizeof(m_textureFormat));
 
         os.write(reinterpret_cast<const char*>(&m_dataSize), sizeof(m_dataSize));
@@ -301,6 +305,7 @@ namespace omm
         if (inputDescVersion >= 3)
         {
             os.read(reinterpret_cast<char*>(&m_textureFlags), sizeof(m_textureFlags));
+            os.read(reinterpret_cast<char*>(&m_alphaCutoff), sizeof(m_alphaCutoff));
         }
         else
         {
@@ -312,6 +317,8 @@ namespace omm
             {
                 m_textureFlags = ommCpuTextureFlags_DisableZOrder;
             }
+
+            m_alphaCutoff = -1.f;
         }
 
         os.read(reinterpret_cast<char*>(&m_textureFormat), sizeof(m_textureFormat));

@@ -125,6 +125,17 @@ void main_ps(
         o_color = float4(1, 0, 0, 1.0);
         return;
     }
+    
+    uint primitiveIndex = i_primitiveId + g_constants.primitiveOffset;
+    
+    uint ommIndexBufferSize = 0;
+    t_OmmIndexBuffer.GetDimensions(ommIndexBufferSize);
+    
+    if (primitiveIndex >= ommIndexBufferSize)
+    {
+        discard;
+    }
+    
     int ommIndex = t_OmmIndexBuffer[i_primitiveId + g_constants.primitiveOffset];
     
     if (ommIndex < 0)

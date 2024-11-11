@@ -152,6 +152,7 @@ struct UIData
     std::optional<omm::Cpu::TextureDesc> textureDesc;
     std::optional<omm::Cpu::BakeInputDesc> input;
 
+    bool load = false;
     bool rebake = false;
     bool recompile = true;
 };
@@ -160,6 +161,8 @@ class OmmGpuData
 {
     OmmLibrary _lib;
     UIData& m_ui;
+    nvrhi::IDevice* m_device = nullptr;
+    nvrhi::CommandListHandle m_commandList = nullptr;
 
     std::string _fileName;
     std::vector<uint8_t> _data;
@@ -171,8 +174,6 @@ class OmmGpuData
     nvrhi::BufferHandle _ommIndexBuffer = nullptr;
     nvrhi::BufferHandle _ommDesc = nullptr;
     nvrhi::BufferHandle _ommArrayData = nullptr;
-    nvrhi::CommandListHandle _commandList = nullptr;
-    nvrhi::IDevice* _device = nullptr;
 
     omm::Cpu::TextureDesc _textureDesc;
     omm::Cpu::BakeInputDesc _input;
@@ -195,14 +196,13 @@ class OmmGpuData
 
         _stats = {};
 
-        _sampler = nullptr;
+       // _sampler = nullptr;
         _alphaTexture = nullptr;
         _texCoordBuffer = nullptr;
         _indexBuffer = nullptr;
         _ommIndexBuffer = nullptr;
         _ommDesc = nullptr;
         _ommArrayData = nullptr;
-        _commandList = nullptr;
     }
 
 public:
@@ -210,17 +210,28 @@ public:
     {
     }
 
+    void Init(nvrhi::IDevice* device)
+    {
+        m_device = device;
+        m_commandList = device->createCommandList();
+    }
+
     ~OmmGpuData()
     {
         ClearAll();
     }
 
-    void Bake(const std::string& fileName, nvrhi::IDevice* device)
+    void Load(const std::string& fileName)
     {
         ClearAll();
-        _device = device;
-        _commandList = device->createCommandList();
-        _RebuildOmmData(fileName);
+        _LoadOmmData(fileName);
+        _RebuildOmmData(true /*loadOnly*/);
+    }
+
+    void Bake()
+    {
+        ClearAll();
+        _RebuildOmmData(false /*loadOnly*/);
     }
 
     std::string GetFileName() const { return _fileName; }
@@ -289,7 +300,7 @@ private:
             .setAllFilters(false)
             .setAllAddressModes(addressMode);
         samplerDesc.setAllFilters(true);
-        _sampler = _device->createSampler(samplerDesc);
+        _sampler = m_device->createSampler(samplerDesc);
     }
 
     void _InitTexture(const omm::Cpu::TextureDesc& ommTex)
@@ -301,16 +312,16 @@ private:
         d.initialState = nvrhi::ResourceStates::ShaderResource;
         d.keepInitialState = true;
         d.debugName = "AlphaTexture";
-        _alphaTexture = _device->createTexture(d);
+        _alphaTexture = m_device->createTexture(d);
 
         size_t texelSize = ommTex.format == omm::Cpu::TextureFormat::FP32 ? sizeof(float) : sizeof(uint8_t);
 
-        _commandList->open();
-        _commandList->setEnableAutomaticBarriers(true);
-        _commandList->writeTexture(_alphaTexture, 0, 0, ommTex.mips[0].textureData, texelSize * ommTex.mips[0].rowPitch);
-        _commandList->close();
-        _device->executeCommandList(_commandList);
-        _device->waitForIdle();
+        m_commandList->open();
+        m_commandList->setEnableAutomaticBarriers(true);
+        m_commandList->writeTexture(_alphaTexture, 0, 0, ommTex.mips[0].textureData, texelSize * ommTex.mips[0].rowPitch);
+        m_commandList->close();
+        m_device->executeCommandList(m_commandList);
+        m_device->waitForIdle();
     }
 
     void _InitBuffers(const omm::Cpu::BakeInputDesc& input)
@@ -324,7 +335,7 @@ private:
             ib.initialState = nvrhi::ResourceStates::ShaderResource;
             ib.keepInitialState = true;
             ib.isIndexBuffer = true;
-            _indexBuffer = _device->createBuffer(ib);
+            _indexBuffer = m_device->createBuffer(ib);
         }
         else
         {
@@ -363,7 +374,7 @@ private:
                 texCoord.initialState = nvrhi::ResourceStates::ShaderResource;
                 texCoord.keepInitialState = true;
                 texCoord.isVertexBuffer = true;
-                _texCoordBuffer = _device->createBuffer(texCoord);
+                _texCoordBuffer = m_device->createBuffer(texCoord);
             }
             else
             {
@@ -371,84 +382,93 @@ private:
             }
         }
 
-        if (_resultDesc && _resultDesc->indexCount != 0)
+        m_commandList->open();
+        m_commandList->setEnableAutomaticBarriers(true);
+        if (_indexBuffer)
+            m_commandList->writeBuffer(_indexBuffer, input.indexBuffer, _indexBuffer->getDesc().byteSize);
+        if (_texCoordBuffer)
+            m_commandList->writeBuffer(_texCoordBuffer, input.texCoords, _texCoordBuffer->getDesc().byteSize);
+        m_commandList->close();
+        m_device->executeCommandList(m_commandList);
+        m_device->waitForIdle();
+    }
+
+    void _InitBakeResults(const omm::Cpu::BakeInputDesc& input)
+    {
         {
             nvrhi::BufferDesc ommIB;
             ommIB.debugName = "OmmIndexBuffer";
-            ommIB.byteSize = _resultDesc->indexCount * (_resultDesc->indexFormat == omm::IndexFormat::UINT_32 ? 4 : 2);
-            ommIB.format = _resultDesc->indexFormat == omm::IndexFormat::UINT_32 ? nvrhi::Format::R32_SINT : nvrhi::Format::R16_SINT;
+            if (_resultDesc && _resultDesc->indexCount != 0)
+            {
+                ommIB.format = _resultDesc->indexFormat == omm::IndexFormat::UINT_32 ? nvrhi::Format::R32_SINT : nvrhi::Format::R16_SINT;
+                ommIB.byteSize = _resultDesc->indexCount * (_resultDesc->indexFormat == omm::IndexFormat::UINT_32 ? 4 : 2);
+            }
+            else
+            {
+                ommIB.format = nvrhi::Format::R32_SINT;
+                ommIB.byteSize = 8;
+            }
+
             ommIB.initialState = nvrhi::ResourceStates::ShaderResource;
             ommIB.keepInitialState = true;
             ommIB.canHaveTypedViews = true;
-            _ommIndexBuffer = _device->createBuffer(ommIB);
-        }
-        else
-        {
-            _ommIndexBuffer = nullptr;
+            _ommIndexBuffer = m_device->createBuffer(ommIB);
         }
 
-        if (_resultDesc && _resultDesc->descArrayCount != 0)
         {
             nvrhi::BufferDesc ommDesc;
             ommDesc.debugName = "OmmDescBuffer";
-            ommDesc.byteSize = _resultDesc->descArrayCount * sizeof(omm::Cpu::OpacityMicromapDesc);
+            if (_resultDesc && _resultDesc->descArrayCount != 0)
+                ommDesc.byteSize = _resultDesc->descArrayCount * sizeof(omm::Cpu::OpacityMicromapDesc);
+            else
+                ommDesc.byteSize = 8;
             ommDesc.format = nvrhi::Format::UNKNOWN;
             ommDesc.initialState = nvrhi::ResourceStates::ShaderResource;
             ommDesc.structStride = sizeof(omm::Cpu::OpacityMicromapDesc);
             ommDesc.keepInitialState = true;
-            _ommDesc = _device->createBuffer(ommDesc);
-        }
-        else
-        {
-            _ommDesc = nullptr;
+            _ommDesc = m_device->createBuffer(ommDesc);
         }
 
-        if (_resultDesc && _resultDesc->arrayDataSize != 0)
         {
             nvrhi::BufferDesc ommArray;
             ommArray.debugName = "OmmArrayBuffer";
-            ommArray.byteSize = _resultDesc->arrayDataSize;
+            if (_resultDesc && _resultDesc->arrayDataSize != 0)
+                ommArray.byteSize = _resultDesc->arrayDataSize;
+            else
+                ommArray.byteSize = 8;
             //ommArray.format = nvrhi::Format::R32_UINT;
             ommArray.initialState = nvrhi::ResourceStates::ShaderResource;
             ommArray.keepInitialState = true;
             ommArray.canHaveRawViews = true;
-            _ommArrayData = _device->createBuffer(ommArray);
-        }
-        else
-        {
-            _ommArrayData = nullptr;
+            _ommArrayData = m_device->createBuffer(ommArray);
         }
 
-        _commandList->open();
-        _commandList->setEnableAutomaticBarriers(true);
-        if (_indexBuffer)
-            _commandList->writeBuffer(_indexBuffer, input.indexBuffer, _indexBuffer->getDesc().byteSize);
-        if (_texCoordBuffer)
-            _commandList->writeBuffer(_texCoordBuffer, input.texCoords, _texCoordBuffer->getDesc().byteSize);
-        if (_ommIndexBuffer)
-            _commandList->writeBuffer(_ommIndexBuffer, _resultDesc->indexBuffer, _ommIndexBuffer->getDesc().byteSize);
-        if (_ommDesc)
-            _commandList->writeBuffer(_ommDesc, _resultDesc->descArray, _ommDesc->getDesc().byteSize);
-        if (_ommArrayData)
-            _commandList->writeBuffer(_ommArrayData, _resultDesc->arrayData, _ommArrayData->getDesc().byteSize);
-        _commandList->close();
-        _device->executeCommandList(_commandList);
-        _device->waitForIdle();
+        m_commandList->open();
+        m_commandList->setEnableAutomaticBarriers(true);
+        if (_resultDesc && _resultDesc->indexCount != 0)
+            m_commandList->writeBuffer(_ommIndexBuffer, _resultDesc->indexBuffer, _ommIndexBuffer->getDesc().byteSize);
+        if (_resultDesc && _resultDesc->descArrayCount != 0)
+            m_commandList->writeBuffer(_ommDesc, _resultDesc->descArray, _ommDesc->getDesc().byteSize);
+        if (_resultDesc && _resultDesc->arrayDataSize != 0)
+            m_commandList->writeBuffer(_ommArrayData, _resultDesc->arrayData, _ommArrayData->getDesc().byteSize);
+        m_commandList->close();
+        m_device->executeCommandList(m_commandList);
+        m_device->waitForIdle();
     }
 
-    void _RebuildOmmData(const std::string& fileName)
+    void _LoadOmmData(const std::string& fileName)
     {
         if (_fileName != fileName)
         {
+            m_ui.primitiveEnd = -1;
+
             m_ui.input.reset();
             m_ui.textureDesc.reset();
             _data = _LoadDataFile(fileName);
         }
-        
-        _RebuildOmmData();
     }
 
-    void _RebuildOmmData()
+    void _RebuildOmmData(bool loadOnly)
     {
         omm::Cpu::BlobDesc blobDesc;
         blobDesc.data = _data.data();
@@ -506,6 +526,17 @@ private:
             m_ui.textureDesc = texDesc;
         }
 
+        _InitBuffers(input);
+        _InitSampler(input);
+        _InitTexture(texDesc);
+
+        if (loadOnly)
+        {
+            _InitBakeResults(input);
+            OMM_ABORT_ON_ERROR(omm::Cpu::DestroyDeserializedResult(res));
+            return;
+        }
+
         {
             texDesc = m_ui.textureDesc.value();
             texDesc.mips = mips;
@@ -532,9 +563,7 @@ private:
             OMM_ABORT_ON_ERROR(omm::Cpu::DestroyTexture(baker, textureClone));
         }
 
-        _InitSampler(input);
-        _InitTexture(texDesc);
-        _InitBuffers(input);
+        _InitBakeResults(input);
 
         OMM_ABORT_ON_ERROR(omm::Cpu::DestroyDeserializedResult(res));
     }
@@ -608,7 +637,9 @@ public:
 
         m_CommandList = GetDevice()->createCommandList();
 
-        m_ommData.Bake(m_ommFiles[0].string(), GetDevice());
+        m_ommData.Init(GetDevice());
+        m_ommData.Load(m_ommFiles[0].string());
+        m_ommData.Bake();
     
         return true;
     }
@@ -640,16 +671,22 @@ public:
     
     void Render(nvrhi::IFramebuffer* framebuffer) override
     {
-        if (m_ui.rebake || m_ui.recompile)
+        if (m_ui.rebake || m_ui.load || m_ui.recompile)
         {
             GetDevice()->waitForIdle();
 
+            if (m_ui.load)
+            {
+                m_ommData.Load(m_ommFiles[m_ui.selectedFile].string());
+            }
+
             if (m_ui.rebake)
             {
-                m_ommData.Bake(m_ommFiles[m_ui.selectedFile].string(), GetDevice());
+                m_ommData.Bake();
             }
             
             ClearAllResource();
+            m_ui.load = false;
             m_ui.rebake = false;
             m_ui.recompile = false;
         }
@@ -1025,15 +1062,11 @@ protected:
 
         int maxPrimitiveCount = m_app->GetOmmGpuData().GetIndexCount() / 3;
 
-        if (m_ui.primitiveEnd == -1)
-        {
-            m_ui.primitiveEnd = std::min(128, maxPrimitiveCount);
-        }
 
         auto& files = m_app->GetOmmFiles();
         auto selected = files[m_ui.selectedFile].filename().string();
 
-        if (ImGui::BeginCombo("Combo Box", selected.c_str())) // Pass in the label and the current item
+        if (ImGui::BeginCombo("Data", selected.c_str())) // Pass in the label and the current item
         {
             for (int i = 0; i < files.size(); i++)
             {
@@ -1043,11 +1076,17 @@ protected:
                 if (ImGui::Selectable(file.c_str(), is_selected))
                 {
                     m_ui.selectedFile = i;
+                    m_ui.load = true;
                 }
                 if (is_selected)
                     ImGui::SetItemDefaultFocus();
             }
             ImGui::EndCombo();
+        }
+
+        if (m_ui.primitiveEnd == -1)
+        {
+            m_ui.primitiveEnd = maxPrimitiveCount;// std::min(128, maxPrimitiveCount);
         }
 
         if (ImGui::SliderInt("Primitive Start", &m_ui.primitiveStart, 0, maxPrimitiveCount - 1, "%d"))
