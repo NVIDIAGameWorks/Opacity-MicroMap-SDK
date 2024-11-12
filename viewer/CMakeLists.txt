@@ -20,6 +20,29 @@
 # DEALINGS IN THE SOFTWARE.
 
 
-cmake_minimum_required(VERSION 3.13)
+include(../thirdparty/donut/compileshaders.cmake)
+file(GLOB shaders "*.hlsl")
+file(GLOB sources "*.cpp" "*.h")
 
-add_subdirectory(app)
+set(project viewer)
+set(folder "Viewer")
+
+donut_compile_shaders(
+    TARGET ${project}_shaders
+    CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/shaders.cfg
+    SOURCES ${shaders}
+    FOLDER ${folder}
+    DXIL ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders/${project}/dxil
+    SPIRV_DXC ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders/${project}/spirv
+)
+
+add_executable(${project} WIN32 ${sources})
+target_link_libraries(${project} donut_app donut_engine omm-sdk)
+target_include_directories(${project} PRIVATE "${CMAKE_SOURCE_DIR}/thirdparty/imgui-filebrowser")
+add_dependencies(${project} ${project}_shaders)
+set_target_properties(${project} PROPERTIES FOLDER ${folder})
+
+
+if (MSVC)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W3 /MP")
+endif()

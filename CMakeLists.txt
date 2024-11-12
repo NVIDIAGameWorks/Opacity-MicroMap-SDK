@@ -40,7 +40,7 @@ if (NOT DEFINED OMM_PROJECT_FOLDER)
 endif()
 
 if (OMM_BUILD_VIEWER)
-    add_subdirectory(util/viewer_app)
+    add_subdirectory(viewer)
 endif()
 
 add_subdirectory(thirdparty)

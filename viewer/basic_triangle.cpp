@@ -626,9 +626,8 @@ public:
 
     bool Init()
     {
-
-        std::filesystem::path appShaderPath = app::GetDirectoryWithExecutable() / "shaders/basic_triangle" /  app::GetShaderTypeName(GetDevice()->getGraphicsAPI());
-        std::filesystem::path frameworkShaderPath = app::GetDirectoryWithExecutable() / "shaders/framework" / app::GetShaderTypeName(GetDevice()->getGraphicsAPI());
+        std::filesystem::path appShaderPath = app::GetDirectoryWithExecutable() / "../shaders/viewer" /  app::GetShaderTypeName(GetDevice()->getGraphicsAPI());
+        std::filesystem::path frameworkShaderPath = app::GetDirectoryWithExecutable() / "../shaders/framework" / app::GetShaderTypeName(GetDevice()->getGraphicsAPI());
 
         //auto nativeFS = std::make_shared<vfs::NativeFileSystem>();
         auto rootFs = std::make_shared<vfs::RootFileSystem>();
@@ -1039,7 +1038,7 @@ public:
         , m_ui(ui)
         , fileDialog(ImGuiFileBrowserFlags_SelectDirectory)
     {
-        std::filesystem::path frameworkShaderPath = app::GetDirectoryWithExecutable() / "shaders/framework" / app::GetShaderTypeName(GetDevice()->getGraphicsAPI());
+        std::filesystem::path frameworkShaderPath = app::GetDirectoryWithExecutable() / "../shaders/framework" / app::GetShaderTypeName(GetDevice()->getGraphicsAPI());
         auto rootFs = std::make_shared<vfs::RootFileSystem>();
         rootFs->mount("/shaders/donut", frameworkShaderPath);
 
@@ -1047,8 +1046,10 @@ public:
         ImGui::GetIO().IniFilename = nullptr;
 
         // (optional) set browser properties
-        fileDialog.SetTitle("OMM Data Directory");
+        fileDialog.SetTitle("Select directory of bake input binaries to view (.bin)");
         fileDialog.SetTypeFilters({ ".bin" });
+
+        SelectFileDir("E:\\git\\Opacity-MicroMap-SDK\\data");
     }
 
     void Init()
@@ -1057,6 +1058,34 @@ public:
     }
 
 protected:
+
+    void SelectFileDir(std::string dir)
+    {
+        m_ui.ommFiles.clear();
+        m_ui.path = dir;
+        for (const auto& entry : std::filesystem::directory_iterator(m_ui.path))
+        {
+            auto ext = entry.path().extension();
+            if (ext == ".bin")
+                m_ui.ommFiles.push_back(entry.path());
+        }
+
+        std::sort(m_ui.ommFiles.begin(), m_ui.ommFiles.end(), [](const std::filesystem::path& a, const std::filesystem::path& b) {
+            return a.filename().string() < b.filename().string();
+            });
+
+        if (m_ui.ommFiles.size() != 0)
+        {
+            m_ui.selectedFile = 0;
+            m_ui.rebake = true;
+        }
+        else
+        {
+            m_ui.selectedFile = -1;
+        }
+
+        m_ui.load = true;
+    }
 
     virtual void buildUI(void) override
     {
@@ -1083,57 +1112,28 @@ protected:
 
         int maxPrimitiveCount = m_app->GetOmmGpuData().GetIndexCount() / 3;
 
-        if (false)
+        if (!m_ui.path.empty())
         {
-            std::string path = "E:\\git\\Opacity-MicroMap-SDK\\util\\viewer_app\\app\\data\\";
-            for (const auto& entry : std::filesystem::directory_iterator(path))
-            {
-                m_ui.ommFiles.push_back(entry.path());
-            }
-
-            std::sort(m_ui.ommFiles.begin(), m_ui.ommFiles.end(), [](const std::filesystem::path& a, const std::filesystem::path& b) {
-                return a.filename().string() < b.filename().string();
-                });
+            if (ImGui::Button(m_ui.path.c_str()))
+                fileDialog.Open();
+        }
+        else
+        {
+            if (ImGui::Button("Select a path with .bin files"))
+                fileDialog.Open();
         }
 
-        if (ImGui::Button("Select a path with .bin files"))
-            fileDialog.Open();
 
         fileDialog.Display();
 
         if (fileDialog.HasSelected())
         {
-            m_ui.ommFiles.clear();
-            m_ui.path = fileDialog.GetSelected().string();
-            for (const auto& entry : std::filesystem::directory_iterator(m_ui.path))
-            {
-                auto ext = entry.path().extension();
-                if (ext == ".bin")
-                    m_ui.ommFiles.push_back(entry.path());
-            }
-
-            std::sort(m_ui.ommFiles.begin(), m_ui.ommFiles.end(), [](const std::filesystem::path& a, const std::filesystem::path& b) {
-                return a.filename().string() < b.filename().string();
-            });
-
-            if (m_ui.ommFiles.size() != 0)
-            {
-                m_ui.selectedFile = 0;
-                m_ui.rebake = true;
-            }
-            else
-            {
-                m_ui.selectedFile = -1;
-            }
-
-            m_ui.load = true;
-
+            SelectFileDir(fileDialog.GetSelected().string());
             fileDialog.ClearSelected();
         }
-        if (m_ui.path.length() != 0)
-        {
-            ImGui::Text(m_ui.path.c_str());
-        }
+
+        ImGui::SameLine();
+        ImGui::Text("Path");
 
         if (m_ui.ommFiles.size() != 0)
         {
@@ -1161,7 +1161,7 @@ protected:
         }
         else
         {
-            ImGui::BeginCombo("Data", "Path contains no .bin files");
+            ImGui::Text("Path contains no .bin files");
         }
 
         ImGui::BeginDisabled(!m_app->GetOmmGpuData().HasLoadedData());
@@ -1249,7 +1249,31 @@ protected:
             ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Enable Validation", id++, m_ui.input->bakeFlags, input.bakeFlags, omm::Cpu::BakeFlags::EnableValidation);
 
             ImGui_SliderInt<uint8_t>("Max Subdivision Level", id++, m_ui.input->maxSubdivisionLevel, input.maxSubdivisionLevel, 0, 12);
-            ImGui_SliderFloat("Dynamic Subdivision Scale", id++, m_ui.input->dynamicSubdivisionScale, input.dynamicSubdivisionScale, 0.f, 10.f);
+            {
+                ImGui::BeginDisabled(input.dynamicSubdivisionScale == m_ui.input->dynamicSubdivisionScale);
+
+                ImGui::PushID(id++);
+                if (ImGui::Button("Reset"))
+                {
+                    m_ui.input->dynamicSubdivisionScale = input.dynamicSubdivisionScale;
+                }
+                ImGui::PopID();
+                ImGui::EndDisabled();
+
+                ImGui::PushID(id++);
+                ImGui::SameLine();
+                if (ImGui::Button("-1.f"))
+                {
+                    m_ui.input->dynamicSubdivisionScale = -1.f;
+                }
+                ImGui::PopID();
+
+
+                ImGui::SameLine();
+
+                ImGui::SliderFloat("Dynamic Subdivision Scale", &m_ui.input->dynamicSubdivisionScale, 0.f, 10.f);
+            }
+
             ImGui_SliderFloat("Rejection Threshold", id++, m_ui.input->rejectionThreshold, input.rejectionThreshold, 0.f, 1.f);
 
             ImGui_ValueUInt64("Max Workload Size", id++, m_ui.input->maxWorkloadSize, input.maxWorkloadSize);
