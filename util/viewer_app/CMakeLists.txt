@@ -38,7 +38,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO "${CMAKE_RUNTIME_OUTPUT_DIRECT
 set(DONUT_SHADERS_OUTPUT_DIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders/framework")
 
 add_subdirectory(donut)
-add_subdirectory(feature_demo)
+add_subdirectory(app)
 
 if (NVRHI_WITH_VULKAN OR NVRHI_WITH_DX12)
 endif()

@@ -29,6 +29,7 @@
 #include <nvrhi/utils.h>
 #include <donut/app/imgui_console.h>
 #include <donut/app/imgui_renderer.h>
+#include "imgui-filebrowser/imfilebrowser.h"
 
 using namespace donut;
 using namespace donut::math;
@@ -73,7 +74,24 @@ static void PopupOnFailure(const char* funName, omm::Result result)
 
 static void Log(omm::MessageSeverity severity, const char* message, void* userArg)
 {
-    donut::log::message(donut::log::Severity::Info, "[omm-sdk]: %s", message);
+    donut::log::Severity donutSeverity = donut::log::Severity::Info;
+    switch (severity)
+    {
+    case omm::MessageSeverity::Info:
+        donutSeverity = donut::log::Severity::Info;
+        break;
+    case omm::MessageSeverity::Warning:
+        donutSeverity = donut::log::Severity::Warning;
+        break;
+    case omm::MessageSeverity::PerfWarning:
+        donutSeverity = donut::log::Severity::Warning;
+        break;
+    case omm::MessageSeverity::Fatal:
+        donutSeverity = donut::log::Severity::Error;
+        break;
+    }
+
+    donut::log::message(donutSeverity, "[omm-sdk]: %s", message);
 }
 
 #define _OMM_ON_ERROR(fun, onError)do { \
@@ -114,40 +132,19 @@ private:
     omm::Baker _baker;
 };
 
-class SimpleProfiler {
-public:
-    SimpleProfiler(const std::string& name) : name_(name), start_(std::chrono::high_resolution_clock::now()) {
-       // std::cout << "Profiling started: " << name_ << std::endl;
-    }
-
-    ~SimpleProfiler() {
-        auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start_).count();
-       // std::cout << "Profiling ended: " << name_ << " - Duration: " << duration << " microseconds" << std::endl;
-    }
-
-private:
-    std::string name_;
-    std::chrono::high_resolution_clock::time_point start_;
-};
-
-enum class Bool3
-{
-    Default,
-    Enable,
-    Disable
-};
-
 struct UIData
 {
     bool ShowUI = true;
 
-    int selectedFile = 0;
     int primitiveStart = 0;
     int primitiveEnd = -1;
     float zoom = 1.f;
     float2 offset = 0.f;
     float2 prevOffset = 0.f;
+
+    std::string path;
+    std::vector<std::filesystem::path> ommFiles;
+    int selectedFile = 0;
 
     std::optional<omm::Cpu::TextureDesc> textureDesc;
     std::optional<omm::Cpu::BakeInputDesc> input;
@@ -164,6 +161,7 @@ class OmmGpuData
     nvrhi::IDevice* m_device = nullptr;
     nvrhi::CommandListHandle m_commandList = nullptr;
 
+    bool _hasLoadedData = false;
     std::string _fileName;
     std::vector<uint8_t> _data;
 
@@ -185,26 +183,6 @@ class OmmGpuData
     uint64_t _bakeTimeInSeconds = 0;
     uint32_t _indexCount = 0;
 
-    void ClearAll()
-    {
-        if (_result != 0)
-        {
-            OMM_ABORT_ON_ERROR(omm::Cpu::DestroyBakeResult(_result));
-            _result = 0;
-        }
-        _resultDesc = nullptr;
-
-        _stats = {};
-
-       // _sampler = nullptr;
-        _alphaTexture = nullptr;
-        _texCoordBuffer = nullptr;
-        _indexBuffer = nullptr;
-        _ommIndexBuffer = nullptr;
-        _ommDesc = nullptr;
-        _ommArrayData = nullptr;
-    }
-
 public:
     OmmGpuData(UIData& ui):m_ui(ui)
     {
@@ -221,17 +199,44 @@ public:
         ClearAll();
     }
 
-    void Load(const std::string& fileName)
+    bool HasLoadedData() const
+    {
+        return _hasLoadedData;
+    }
+
+    bool Load(const std::string& fileName)
     {
         ClearAll();
         _LoadOmmData(fileName);
-        _RebuildOmmData(true /*loadOnly*/);
+
+        return _RebuildOmmData(true /*loadOnly*/);
     }
 
-    void Bake()
+    bool Bake()
     {
         ClearAll();
-        _RebuildOmmData(false /*loadOnly*/);
+        return _RebuildOmmData(false /*loadOnly*/);
+    }
+
+    void ClearAll()
+    {
+        _hasLoadedData = false;
+        if (_result != 0)
+        {
+            OMM_ABORT_ON_ERROR(omm::Cpu::DestroyBakeResult(_result));
+            _result = 0;
+        }
+        _resultDesc = nullptr;
+
+        _stats = {};
+
+        // _sampler = nullptr;
+        _alphaTexture = nullptr;
+        _texCoordBuffer = nullptr;
+        _indexBuffer = nullptr;
+        _ommIndexBuffer = nullptr;
+        _ommDesc = nullptr;
+        _ommArrayData = nullptr;
     }
 
     std::string GetFileName() const { return _fileName; }
@@ -468,7 +473,7 @@ private:
         }
     }
 
-    void _RebuildOmmData(bool loadOnly)
+    bool _RebuildOmmData(bool loadOnly)
     {
         omm::Cpu::BlobDesc blobDesc;
         blobDesc.data = _data.data();
@@ -477,7 +482,12 @@ private:
         omm::Baker baker = _lib.GetBaker();
 
         omm::Cpu::DeserializedResult res;
-        OMM_ABORT_ON_ERROR(omm::Cpu::Deserialize(baker, blobDesc, &res));
+        {
+            omm::Result err = omm::Cpu::Deserialize(baker, blobDesc, &res);
+            OMM_POPUP_ON_ERROR(err);
+            if (err != omm::Result::SUCCESS)
+                return false;
+        }
 
         const omm::Cpu::DeserializedDesc* deserializeDesc = nullptr;
         OMM_ABORT_ON_ERROR(omm::Cpu::GetDeserializedDesc(res, &deserializeDesc));
@@ -534,7 +544,8 @@ private:
         {
             _InitBakeResults(input);
             OMM_ABORT_ON_ERROR(omm::Cpu::DestroyDeserializedResult(res));
-            return;
+            _hasLoadedData = true;
+            return true;
         }
 
         {
@@ -566,6 +577,9 @@ private:
         _InitBakeResults(input);
 
         OMM_ABORT_ON_ERROR(omm::Cpu::DestroyDeserializedResult(res));
+
+        _hasLoadedData = true;
+        return true;
     }
 };
 
@@ -588,11 +602,13 @@ private:
     nvrhi::SamplerHandle m_LinearSampler;
     nvrhi::InputLayoutHandle m_InputLayout;
     nvrhi::CommandListHandle m_CommandList;
-    std::vector<std::filesystem::path> m_ommFiles;
     OmmGpuData m_ommData;
     UIData& m_ui;
     std::shared_ptr<engine::ShaderFactory> m_ShaderFactory;
 
+    bool m_mouseDown = false;
+    float2 m_mousePos = float2(0, 0);
+    float2 m_referencePos = float2(0, 0);
 public:
     using IRenderPass::IRenderPass;
 
@@ -603,11 +619,6 @@ public:
         return m_ShaderFactory;
     }
 
-    const std::vector<std::filesystem::path>& GetOmmFiles() const
-    {
-        return m_ommFiles;
-    }
-
     const OmmGpuData& GetOmmGpuData() const
     {
         return m_ommData;
@@ -615,15 +626,6 @@ public:
 
     bool Init()
     {
-        std::string path = "E:\\git\\Opacity-MicroMap-SDK\\util\\viewer_app\\feature_demo\\data\\";
-        for (const auto& entry : std::filesystem::directory_iterator(path))
-        {
-            m_ommFiles.push_back(entry.path());
-        }
-
-        std::sort(m_ommFiles.begin(), m_ommFiles.end(), [](const std::filesystem::path& a, const std::filesystem::path& b) {
-            return a.filename().string() < b.filename().string();
-        });
 
         std::filesystem::path appShaderPath = app::GetDirectoryWithExecutable() / "shaders/basic_triangle" /  app::GetShaderTypeName(GetDevice()->getGraphicsAPI());
         std::filesystem::path frameworkShaderPath = app::GetDirectoryWithExecutable() / "shaders/framework" / app::GetShaderTypeName(GetDevice()->getGraphicsAPI());
@@ -638,11 +640,61 @@ public:
         m_CommandList = GetDevice()->createCommandList();
 
         m_ommData.Init(GetDevice());
-        m_ommData.Load(m_ommFiles[0].string());
-        m_ommData.Bake();
+        //m_ommData.Load(m_ommFiles[0].string());
+        //m_ommData.Bake();
     
         return true;
     }
+
+protected:
+
+    virtual bool MouseButtonUpdate(int button, int action, int mods)
+    {
+        if (button == 0)
+        {
+            if (action == 1)
+            {
+                m_mouseDown = true;
+                m_referencePos = m_mousePos;
+            }
+            else
+            {
+                m_ui.prevOffset += m_ui.offset;
+                m_ui.offset = float2(0, 0);
+                m_mouseDown = false;
+            }
+        }
+        return false;
+    }
+
+    virtual bool MouseScrollUpdate(double xoffset, double yoffset)
+    {
+        m_ui.zoom += 0.15f * m_ui.zoom * (float)yoffset;
+
+        return false;
+    }
+
+    virtual bool MousePosUpdate(double xpos, double ypos)
+    {
+        float scaleX, scaleY;
+        GetDeviceManager()->GetDPIScaleInfo(scaleX, scaleY);
+
+        xpos *= scaleX;
+        ypos *= scaleY;
+
+        int2 windowSize;
+        GetDeviceManager()->GetWindowDimensions(windowSize.x, windowSize.y);
+
+        m_mousePos = float2((float)xpos, (float)ypos);
+        if (m_mouseDown)
+        {
+            m_ui.offset = (2.f / (float2)windowSize) * (m_referencePos - m_mousePos) / m_ui.zoom;
+            m_ui.offset.x = -m_ui.offset.x;
+        }
+        return false;
+    }
+
+private:
 
     void ClearAllResource()
     {
@@ -674,21 +726,39 @@ public:
         if (m_ui.rebake || m_ui.load || m_ui.recompile)
         {
             GetDevice()->waitForIdle();
+            m_ommData.ClearAll();
 
-            if (m_ui.load)
+            if (m_ui.load && m_ui.selectedFile >= 0)
             {
-                m_ommData.Load(m_ommFiles[m_ui.selectedFile].string());
+                if (m_ommData.Load(m_ui.ommFiles[m_ui.selectedFile].string()))
+                {
+                    if (m_ui.rebake)
+                    {
+                        m_ommData.Bake();
+                    }
+                }
+                m_ui.rebake = false;
+                m_ui.load = false;
             }
 
             if (m_ui.rebake)
             {
                 m_ommData.Bake();
+                m_ui.rebake = false;
             }
             
             ClearAllResource();
             m_ui.load = false;
-            m_ui.rebake = false;
             m_ui.recompile = false;
+        }
+
+        if (!m_ommData.HasLoadedData())
+        {
+            m_CommandList->open();
+            nvrhi::utils::ClearColorAttachment(m_CommandList, framebuffer, 0, nvrhi::Color(0.f));
+            m_CommandList->close();
+            GetDevice()->executeCommandList(m_CommandList);
+            return;
         }
 
         if (!m_Pipeline)
@@ -723,24 +793,23 @@ public:
                 log::error("Couldn't create the binding set or layout");
             }
 
+
             nvrhi::GraphicsPipelineDesc psoDesc;
             psoDesc.VS = m_VertexShader;
             psoDesc.PS = m_PixelShader;
             psoDesc.primType = nvrhi::PrimitiveType::TriangleList;
             psoDesc.renderState.depthStencilState.depthTestEnable = false;
+           // psoDesc.renderState.depthStencilState.stencilEnable = false;
+           // psoDesc.renderState.depthStencilState.frontFaceStencil.stencilFunc = nvrhi::ComparisonFunc::Equal;
+           // psoDesc.renderState.depthStencilState.frontFaceStencil.passOp = nvrhi::StencilOp::Invert;
+           // psoDesc.renderState.depthStencilState.backFaceStencil.stencilFunc = nvrhi::ComparisonFunc::Equal;
+           // psoDesc.renderState.depthStencilState.backFaceStencil.passOp = nvrhi::StencilOp::Invert;
             psoDesc.bindingLayouts = { m_BindingLayout };
             psoDesc.inputLayout = m_InputLayout;
             psoDesc.renderState.rasterState.setFrontCounterClockwise(false);
             psoDesc.renderState.rasterState.fillMode = nvrhi::RasterFillMode::Wireframe;
             psoDesc.renderState.rasterState.setCullNone();
 
-            // nvrhi::BlendState::RenderTarget blendState;
-            // blendState.setBlendEnable(true);
-            // blendState.setSrcBlend(nvrhi::BlendFactor::SrcAlpha);
-            // blendState.setDestBlend(nvrhi::BlendFactor::InvSrcAlpha);
-
-           // psoDesc.renderState.blendState.setRenderTarget(0, blendState);
-            
             m_PipelineWireFrame = GetDevice()->createGraphicsPipeline(psoDesc, framebuffer);
             
             psoDesc.renderState.rasterState.fillMode = nvrhi::RasterFillMode::Fill;
@@ -833,8 +902,6 @@ public:
             args.vertexCount = 3 * std::max(0, (m_ui.primitiveEnd - m_ui.primitiveStart));
             m_CommandList->drawIndexed(args);
         }
-
-        
 
         m_CommandList->close();
         GetDevice()->executeCommandList(m_CommandList);
@@ -961,15 +1028,16 @@ private:
     UIData& m_ui;
     std::shared_ptr<engine::ShaderFactory> m_ShaderFactory;
     std::shared_ptr<BasicTriangle> m_app;
-    bool m_mouseDown = false;
-    float2 m_mousePos = float2(0, 0);
-    float2 m_referencePos = float2(0, 0);
-    int2 m_windowSize = 0;
+
+    // create a file browser instance
+    ImGui::FileBrowser fileDialog;
+
 public:
     UIRenderer(donut::app::DeviceManager* deviceManager, std::shared_ptr<BasicTriangle> app, UIData& ui)
         : ImGui_Renderer(deviceManager)
         , m_app(app)
         , m_ui(ui)
+        , fileDialog(ImGuiFileBrowserFlags_SelectDirectory)
     {
         std::filesystem::path frameworkShaderPath = app::GetDirectoryWithExecutable() / "shaders/framework" / app::GetShaderTypeName(GetDevice()->getGraphicsAPI());
         auto rootFs = std::make_shared<vfs::RootFileSystem>();
@@ -978,7 +1046,9 @@ public:
         m_ShaderFactory = std::make_shared<engine::ShaderFactory>(GetDevice(), rootFs, "/shaders");
         ImGui::GetIO().IniFilename = nullptr;
 
-        UpdateWindowSize();
+        // (optional) set browser properties
+        fileDialog.SetTitle("OMM Data Directory");
+        fileDialog.SetTypeFilters({ ".bin" });
     }
 
     void Init()
@@ -987,62 +1057,6 @@ public:
     }
 
 protected:
-    virtual bool MouseButtonUpdate(int button, int action, int mods)
-    {
-        if (donut::app::ImGui_Renderer::MouseButtonUpdate(button, action, mods))
-            return true;
-
-        if (button == 0)
-        {
-            if (action == 1)
-            {
-                m_mouseDown = true;
-                m_referencePos = m_mousePos;
-            }
-            else
-            {
-                m_ui.prevOffset += m_ui.offset;
-                m_ui.offset = float2(0,0);
-                m_mouseDown = false;
-            }
-        }
-        return false;
-    }
-    virtual bool MousePosUpdate(double xpos, double ypos)
-    {
-        if (donut::app::ImGui_Renderer::MousePosUpdate(xpos, ypos))
-            return true;
-
-        float scaleX, scaleY;
-        GetDeviceManager()->GetDPIScaleInfo(scaleX, scaleY);
-
-        xpos *= scaleX;
-        ypos *= scaleY;
-
-        m_mousePos = float2((float)xpos, (float)ypos);
-        if (m_mouseDown)
-        {
-            m_ui.offset = (2.f / (float2)m_windowSize) * (m_referencePos - m_mousePos) / m_ui.zoom;
-            m_ui.offset.x = -m_ui.offset.x;
-        }
-        return false;
-    }
-
-    virtual bool MouseScrollUpdate(double xoffset, double yoffset)
-    {
-        if (donut::app::ImGui_Renderer::MouseScrollUpdate(xoffset, yoffset))
-            return true;
-        m_ui.zoom += 0.1f * m_ui.zoom * (float)yoffset;
-
-        return false;
-    }
-
-protected:
-
-    void UpdateWindowSize()
-    {
-        GetDeviceManager()->GetWindowDimensions(m_windowSize.x, m_windowSize.y);
-    }
 
     virtual void buildUI(void) override
     {
@@ -1051,10 +1065,17 @@ protected:
 
         const auto& io = ImGui::GetIO();
 
-        UpdateWindowSize();
+        int2 windowSize;
+        GetDeviceManager()->GetWindowDimensions(windowSize.x, windowSize.y);
 
-        ImGui::SetNextWindowPos(ImVec2(10.f, 10.f), 0);
+        float scaleX, scaleY;
+        GetDeviceManager()->GetDPIScaleInfo(scaleX, scaleY);
+
+        ImGui::SetNextWindowPos(ImVec2(10.f, 10.f), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSizeConstraints(ImVec2(10.f, 10.f), ImVec2(windowSize.x / scaleX - 20.f, windowSize.y / scaleY - 20.f));
+
         ImGui::Begin("Settings", 0, ImGuiWindowFlags_AlwaysAutoResize);
+
         ImGui::Text("Renderer: %s", GetDeviceManager()->GetRendererString());
         double frameTime = GetDeviceManager()->GetAverageFrameTimeSeconds();
         if (frameTime > 0.0)
@@ -1062,163 +1083,232 @@ protected:
 
         int maxPrimitiveCount = m_app->GetOmmGpuData().GetIndexCount() / 3;
 
-
-        auto& files = m_app->GetOmmFiles();
-        auto selected = files[m_ui.selectedFile].filename().string();
-
-        if (ImGui::BeginCombo("Data", selected.c_str())) // Pass in the label and the current item
+        if (false)
         {
-            for (int i = 0; i < files.size(); i++)
+            std::string path = "E:\\git\\Opacity-MicroMap-SDK\\util\\viewer_app\\app\\data\\";
+            for (const auto& entry : std::filesystem::directory_iterator(path))
             {
-                auto file = files[i].filename().string();
+                m_ui.ommFiles.push_back(entry.path());
+            }
 
-                bool is_selected = (m_ui.selectedFile == i);
-                if (ImGui::Selectable(file.c_str(), is_selected))
+            std::sort(m_ui.ommFiles.begin(), m_ui.ommFiles.end(), [](const std::filesystem::path& a, const std::filesystem::path& b) {
+                return a.filename().string() < b.filename().string();
+                });
+        }
+
+        if (ImGui::Button("Select a path with .bin files"))
+            fileDialog.Open();
+
+        fileDialog.Display();
+
+        if (fileDialog.HasSelected())
+        {
+            m_ui.ommFiles.clear();
+            m_ui.path = fileDialog.GetSelected().string();
+            for (const auto& entry : std::filesystem::directory_iterator(m_ui.path))
+            {
+                auto ext = entry.path().extension();
+                if (ext == ".bin")
+                    m_ui.ommFiles.push_back(entry.path());
+            }
+
+            std::sort(m_ui.ommFiles.begin(), m_ui.ommFiles.end(), [](const std::filesystem::path& a, const std::filesystem::path& b) {
+                return a.filename().string() < b.filename().string();
+            });
+
+            if (m_ui.ommFiles.size() != 0)
+            {
+                m_ui.selectedFile = 0;
+                m_ui.rebake = true;
+            }
+            else
+            {
+                m_ui.selectedFile = -1;
+            }
+
+            m_ui.load = true;
+
+            fileDialog.ClearSelected();
+        }
+        if (m_ui.path.length() != 0)
+        {
+            ImGui::Text(m_ui.path.c_str());
+        }
+
+        if (m_ui.ommFiles.size() != 0)
+        {
+            auto& files = m_ui.ommFiles;
+            auto selected = files[m_ui.selectedFile].filename().string();
+
+            if (ImGui::BeginCombo("Data", selected.c_str())) // Pass in the label and the current item
+            {
+                for (int i = 0; i < files.size(); i++)
                 {
-                    m_ui.selectedFile = i;
-                    m_ui.load = true;
+                    auto file = files[i].filename().string();
+
+                    bool is_selected = (m_ui.selectedFile == i);
+                    if (ImGui::Selectable(file.c_str(), is_selected))
+                    {
+                        m_ui.selectedFile = i;
+                        m_ui.load = true;
+                        m_ui.rebake = true;
+                    }
+                    if (is_selected)
+                        ImGui::SetItemDefaultFocus();
                 }
-                if (is_selected)
-                    ImGui::SetItemDefaultFocus();
+                ImGui::EndCombo();
             }
-            ImGui::EndCombo();
+        }
+        else
+        {
+            ImGui::BeginCombo("Data", "Path contains no .bin files");
         }
 
-        if (m_ui.primitiveEnd == -1)
+        ImGui::BeginDisabled(!m_app->GetOmmGpuData().HasLoadedData());
+
+        if (m_app->GetOmmGpuData().HasLoadedData() && m_ui.input.has_value())
         {
-            m_ui.primitiveEnd = maxPrimitiveCount;// std::min(128, maxPrimitiveCount);
-        }
-
-        if (ImGui::SliderInt("Primitive Start", &m_ui.primitiveStart, 0, maxPrimitiveCount - 1, "%d"))
-        {
-            if (m_ui.primitiveStart >= m_ui.primitiveEnd)
-                m_ui.primitiveEnd = m_ui.primitiveStart + 1;
-        }
-
-        if (ImGui::SliderInt("Primitive End", &m_ui.primitiveEnd, 1, maxPrimitiveCount, "%d"))
-        {
-            if (m_ui.primitiveStart >= m_ui.primitiveEnd)
-                m_ui.primitiveStart = m_ui.primitiveEnd - 1;
-        }
-
-        const omm::Cpu::TextureDesc& texDesc = m_app->GetOmmGpuData().GetDefaultTextureDesc();
-        const omm::Cpu::BakeInputDesc& input = m_app->GetOmmGpuData().GetDefaultInput();
-
-        uint32_t id = 0;
-
-        ImGui::SeparatorText("Texture Settings");
-
-        uint width = m_app->GetOmmGpuData().GetAlphaTexture()->getDesc().width;
-        uint height = m_app->GetOmmGpuData().GetAlphaTexture()->getDesc().height;
-        nvrhi::Format format = m_app->GetOmmGpuData().GetAlphaTexture()->getDesc().format;
-
-        const char* formatstr = "Format unknown";
-        if (format == nvrhi::Format::R32_FLOAT)
-            formatstr = "Float 32";
-        else if (format == nvrhi::Format::R8_UNORM)
-            formatstr = "Unorm 8";
-
-        ImGui::Text("Alpha Texture %dx%d,%s", width, height, formatstr);
-
-        ImGui_Combo<5>("Addressing Mode", id++, { "Wrap", "Mirror", "Clamp", "Border", "MirrorOnce" }, m_ui.input->runtimeSamplerDesc.addressingMode, input.runtimeSamplerDesc.addressingMode);
-
-        ImGui_CheckBoxFlag<omm::Cpu::TextureFlags>("Disable Z Order", id++, m_ui.textureDesc->flags, texDesc.flags, omm::Cpu::TextureFlags::DisableZOrder);
-
-        {
-            ImGui::BeginDisabled(texDesc.alphaCutoff == m_ui.textureDesc->alphaCutoff);
-
-            ImGui::PushID(id++);
-            if (ImGui::Button("Reset"))
+            if (m_ui.primitiveEnd == -1)
             {
-                m_ui.textureDesc->alphaCutoff = texDesc.alphaCutoff;
+                m_ui.primitiveEnd = std::min(128, maxPrimitiveCount);
             }
-            ImGui::PopID();
 
-            ImGui::EndDisabled();
+            if (ImGui::SliderInt("Primitive Start", &m_ui.primitiveStart, 0, maxPrimitiveCount - 1, "%d"))
+            {
+                if (m_ui.primitiveStart >= m_ui.primitiveEnd)
+                    m_ui.primitiveEnd = m_ui.primitiveStart + 1;
+            }
+
+            if (ImGui::SliderInt("Primitive End", &m_ui.primitiveEnd, 1, maxPrimitiveCount, "%d"))
+            {
+                if (m_ui.primitiveStart >= m_ui.primitiveEnd)
+                    m_ui.primitiveStart = m_ui.primitiveEnd - 1;
+            }
+
+            const omm::Cpu::TextureDesc& texDesc = m_app->GetOmmGpuData().GetDefaultTextureDesc();
+            const omm::Cpu::BakeInputDesc& input = m_app->GetOmmGpuData().GetDefaultInput();
+
+            uint32_t id = 0;
+
+            ImGui::SeparatorText("Texture Settings");
+
+            if (nvrhi::ITexture* texture = m_app->GetOmmGpuData().GetAlphaTexture())
+            {
+                uint width = texture->getDesc().width;
+                uint height = texture->getDesc().height;
+                nvrhi::Format format = texture->getDesc().format;
+
+                const char* formatstr = "Format unknown";
+                if (format == nvrhi::Format::R32_FLOAT)
+                    formatstr = "Float 32";
+                else if (format == nvrhi::Format::R8_UNORM)
+                    formatstr = "Unorm 8";
+
+                ImGui::Text("Alpha Texture %dx%d,%s", width, height, formatstr);
+            }
+
+            ImGui_Combo<5>("Addressing Mode", id++, { "Wrap", "Mirror", "Clamp", "Border", "MirrorOnce" }, m_ui.input->runtimeSamplerDesc.addressingMode, input.runtimeSamplerDesc.addressingMode);
+
+            ImGui_CheckBoxFlag<omm::Cpu::TextureFlags>("Disable Z Order", id++, m_ui.textureDesc->flags, texDesc.flags, omm::Cpu::TextureFlags::DisableZOrder);
+
+            {
+                ImGui::BeginDisabled(texDesc.alphaCutoff == m_ui.textureDesc->alphaCutoff);
+
+                ImGui::PushID(id++);
+                if (ImGui::Button("Reset"))
+                {
+                    m_ui.textureDesc->alphaCutoff = texDesc.alphaCutoff;
+                }
+                ImGui::PopID();
+
+                ImGui::EndDisabled();
+
+                ImGui::SameLine();
+
+                bool value = m_ui.textureDesc->alphaCutoff >= 0.f;
+                if (ImGui::Checkbox("Enable SAT acceleration", &value))
+                {
+                    if (value)
+                    {
+                        m_ui.textureDesc->alphaCutoff = input.alphaCutoff;
+                    }
+                    else
+                    {
+                        m_ui.textureDesc->alphaCutoff = -1.f;
+                    }
+                }
+            }
+
+            ImGui::SeparatorText("Bake Settings");
+
+            ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Enable Internal Threads", id++, m_ui.input->bakeFlags, input.bakeFlags, omm::Cpu::BakeFlags::EnableInternalThreads);
+            ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Disable Special Indices", id++, m_ui.input->bakeFlags, input.bakeFlags, omm::Cpu::BakeFlags::DisableSpecialIndices);
+            ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Force 32 Bit Indices", id++, m_ui.input->bakeFlags, input.bakeFlags, omm::Cpu::BakeFlags::Force32BitIndices);
+            ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Disable Duplicate Detection", id++, m_ui.input->bakeFlags, input.bakeFlags, omm::Cpu::BakeFlags::DisableDuplicateDetection);
+            ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Enable Near-Duplicate Detection", id++, m_ui.input->bakeFlags, input.bakeFlags, omm::Cpu::BakeFlags::EnableNearDuplicateDetection);
+            ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Enable Validation", id++, m_ui.input->bakeFlags, input.bakeFlags, omm::Cpu::BakeFlags::EnableValidation);
+
+            ImGui_SliderInt<uint8_t>("Max Subdivision Level", id++, m_ui.input->maxSubdivisionLevel, input.maxSubdivisionLevel, 0, 12);
+            ImGui_SliderFloat("Dynamic Subdivision Scale", id++, m_ui.input->dynamicSubdivisionScale, input.dynamicSubdivisionScale, 0.f, 10.f);
+            ImGui_SliderFloat("Rejection Threshold", id++, m_ui.input->rejectionThreshold, input.rejectionThreshold, 0.f, 1.f);
+
+            ImGui_ValueUInt64("Max Workload Size", id++, m_ui.input->maxWorkloadSize, input.maxWorkloadSize);
+            ImGui::SeparatorText("Unofficial Bake Settings");
+
+            constexpr uint32_t kEnableAABBTesting = 1u << 6u;
+            constexpr uint32_t kDisableLevelLineIntersection = 1u << 7u;
+            constexpr uint32_t kDisableFineClassification = 1u << 8u;
+            constexpr uint32_t kEnableNearDuplicateDetectionBruteForce = 1u << 9u;
+            constexpr uint32_t kEdgeHeuristic = 1u << 10u;
+            ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Enable AABB Testing", id++, m_ui.input->bakeFlags, input.bakeFlags, (omm::Cpu::BakeFlags)kEnableAABBTesting);
+            ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Disable Level Line Intersection", id++, m_ui.input->bakeFlags, input.bakeFlags, (omm::Cpu::BakeFlags)kDisableLevelLineIntersection);
+            ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Disable Fine Classification", id++, m_ui.input->bakeFlags, input.bakeFlags, (omm::Cpu::BakeFlags)kDisableFineClassification);
+            ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Enable Near-Duplicate Detection Brute-Force", id++, m_ui.input->bakeFlags, input.bakeFlags, (omm::Cpu::BakeFlags)kEnableNearDuplicateDetectionBruteForce);
+            ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Edge Heuristic", id++, m_ui.input->bakeFlags, input.bakeFlags, (omm::Cpu::BakeFlags)kEdgeHeuristic);
+
+            ImGui::Separator();
+
+            if (ImGui::Button("Rebake"))
+            {
+                m_ui.rebake = true;
+            }
 
             ImGui::SameLine();
+            ImGui::Text("Last bake time %llus, (%llu ms)", m_app->GetOmmGpuData().GetBakeTimeInSeconds(), m_app->GetOmmGpuData().GetBakeTimeInMs());
 
-            bool value = m_ui.textureDesc->alphaCutoff >= 0.f;
-            if (ImGui::Checkbox("Enable SAT acceleration", &value))
+            ImGui::SeparatorText("Memory");
+
+            if (const omm::Cpu::BakeResultDesc* result = m_app->GetOmmGpuData().GetResult())
             {
-                if (value)
-                {
-                    m_ui.textureDesc->alphaCutoff = input.alphaCutoff;
-                }
-                else
-                {
-                    m_ui.textureDesc->alphaCutoff = -1.f;
-                }
+                size_t arrayDataSize = result->arrayDataSize;
+                size_t indexSize = result->indexCount * (result->indexFormat == omm::IndexFormat::UINT_16 ? 2 : 4);
+                size_t descArraySize = result->descArrayCount * sizeof(omm::Cpu::OpacityMicromapDesc);
+                size_t totalSize = arrayDataSize + indexSize + descArraySize;
+                ImGui::Text("Array Data Size %.4f mb", arrayDataSize / (1024.f * 1024.f));
+                ImGui::Text("Index Data Size %.4f mb", indexSize / (1024.f * 1024.f));
+                ImGui::Text("Desc Array Size %.4f mb", descArraySize / (1024.f * 1024.f));
+                ImGui::Text("Total Size %.4f mb", totalSize / (1024.f * 1024.f));
             }
+
+            ImGui::SeparatorText("Stats");
+
+            omm::Debug::Stats stats = m_app->GetOmmGpuData().GetStats();
+            const float known = (float)stats.totalOpaque + stats.totalTransparent;
+            const float unknown = (float)stats.totalUnknownTransparent + stats.totalUnknownOpaque;
+
+            ImGui::Text("Known %.2f%%", 100.f * known / (known + unknown));
+            ImGui::Text("Total Opaque %llu", stats.totalOpaque);
+            ImGui::Text("Total Transparent %llu", stats.totalTransparent);
+            ImGui::Text("Total Unknown Transparent %llu", stats.totalUnknownTransparent);
+            ImGui::Text("Total Unknown Opaque %llu", stats.totalUnknownOpaque);
+
+            ImGui::Text("Total Fully Opaque %llu", stats.totalFullyOpaque);
+            ImGui::Text("Total Fully Transparent %llu", stats.totalFullyTransparent);
+            ImGui::Text("Total Fully Unknown Transparent %llu", stats.totalFullyUnknownTransparent);
+            ImGui::Text("Total Fully Unknown Opaque %llu", stats.totalFullyUnknownOpaque);
         }
-
-        ImGui::SeparatorText("Bake Settings");
-
-        ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Enable Internal Threads", id++, m_ui.input->bakeFlags, input.bakeFlags, omm::Cpu::BakeFlags::EnableInternalThreads);
-        ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Disable Special Indices", id++, m_ui.input->bakeFlags, input.bakeFlags, omm::Cpu::BakeFlags::DisableSpecialIndices);
-        ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Force 32 Bit Indices", id++, m_ui.input->bakeFlags, input.bakeFlags, omm::Cpu::BakeFlags::Force32BitIndices);
-        ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Disable Duplicate Detection", id++, m_ui.input->bakeFlags, input.bakeFlags, omm::Cpu::BakeFlags::DisableDuplicateDetection);
-        ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Enable Near-Duplicate Detection", id++, m_ui.input->bakeFlags, input.bakeFlags, omm::Cpu::BakeFlags::EnableNearDuplicateDetection);
-        ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Enable Validation", id++, m_ui.input->bakeFlags, input.bakeFlags, omm::Cpu::BakeFlags::EnableValidation);
-
-        ImGui_SliderInt<uint8_t>("Max Subdivision Level", id++, m_ui.input->maxSubdivisionLevel, input.maxSubdivisionLevel, 0, 12);
-        ImGui_SliderFloat("Dynamic Subdivision Scale", id++, m_ui.input->dynamicSubdivisionScale, input.dynamicSubdivisionScale, 0.f, 10.f);
-        ImGui_SliderFloat("Rejection Threshold", id++, m_ui.input->rejectionThreshold, input.rejectionThreshold, 0.f, 1.f);
-        
-        ImGui_ValueUInt64("Max Workload Size", id++, m_ui.input->maxWorkloadSize, input.maxWorkloadSize);
-        ImGui::SeparatorText("Unofficial Bake Settings");
-
-        constexpr uint32_t kEnableAABBTesting = 1u << 6u;
-        constexpr uint32_t kDisableLevelLineIntersection = 1u << 7u;
-        constexpr uint32_t kDisableFineClassification = 1u << 8u;
-        constexpr uint32_t kEnableNearDuplicateDetectionBruteForce = 1u << 9u;
-        constexpr uint32_t kEdgeHeuristic = 1u << 10u;
-        ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Enable AABB Testing", id++, m_ui.input->bakeFlags, input.bakeFlags, (omm::Cpu::BakeFlags)kEnableAABBTesting);
-        ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Disable Level Line Intersection", id++, m_ui.input->bakeFlags, input.bakeFlags, (omm::Cpu::BakeFlags)kDisableLevelLineIntersection);
-        ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Disable Fine Classification", id++, m_ui.input->bakeFlags, input.bakeFlags, (omm::Cpu::BakeFlags)kDisableFineClassification);
-        ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Enable Near-Duplicate Detection Brute-Force", id++, m_ui.input->bakeFlags, input.bakeFlags, (omm::Cpu::BakeFlags)kEnableNearDuplicateDetectionBruteForce);
-        ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Edge Heuristic", id++, m_ui.input->bakeFlags, input.bakeFlags, (omm::Cpu::BakeFlags)kEdgeHeuristic);
-
-        ImGui::Separator();
-
-        if (ImGui::Button("Rebake"))
-        {
-            m_ui.rebake = true;
-        }
-
-        ImGui::SameLine();
-        ImGui::Text("Last bake time %llus, (%llu ms)", m_app->GetOmmGpuData().GetBakeTimeInSeconds(), m_app->GetOmmGpuData().GetBakeTimeInMs());
-
-        ImGui::SeparatorText("Memory");
-
-        if (const omm::Cpu::BakeResultDesc* result = m_app->GetOmmGpuData().GetResult())
-        {
-            size_t arrayDataSize = result->arrayDataSize;
-            size_t indexSize = result->indexCount * (result->indexFormat == omm::IndexFormat::UINT_16 ? 2 : 4);
-            size_t descArraySize = result->descArrayCount * sizeof(omm::Cpu::OpacityMicromapDesc);
-            size_t totalSize = arrayDataSize + indexSize + descArraySize;
-            ImGui::Text("Array Data Size %.4f mb", arrayDataSize / (1024.f * 1024.f));
-            ImGui::Text("Index Data Size %.4f mb", indexSize / (1024.f * 1024.f));
-            ImGui::Text("Desc Array Size %.4f mb", descArraySize / (1024.f * 1024.f));
-            ImGui::Text("Total Size %.4f mb", totalSize / (1024.f * 1024.f));
-        }
-
-        ImGui::SeparatorText("Stats");
-
-        omm::Debug::Stats stats = m_app->GetOmmGpuData().GetStats();
-        const float known = (float)stats.totalOpaque + stats.totalTransparent;
-        const float unknown = (float)stats.totalUnknownTransparent + stats.totalUnknownOpaque;
-
-        ImGui::Text("Known %.2f%%", 100.f * known / (known + unknown));
-        ImGui::Text("Total Opaque %llu", stats.totalOpaque);
-        ImGui::Text("Total Transparent %llu", stats.totalTransparent);
-        ImGui::Text("Total Unknown Transparent %llu", stats.totalUnknownTransparent);
-        ImGui::Text("Total Unknown Opaque %llu", stats.totalUnknownOpaque);
-
-        ImGui::Text("Total Fully Opaque %llu", stats.totalFullyOpaque);
-        ImGui::Text("Total Fully Transparent %llu", stats.totalFullyTransparent);
-        ImGui::Text("Total Fully Unknown Transparent %llu", stats.totalFullyUnknownTransparent);
-        ImGui::Text("Total Fully Unknown Opaque %llu", stats.totalFullyUnknownOpaque);
+       
+        ImGui::EndDisabled();
 
         if (ImGui::CollapsingHeader("Development")) {
             if (ImGui::Button("Recompile Shaders"))
@@ -1261,10 +1351,11 @@ int main(int __argc, const char** __argv)
         example->Init();
         std::shared_ptr<UIRenderer> gui = std::make_shared<UIRenderer>(deviceManager, example, ui);
         gui->Init();
-        //if (example->Init())
+
         {
             deviceManager->AddRenderPassToBack(example.get());
             deviceManager->AddRenderPassToBack(gui.get());
+
             deviceManager->RunMessageLoop();
             deviceManager->RemoveRenderPass(example.get());
             deviceManager->RemoveRenderPass(gui.get());
