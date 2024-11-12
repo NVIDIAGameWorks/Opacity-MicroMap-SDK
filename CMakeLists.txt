@@ -4,10 +4,6 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/gtest)
 	option(OMM_ENABLE_TESTS "Enable unit test" ON)
 endif()
 
-if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/benchmark)
-	option(OMM_ENABLE_BENCHMARK "Enable benchmark" ON)
-endif()
-
 if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/donut)
 	option(OMM_BUILD_VIEWER "Build omm viewer tool" ON)
 endif()
@@ -47,10 +43,6 @@ add_subdirectory(thirdparty)
 add_subdirectory(shared)
 add_subdirectory(omm-sdk)
 add_subdirectory(integration)
-
-if (OMM_ENABLE_BENCHMARK)
-    add_subdirectory(benchmark)
-endif()
 
 if (OMM_ENABLE_TESTS)
     add_subdirectory(tests)
