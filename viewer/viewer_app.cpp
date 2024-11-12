@@ -1068,7 +1068,7 @@ public:
         fileDialog.SetTitle("Select directory of bake input binaries to view (.bin)");
         fileDialog.SetTypeFilters({ ".bin" });
 
-        SelectFileDir(".\\..\\data");
+        SelectFileDir(".\\..\\..\\data");
     }
 
     void Init()
@@ -1411,39 +1411,25 @@ protected:
                 if (const omm::Cpu::BakeResultDesc* result = m_app->GetOmmGpuData().GetResult())
                 {
                     {
-                        bool hasAnyOC2, hasAnyOC4 = false;
                         std::array<float, 12> histogramOC2 = { 0, }, histogramOC4 = { 0, };
                         for (uint32_t i = 0; i < result->descArrayHistogramCount; ++i)
                         {
                             if ((omm::Format)result->descArrayHistogram[i].format == omm::Format::OC1_2_State)
                             {
                                 uint32_t count = result->descArrayHistogram[i].count;
-                                hasAnyOC2 |= count != 0;
                                 histogramOC2[result->descArrayHistogram[i].subdivisionLevel] = (float)count;
                             }
 
                             if ((omm::Format)result->descArrayHistogram[i].format == omm::Format::OC1_4_State)
                             {
                                 uint32_t count = result->descArrayHistogram[i].count;
-                                hasAnyOC4 |= count != 0;
                                 histogramOC4[result->descArrayHistogram[i].subdivisionLevel] = (float)count;
                             }
                         }
 
-                        if (hasAnyOC2)
-                        {
-                            ImGui::PlotHistogram("", histogramOC2.data(), (int)histogramOC2.size(), 0, "Desc Histogram (OC2)", 0.f, 12.f, ImVec2(0, 80));
-                        }
-
-                        if (hasAnyOC4)
-                        {
-                            if (hasAnyOC2)
-                            {
-                                ImGui::SameLine();
-                            }
-
-                            ImGui::PlotHistogram("", histogramOC4.data(), (int)histogramOC4.size(), 0, "Desc Histogram (OC4)", 0.f, 12.f, ImVec2(0, 80));
-                        }
+                        ImGui::PlotHistogram("", histogramOC2.data(), (int)histogramOC2.size(), 0, "Desc Histogram (OC2)", 0.f, 12.f, ImVec2(0, 80));
+                        ImGui::SameLine();
+                        ImGui::PlotHistogram("", histogramOC4.data(), (int)histogramOC4.size(), 0, "Desc Histogram (OC4)", 0.f, 12.f, ImVec2(0, 80));
                     }
                 }
             }
