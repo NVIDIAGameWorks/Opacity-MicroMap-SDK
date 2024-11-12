@@ -31,6 +31,6 @@
 [submodule "util/viewer_app/donut"]
 	path = util/viewer_app/donut
 	url = https://github.com/NVIDIAGameWorks/donut.git
-[submodule "util/viewer_app/app/imgui-filebrowser"]
-	path = util/viewer_app/app/imgui-filebrowser
+[submodule "thirdparty/imgui-filebrowser"]
+	path = thirdparty/imgui-filebrowser
 	url = https://github.com/AirGuanZ/imgui-filebrowser.git

@@ -29,7 +29,7 @@
 #include <nvrhi/utils.h>
 #include <donut/app/imgui_console.h>
 #include <donut/app/imgui_renderer.h>
-#include "imgui-filebrowser/imfilebrowser.h"
+#include <imfilebrowser.h>
 
 using namespace donut;
 using namespace donut::math;
