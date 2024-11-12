@@ -16,7 +16,6 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include <nvrhi/d3d12.h>
 #include <nvrhi/validation.h>
 
-#include <comdef.h> // for _com_ptr_t (optional, for convenience)
 #include <dxgi.h>
 #include <d3d12.h>
 

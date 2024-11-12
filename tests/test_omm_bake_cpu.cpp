@@ -37,7 +37,6 @@ namespace {
 		TextureAsUNORM8,
 		AlphaCutoff,
 		Serialize,
-		StochasticPreClassification
 	};
 
 	struct Options

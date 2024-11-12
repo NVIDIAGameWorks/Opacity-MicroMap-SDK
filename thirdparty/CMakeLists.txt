@@ -16,6 +16,7 @@ if (OMM_BUILD_VIEWER)
 	set_property(TARGET nvrhi_d3d11 PROPERTY FOLDER "Third-Party Libraries") 
 	set_property(TARGET nvrhi_d3d12 PROPERTY FOLDER "Third-Party Libraries") 
 	set_property(TARGET nvrhi_vk PROPERTY FOLDER "Third-Party Libraries") 
+	set_property(TARGET catch_tests PROPERTY FOLDER "Third-Party Libraries") 
 
 endif()
 

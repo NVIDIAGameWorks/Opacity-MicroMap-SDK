@@ -68,7 +68,7 @@ OMM_API ommResult OMM_CALL ommCpuCreateTexture(ommBaker baker, const ommCpuTextu
     return result;
 }
 
-OMM_API ommResult OMM_CALL ommCpuFillTextureDesc(ommCpuTexture texture, ommCpuTextureDesc* outDesc)
+OMM_API ommResult OMM_CALL ommCpuGetTextureDesc(ommCpuTexture texture, ommCpuTextureDesc* outDesc)
 {
     if (texture == 0)
         return ommResult_INVALID_ARGUMENT;
@@ -78,7 +78,7 @@ OMM_API ommResult OMM_CALL ommCpuFillTextureDesc(ommCpuTexture texture, ommCpuTe
     if (outDesc == nullptr)
         return ommResult_INVALID_ARGUMENT;
 
-    return impl->FillTextureDesc(*outDesc);
+    return impl->GetTextureDesc(*outDesc);
 }
 
 OMM_API ommResult OMM_CALL ommCpuDestroyTexture(ommBaker baker, ommCpuTexture texture)

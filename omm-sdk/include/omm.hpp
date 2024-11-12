@@ -977,9 +977,9 @@ namespace omm
         {
             return (Result)ommCpuCreateTexture((ommBaker)baker, reinterpret_cast<const ommCpuTextureDesc*>(&desc), (ommCpuTexture*)outTexture);
         }
-        static inline Result FillTextureDesc(Texture texture, TextureDesc* outDesc)
+        static inline Result GetTextureDesc(Texture texture, TextureDesc* outDesc)
         {
-            return (Result)ommCpuFillTextureDesc((ommCpuTexture)texture, reinterpret_cast<ommCpuTextureDesc*>(outDesc));
+            return (Result)ommCpuGetTextureDesc((ommCpuTexture)texture, reinterpret_cast<ommCpuTextureDesc*>(outDesc));
         }
         static inline Result DestroyTexture(Baker baker, Texture texture)
         {

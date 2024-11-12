@@ -49,7 +49,7 @@ namespace omm
 
         float Bilinear(ommTextureAddressMode mode, const float2& p, int32_t mip) const;
 
-        ommResult FillTextureDesc(ommCpuTextureDesc& desc) const;
+        ommResult GetTextureDesc(ommCpuTextureDesc& desc) const;
 
         TilingMode GetTilingMode() const {
             return m_tilingMode;

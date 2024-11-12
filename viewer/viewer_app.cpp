@@ -528,12 +528,12 @@ private:
         omm::Cpu::TextureDesc texDesc;
         texDesc.mips = mips;
 
-        OMM_ABORT_ON_ERROR(omm::Cpu::FillTextureDesc(input.texture, &texDesc));
+        OMM_ABORT_ON_ERROR(omm::Cpu::GetTextureDesc(input.texture, &texDesc));
         std::vector<uint8_t> textureData(texDesc.mips[0].width * texDesc.mips[0].height);
 
         mips[0].textureData = (const void*)textureData.data();
 
-        OMM_ABORT_ON_ERROR(omm::Cpu::FillTextureDesc(input.texture, &texDesc));
+        OMM_ABORT_ON_ERROR(omm::Cpu::GetTextureDesc(input.texture, &texDesc));
 
         if (!m_ui.textureDesc.has_value())
         {
@@ -1322,7 +1322,7 @@ protected:
 
                     ImGui::SameLine();
 
-                    ImGui::SliderFloat("Dynamic Subdivision Scale", &m_ui.input->dynamicSubdivisionScale, 0.f, 10.f);
+                    ImGui::SliderFloat("Dynamic Subdivision Scale", &m_ui.input->dynamicSubdivisionScale, 0.f, 100.f, "%.3f", ImGuiSliderFlags_Logarithmic);
                 }
 
                 ImGui_SliderFloat("Rejection Threshold", id++, m_ui.input->rejectionThreshold, input.rejectionThreshold, 0.f, 1.f);
@@ -1395,11 +1395,12 @@ protected:
                 ImGui::Text("Tri per block: %.2f", indexCount / descCount);
             }
 
+            float total = known + unknown;
             ImGui::Text("Known %.2f%%", 100.f * known / (known + unknown));
-            ImGui::Text("Total Opaque %llu", stats.totalOpaque);
-            ImGui::Text("Total Transparent %llu", stats.totalTransparent);
-            ImGui::Text("Total Unknown Transparent %llu", stats.totalUnknownTransparent);
-            ImGui::Text("Total Unknown Opaque %llu", stats.totalUnknownOpaque);
+            ImGui::Text("Total Opaque %llu (%.2f%%)", stats.totalOpaque, 100.f * stats.totalOpaque / total);
+            ImGui::Text("Total Transparent %llu (%.2f%%)", stats.totalTransparent, 100.f * stats.totalTransparent / total);
+            ImGui::Text("Total Unknown Transparent %llu (%.2f%%)", stats.totalUnknownTransparent, 100.f * stats.totalUnknownTransparent / total);
+            ImGui::Text("Total Unknown Opaque %llu (%.2f%%)", stats.totalUnknownOpaque, 100.f * stats.totalUnknownOpaque / total);
 
             ImGui::Text("Total Fully Opaque %llu", stats.totalFullyOpaque);
             ImGui::Text("Total Fully Transparent %llu", stats.totalFullyTransparent);

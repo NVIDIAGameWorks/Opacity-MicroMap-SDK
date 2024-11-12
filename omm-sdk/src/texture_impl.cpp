@@ -280,7 +280,7 @@ namespace omm
         return bilinearValue;
     }
 
-    ommResult TextureImpl::FillTextureDesc(ommCpuTextureDesc& desc) const
+    ommResult TextureImpl::GetTextureDesc(ommCpuTextureDesc& desc) const
     {
         desc.format = m_textureFormat;
         desc.flags = m_textureFlags;
