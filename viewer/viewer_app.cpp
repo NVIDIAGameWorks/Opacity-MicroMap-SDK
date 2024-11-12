@@ -631,7 +631,7 @@ public:
 
         //auto nativeFS = std::make_shared<vfs::NativeFileSystem>();
         auto rootFs = std::make_shared<vfs::RootFileSystem>();
-        rootFs->mount("basic_triangle", appShaderPath);
+        rootFs->mount("viewer_app", appShaderPath);
         rootFs->mount("donut", frameworkShaderPath);
 
         m_ShaderFactory = std::make_shared<engine::ShaderFactory>(GetDevice(), rootFs, "");
@@ -762,11 +762,11 @@ private:
 
         if (!m_Pipeline)
         {
-            m_VertexShader = m_ShaderFactory->CreateShader("basic_triangle/shaders.hlsl", "main_vs", nullptr, nvrhi::ShaderType::Vertex);
-            m_PixelShader = m_ShaderFactory->CreateShader("basic_triangle/shaders.hlsl", "main_ps", nullptr, nvrhi::ShaderType::Pixel);
+            m_VertexShader = m_ShaderFactory->CreateShader("viewer_app/shaders.hlsl", "main_vs", nullptr, nvrhi::ShaderType::Vertex);
+            m_PixelShader = m_ShaderFactory->CreateShader("viewer_app/shaders.hlsl", "main_ps", nullptr, nvrhi::ShaderType::Pixel);
 
-            m_BackgroundVS = m_ShaderFactory->CreateShader("basic_triangle/background_vs_ps.hlsl", "main_vs", nullptr, nvrhi::ShaderType::Vertex);
-            m_BackgroundPS = m_ShaderFactory->CreateShader("basic_triangle/background_vs_ps.hlsl", "main_ps", nullptr, nvrhi::ShaderType::Pixel);
+            m_BackgroundVS = m_ShaderFactory->CreateShader("viewer_app/background_vs_ps.hlsl", "main_vs", nullptr, nvrhi::ShaderType::Vertex);
+            m_BackgroundPS = m_ShaderFactory->CreateShader("viewer_app/background_vs_ps.hlsl", "main_ps", nullptr, nvrhi::ShaderType::Pixel);
 
             m_ConstantBuffer = GetDevice()->createBuffer(nvrhi::utils::CreateVolatileConstantBufferDesc(sizeof(Constants), "Constants", 16));
 
@@ -1049,7 +1049,7 @@ public:
         fileDialog.SetTitle("Select directory of bake input binaries to view (.bin)");
         fileDialog.SetTypeFilters({ ".bin" });
 
-        SelectFileDir("E:\\git\\Opacity-MicroMap-SDK\\data");
+        SelectFileDir(".\\..\\data");
     }
 
     void Init()
@@ -1063,6 +1063,10 @@ protected:
     {
         m_ui.ommFiles.clear();
         m_ui.path = dir;
+
+        if (!std::filesystem::exists(m_ui.path))
+            return;
+
         for (const auto& entry : std::filesystem::directory_iterator(m_ui.path))
         {
             auto ext = entry.path().extension();
@@ -1170,7 +1174,7 @@ protected:
         {
             if (m_ui.primitiveEnd == -1)
             {
-                m_ui.primitiveEnd = std::min(128, maxPrimitiveCount);
+                m_ui.primitiveEnd = maxPrimitiveCount;// std::min(128, maxPrimitiveCount);
             }
 
             if (ImGui::SliderInt("Primitive Start", &m_ui.primitiveStart, 0, maxPrimitiveCount - 1, "%d"))
