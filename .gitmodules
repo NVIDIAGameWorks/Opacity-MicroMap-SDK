@@ -28,9 +28,9 @@
 [submodule "util/donut"]
 	path = util/donut
 	url = https://github.com/NVIDIAGameWorks/donut.git
-[submodule "util/viewer_app/donut"]
-	path = util/viewer_app/donut
-	url = https://github.com/NVIDIAGameWorks/donut.git
 [submodule "thirdparty/imgui-filebrowser"]
 	path = thirdparty/imgui-filebrowser
 	url = https://github.com/AirGuanZ/imgui-filebrowser.git
+[submodule "thirdparty/donut"]
+	path = thirdparty/donut
+	url = https://github.com/NVIDIAGameWorks/donut.git

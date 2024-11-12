@@ -20,12 +20,12 @@
 # DEALINGS IN THE SOFTWARE.
 
 
-include(../donut/compileshaders.cmake)
+include(../../../thirdparty/donut/compileshaders.cmake)
 file(GLOB shaders "*.hlsl")
 file(GLOB sources "*.cpp" "*.h")
 
 set(project viewer)
-set(folder "Util")
+set(folder "Viewer")
 
 donut_compile_shaders(
     TARGET ${project}_shaders
