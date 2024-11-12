@@ -152,6 +152,10 @@ struct UIData
     bool load = false;
     bool rebake = false;
     bool recompile = true;
+
+    // viz
+    bool drawAlphaContour = true;
+    bool drawWireFrame = true;
 };
 
 class OmmGpuData
@@ -839,6 +843,7 @@ private:
         constants.offset = m_ui.offset + m_ui.prevOffset;
         constants.primitiveOffset = m_ui.primitiveStart;
         constants.mode = 0;
+        constants.drawAlphaContour = m_ui.drawAlphaContour;
 
         m_CommandList->writeBuffer(m_ConstantBuffer, &constants, sizeof(constants));
 
@@ -886,7 +891,8 @@ private:
 
         constants.mode = 1;
         m_CommandList->writeBuffer(m_ConstantBuffer, &constants, sizeof(constants));
-
+        
+        if (m_ui.drawWireFrame)
         {
             nvrhi::GraphicsState state;
             state.pipeline = m_PipelineWireFrame;
@@ -1001,8 +1007,8 @@ void ImGui_ValueUInt64(const char* name, uint32_t ID, uint64_t& value, uint64_t 
     ImGui::InputScalar(name, ImGuiDataType_U64, (void*)&value, (void*)(step > 0 ? &step : NULL), (void*)(step_fast > 0 ? &step_fast : NULL), format, flags);
 }
 
-template<int N>
-void ImGui_Combo(const char* name, uint32_t ID, std::array<const char*, N> items, omm::TextureAddressMode& value, omm::TextureAddressMode origValue)
+template<class T, int N>
+void ImGui_Combo(const char* name, uint32_t ID, const std::array<const char*, N>& itemNames, const std::array<T, N>& itemValues, T& value, T origValue)
 {
     ImGui::BeginDisabled(origValue == value);
 
@@ -1017,7 +1023,20 @@ void ImGui_Combo(const char* name, uint32_t ID, std::array<const char*, N> items
 
     ImGui::SameLine();
 
-    ImGui::Combo(name, reinterpret_cast<int*>(&value), items.data(), (int)items.size());
+    int selectedIndex = 0;
+    for (auto& item : itemValues)
+    {
+        if (item == value)
+        {
+            break;
+        }
+        selectedIndex++;
+    }
+
+    if (ImGui::Combo(name, reinterpret_cast<int*>(&selectedIndex), itemNames.data(), (int)itemNames.size()))
+    {
+        value = itemValues[selectedIndex];
+    }
 }
 
 class UIRenderer : public donut::app::ImGui_Renderer
@@ -1191,119 +1210,163 @@ protected:
 
             const omm::Cpu::TextureDesc& texDesc = m_app->GetOmmGpuData().GetDefaultTextureDesc();
             const omm::Cpu::BakeInputDesc& input = m_app->GetOmmGpuData().GetDefaultInput();
-
-            uint32_t id = 0;
-
-            ImGui::SeparatorText("Texture Settings");
-
-            if (nvrhi::ITexture* texture = m_app->GetOmmGpuData().GetAlphaTexture())
+            
+            if (ImGui::CollapsingHeader("Bake Settings", ImGuiTreeNodeFlags_DefaultOpen))
             {
-                uint width = texture->getDesc().width;
-                uint height = texture->getDesc().height;
-                nvrhi::Format format = texture->getDesc().format;
+                uint32_t id = 0;
 
-                const char* formatstr = "Format unknown";
-                if (format == nvrhi::Format::R32_FLOAT)
-                    formatstr = "Float 32";
-                else if (format == nvrhi::Format::R8_UNORM)
-                    formatstr = "Unorm 8";
+                ImGui::SeparatorText("Texture Settings");
 
-                ImGui::Text("Alpha Texture %dx%d,%s", width, height, formatstr);
-            }
-
-            ImGui_Combo<5>("Addressing Mode", id++, { "Wrap", "Mirror", "Clamp", "Border", "MirrorOnce" }, m_ui.input->runtimeSamplerDesc.addressingMode, input.runtimeSamplerDesc.addressingMode);
-
-            ImGui_CheckBoxFlag<omm::Cpu::TextureFlags>("Disable Z Order", id++, m_ui.textureDesc->flags, texDesc.flags, omm::Cpu::TextureFlags::DisableZOrder);
-
-            {
-                ImGui::BeginDisabled(texDesc.alphaCutoff == m_ui.textureDesc->alphaCutoff);
-
-                ImGui::PushID(id++);
-                if (ImGui::Button("Reset"))
+                if (nvrhi::ITexture* texture = m_app->GetOmmGpuData().GetAlphaTexture())
                 {
-                    m_ui.textureDesc->alphaCutoff = texDesc.alphaCutoff;
-                }
-                ImGui::PopID();
+                    uint width = texture->getDesc().width;
+                    uint height = texture->getDesc().height;
+                    nvrhi::Format format = texture->getDesc().format;
 
+                    const char* formatstr = "Format unknown";
+                    if (format == nvrhi::Format::R32_FLOAT)
+                        formatstr = "Float 32";
+                    else if (format == nvrhi::Format::R8_UNORM)
+                        formatstr = "Unorm 8";
+
+                    ImGui::Text("Alpha Texture %dx%d,%s", width, height, formatstr);
+                }
+
+                ImGui_Combo<omm::TextureAddressMode, 5>("Addressing Mode", id++,
+                    {
+                      "Wrap",
+                      "Mirror",
+                      "Clamp",
+                      "Border",
+                      "MirrorOnce"
+                    },
+                {
+                  omm::TextureAddressMode::Wrap,
+                  omm::TextureAddressMode::Mirror,
+                  omm::TextureAddressMode::Clamp,
+                  omm::TextureAddressMode::Border,
+                  omm::TextureAddressMode::MirrorOnce
+                },
+                    m_ui.input->runtimeSamplerDesc.addressingMode, input.runtimeSamplerDesc.addressingMode);
+
+                ImGui_CheckBoxFlag<omm::Cpu::TextureFlags>("Disable Z Order", id++, m_ui.textureDesc->flags, texDesc.flags, omm::Cpu::TextureFlags::DisableZOrder);
+
+                {
+                    ImGui::BeginDisabled(texDesc.alphaCutoff == m_ui.textureDesc->alphaCutoff);
+
+                    ImGui::PushID(id++);
+                    if (ImGui::Button("Reset"))
+                    {
+                        m_ui.textureDesc->alphaCutoff = texDesc.alphaCutoff;
+                    }
+                    ImGui::PopID();
+
+                    ImGui::EndDisabled();
+
+                    ImGui::SameLine();
+
+                    bool value = m_ui.textureDesc->alphaCutoff >= 0.f;
+                    if (ImGui::Checkbox("Enable SAT acceleration", &value))
+                    {
+                        if (value)
+                        {
+                            m_ui.textureDesc->alphaCutoff = input.alphaCutoff;
+                        }
+                        else
+                        {
+                            m_ui.textureDesc->alphaCutoff = -1.f;
+                        }
+                    }
+                }
+
+                ImGui::SeparatorText("Bake Settings");
+
+                ImGui_Combo<omm::Format, 2>("Format", id++,
+                    {
+                        "OC1_2_State",
+                        "OC1_4_State",
+                    },
+                {
+                    omm::Format::OC1_2_State,
+                    omm::Format::OC1_4_State
+                },
+                    m_ui.input->format, input.format);
+
+                ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Enable Internal Threads", id++, m_ui.input->bakeFlags, input.bakeFlags, omm::Cpu::BakeFlags::EnableInternalThreads);
+                ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Disable Special Indices", id++, m_ui.input->bakeFlags, input.bakeFlags, omm::Cpu::BakeFlags::DisableSpecialIndices);
+                ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Force 32 Bit Indices", id++, m_ui.input->bakeFlags, input.bakeFlags, omm::Cpu::BakeFlags::Force32BitIndices);
+                ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Disable Duplicate Detection", id++, m_ui.input->bakeFlags, input.bakeFlags, omm::Cpu::BakeFlags::DisableDuplicateDetection);
+                ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Enable Near-Duplicate Detection", id++, m_ui.input->bakeFlags, input.bakeFlags, omm::Cpu::BakeFlags::EnableNearDuplicateDetection);
+                ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Enable Validation", id++, m_ui.input->bakeFlags, input.bakeFlags, omm::Cpu::BakeFlags::EnableValidation);
+
+                ImGui_SliderInt<uint8_t>("Max Subdivision Level", id++, m_ui.input->maxSubdivisionLevel, input.maxSubdivisionLevel, 0, 12);
+                {
+                    ImGui::BeginDisabled(input.dynamicSubdivisionScale == m_ui.input->dynamicSubdivisionScale);
+
+                    ImGui::PushID(id++);
+                    if (ImGui::Button("Reset"))
+                    {
+                        m_ui.input->dynamicSubdivisionScale = input.dynamicSubdivisionScale;
+                    }
+                    ImGui::PopID();
+                    ImGui::EndDisabled();
+
+                    ImGui::PushID(id++);
+                    ImGui::SameLine();
+                    if (ImGui::Button("-1.f"))
+                    {
+                        m_ui.input->dynamicSubdivisionScale = -1.f;
+                    }
+                    ImGui::PopID();
+
+
+                    ImGui::SameLine();
+
+                    ImGui::SliderFloat("Dynamic Subdivision Scale", &m_ui.input->dynamicSubdivisionScale, 0.f, 10.f);
+                }
+
+                ImGui_SliderFloat("Rejection Threshold", id++, m_ui.input->rejectionThreshold, input.rejectionThreshold, 0.f, 1.f);
+
+                ImGui::BeginDisabled(m_ui.input->format == omm::Format::OC1_4_State);
+                ImGui_Combo<omm::UnknownStatePromotion, 3>("Unknown State Promotion", id++,
+                    {
+                        "Nearest",
+                        "Force Opaque",
+                        "Force Transparent",
+                    },
+                {
+                    omm::UnknownStatePromotion::Nearest,
+                    omm::UnknownStatePromotion::ForceOpaque,
+                    omm::UnknownStatePromotion::ForceTransparent,
+                },
+                m_ui.input->unknownStatePromotion, input.unknownStatePromotion);
                 ImGui::EndDisabled();
 
-                ImGui::SameLine();
+                ImGui_ValueUInt64("Max Workload Size", id++, m_ui.input->maxWorkloadSize, input.maxWorkloadSize);
+                ImGui::SeparatorText("Unofficial Bake Settings");
 
-                bool value = m_ui.textureDesc->alphaCutoff >= 0.f;
-                if (ImGui::Checkbox("Enable SAT acceleration", &value))
+                constexpr uint32_t kEnableAABBTesting = 1u << 6u;
+                constexpr uint32_t kDisableLevelLineIntersection = 1u << 7u;
+                constexpr uint32_t kDisableFineClassification = 1u << 8u;
+                constexpr uint32_t kEnableNearDuplicateDetectionBruteForce = 1u << 9u;
+                constexpr uint32_t kEdgeHeuristic = 1u << 10u;
+                ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Enable AABB Testing", id++, m_ui.input->bakeFlags, input.bakeFlags, (omm::Cpu::BakeFlags)kEnableAABBTesting);
+                ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Disable Level Line Intersection", id++, m_ui.input->bakeFlags, input.bakeFlags, (omm::Cpu::BakeFlags)kDisableLevelLineIntersection);
+                ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Disable Fine Classification", id++, m_ui.input->bakeFlags, input.bakeFlags, (omm::Cpu::BakeFlags)kDisableFineClassification);
+                ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Enable Near-Duplicate Detection Brute-Force", id++, m_ui.input->bakeFlags, input.bakeFlags, (omm::Cpu::BakeFlags)kEnableNearDuplicateDetectionBruteForce);
+                ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Edge Heuristic", id++, m_ui.input->bakeFlags, input.bakeFlags, (omm::Cpu::BakeFlags)kEdgeHeuristic);
+
+                ImGui::Separator();
+
+                if (ImGui::Button("Rebake"))
                 {
-                    if (value)
-                    {
-                        m_ui.textureDesc->alphaCutoff = input.alphaCutoff;
-                    }
-                    else
-                    {
-                        m_ui.textureDesc->alphaCutoff = -1.f;
-                    }
+                    m_ui.rebake = true;
                 }
-            }
-
-            ImGui::SeparatorText("Bake Settings");
-
-            ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Enable Internal Threads", id++, m_ui.input->bakeFlags, input.bakeFlags, omm::Cpu::BakeFlags::EnableInternalThreads);
-            ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Disable Special Indices", id++, m_ui.input->bakeFlags, input.bakeFlags, omm::Cpu::BakeFlags::DisableSpecialIndices);
-            ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Force 32 Bit Indices", id++, m_ui.input->bakeFlags, input.bakeFlags, omm::Cpu::BakeFlags::Force32BitIndices);
-            ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Disable Duplicate Detection", id++, m_ui.input->bakeFlags, input.bakeFlags, omm::Cpu::BakeFlags::DisableDuplicateDetection);
-            ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Enable Near-Duplicate Detection", id++, m_ui.input->bakeFlags, input.bakeFlags, omm::Cpu::BakeFlags::EnableNearDuplicateDetection);
-            ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Enable Validation", id++, m_ui.input->bakeFlags, input.bakeFlags, omm::Cpu::BakeFlags::EnableValidation);
-
-            ImGui_SliderInt<uint8_t>("Max Subdivision Level", id++, m_ui.input->maxSubdivisionLevel, input.maxSubdivisionLevel, 0, 12);
-            {
-                ImGui::BeginDisabled(input.dynamicSubdivisionScale == m_ui.input->dynamicSubdivisionScale);
-
-                ImGui::PushID(id++);
-                if (ImGui::Button("Reset"))
-                {
-                    m_ui.input->dynamicSubdivisionScale = input.dynamicSubdivisionScale;
-                }
-                ImGui::PopID();
-                ImGui::EndDisabled();
-
-                ImGui::PushID(id++);
-                ImGui::SameLine();
-                if (ImGui::Button("-1.f"))
-                {
-                    m_ui.input->dynamicSubdivisionScale = -1.f;
-                }
-                ImGui::PopID();
-
 
                 ImGui::SameLine();
-
-                ImGui::SliderFloat("Dynamic Subdivision Scale", &m_ui.input->dynamicSubdivisionScale, 0.f, 10.f);
+                ImGui::Text("Last bake time %llus, (%llu ms)", m_app->GetOmmGpuData().GetBakeTimeInSeconds(), m_app->GetOmmGpuData().GetBakeTimeInMs());
             }
-
-            ImGui_SliderFloat("Rejection Threshold", id++, m_ui.input->rejectionThreshold, input.rejectionThreshold, 0.f, 1.f);
-
-            ImGui_ValueUInt64("Max Workload Size", id++, m_ui.input->maxWorkloadSize, input.maxWorkloadSize);
-            ImGui::SeparatorText("Unofficial Bake Settings");
-
-            constexpr uint32_t kEnableAABBTesting = 1u << 6u;
-            constexpr uint32_t kDisableLevelLineIntersection = 1u << 7u;
-            constexpr uint32_t kDisableFineClassification = 1u << 8u;
-            constexpr uint32_t kEnableNearDuplicateDetectionBruteForce = 1u << 9u;
-            constexpr uint32_t kEdgeHeuristic = 1u << 10u;
-            ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Enable AABB Testing", id++, m_ui.input->bakeFlags, input.bakeFlags, (omm::Cpu::BakeFlags)kEnableAABBTesting);
-            ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Disable Level Line Intersection", id++, m_ui.input->bakeFlags, input.bakeFlags, (omm::Cpu::BakeFlags)kDisableLevelLineIntersection);
-            ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Disable Fine Classification", id++, m_ui.input->bakeFlags, input.bakeFlags, (omm::Cpu::BakeFlags)kDisableFineClassification);
-            ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Enable Near-Duplicate Detection Brute-Force", id++, m_ui.input->bakeFlags, input.bakeFlags, (omm::Cpu::BakeFlags)kEnableNearDuplicateDetectionBruteForce);
-            ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Edge Heuristic", id++, m_ui.input->bakeFlags, input.bakeFlags, (omm::Cpu::BakeFlags)kEdgeHeuristic);
-
-            ImGui::Separator();
-
-            if (ImGui::Button("Rebake"))
-            {
-                m_ui.rebake = true;
-            }
-
-            ImGui::SameLine();
-            ImGui::Text("Last bake time %llus, (%llu ms)", m_app->GetOmmGpuData().GetBakeTimeInSeconds(), m_app->GetOmmGpuData().GetBakeTimeInMs());
-
+           
             ImGui::SeparatorText("Memory");
 
             if (const omm::Cpu::BakeResultDesc* result = m_app->GetOmmGpuData().GetResult())
@@ -1324,6 +1387,14 @@ protected:
             const float known = (float)stats.totalOpaque + stats.totalTransparent;
             const float unknown = (float)stats.totalUnknownTransparent + stats.totalUnknownOpaque;
 
+            if (const omm::Cpu::BakeResultDesc* result = m_app->GetOmmGpuData().GetResult())
+            {
+                const float indexCount = (float)result->indexCount;
+                const float descCount = (float)result->descArrayCount;
+
+                ImGui::Text("Tri per block: %.2f", indexCount / descCount);
+            }
+
             ImGui::Text("Known %.2f%%", 100.f * known / (known + unknown));
             ImGui::Text("Total Opaque %llu", stats.totalOpaque);
             ImGui::Text("Total Transparent %llu", stats.totalTransparent);
@@ -1334,6 +1405,54 @@ protected:
             ImGui::Text("Total Fully Transparent %llu", stats.totalFullyTransparent);
             ImGui::Text("Total Fully Unknown Transparent %llu", stats.totalFullyUnknownTransparent);
             ImGui::Text("Total Fully Unknown Opaque %llu", stats.totalFullyUnknownOpaque);
+
+            if (ImGui::CollapsingHeader("Histogram"))
+            {
+                if (const omm::Cpu::BakeResultDesc* result = m_app->GetOmmGpuData().GetResult())
+                {
+                    {
+                        bool hasAnyOC2, hasAnyOC4 = false;
+                        std::array<float, 12> histogramOC2 = { 0, }, histogramOC4 = { 0, };
+                        for (uint32_t i = 0; i < result->descArrayHistogramCount; ++i)
+                        {
+                            if ((omm::Format)result->descArrayHistogram[i].format == omm::Format::OC1_2_State)
+                            {
+                                uint32_t count = result->descArrayHistogram[i].count;
+                                hasAnyOC2 |= count != 0;
+                                histogramOC2[result->descArrayHistogram[i].subdivisionLevel] = (float)count;
+                            }
+
+                            if ((omm::Format)result->descArrayHistogram[i].format == omm::Format::OC1_4_State)
+                            {
+                                uint32_t count = result->descArrayHistogram[i].count;
+                                hasAnyOC4 |= count != 0;
+                                histogramOC4[result->descArrayHistogram[i].subdivisionLevel] = (float)count;
+                            }
+                        }
+
+                        if (hasAnyOC2)
+                        {
+                            ImGui::PlotHistogram("", histogramOC2.data(), (int)histogramOC2.size(), 0, "Desc Histogram (OC2)", 0.f, 12.f, ImVec2(0, 80));
+                        }
+
+                        if (hasAnyOC4)
+                        {
+                            if (hasAnyOC2)
+                            {
+                                ImGui::SameLine();
+                            }
+
+                            ImGui::PlotHistogram("", histogramOC4.data(), (int)histogramOC4.size(), 0, "Desc Histogram (OC4)", 0.f, 12.f, ImVec2(0, 80));
+                        }
+                    }
+                }
+            }
+
+            if (ImGui::CollapsingHeader("Visualiztion Settings"))
+            {
+                ImGui::Checkbox("Draw Alpha Contour", &m_ui.drawAlphaContour);
+                ImGui::Checkbox("Draw Wire-Frame", &m_ui.drawWireFrame);
+            }
         }
        
         ImGui::EndDisabled();

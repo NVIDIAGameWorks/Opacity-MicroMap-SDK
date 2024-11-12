@@ -47,5 +47,3 @@ add_subdirectory(integration)
 if (OMM_ENABLE_TESTS)
     add_subdirectory(tests)
 endif()
-
-

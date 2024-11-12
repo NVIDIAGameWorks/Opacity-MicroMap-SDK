@@ -30,5 +30,6 @@ struct Constants
 	uint primitiveOffset;
 
 	uint mode; // 0 = lines, 1 = fill
-	uint3 pad;
+	uint drawAlphaContour;
+	uint2 pad;
 };

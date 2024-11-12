@@ -174,7 +174,7 @@ void main_ps(
     const bool isIntersection = any(alpha < 0.5f) && any(alpha >= 0.5f);
     
     float3 color = float3(0, 0, 0);
-    if (isIntersection)
+    if (g_constants.drawAlphaContour && isIntersection)
     {
         o_color = float4(1, 1, 1, 1.0);
         return;
