@@ -20,20 +20,18 @@
 * DEALINGS IN THE SOFTWARE.
 */
 
-struct Constants
+static const float3 kContourLineColor = float3(0.8f, 0, 0);
+
+bool IsOverIntersectionLine(Texture2D texture, SamplerState s, float2 invTexSize, float alphaCutoff, float2 uv)
 {
-	uint2 texSize;
-	float2 invTexSize;
-
-	float zoom;
-	float2 offset;
-	uint pad;
-
-	float2 aspectRatio;
-	uint primitiveOffset;
-	
-	uint mode; // 0 = lines, 1 = fill
-	uint drawAlphaContour;
-	float alphaCutoff;
-	uint pad2;
-};
+    float alphaLerp = texture.SampleLevel(s, uv, 0).r;
+    const float2 e = 0.35f * invTexSize;
+    const float alpha00 = texture.SampleLevel(s, uv, 0).r;
+    const float alpha01 = texture.SampleLevel(s, uv + float2(e.x, 0.f), 0).r;
+    const float alpha10 = texture.SampleLevel(s, uv + float2(0.0f, e.y), 0).r;
+    const float alpha11 = texture.SampleLevel(s, uv + e, 0).r;
+    const float4 alpha = float4(alpha00, alpha01, alpha10, alpha11);
+    
+    const bool isIntersection = any(alpha < alphaCutoff) && any(alpha >= alphaCutoff);
+    return isIntersection;
+}

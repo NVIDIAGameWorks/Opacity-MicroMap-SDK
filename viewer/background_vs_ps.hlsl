@@ -20,8 +20,8 @@
 * DEALINGS IN THE SOFTWARE.
 */
 
-
 #include "shader_cb.h"
+#include "util.hlsli"
 
 SamplerState s_Sampler : register(s0);
 Texture2D t_Texture : register(t0);
@@ -46,6 +46,7 @@ void main_vs(
     
     uv -= float2(0.5, 0.5);
     uv /= g_constants.zoom;
+    uv /= g_constants.aspectRatio;
     uv += float2(0.5, 0.5);
     uv -= 0.5 * g_constants.offset;
     
@@ -93,7 +94,16 @@ void main_ps(
         }
     }
     
-    const float alpha = 0.5 * t_Texture.SampleLevel(s_Sampler, i_uv, 0).r;
+    bool isIntersection = IsOverIntersectionLine(t_Texture, s_Sampler, g_constants.invTexSize, g_constants.alphaCutoff, i_uv);
     
-    o_rgba = float4(alpha.xxx + checker, 0.5);
+    if (g_constants.drawAlphaContour && isIntersection)
+    {
+    
+        o_rgba = float4(kContourLineColor, 1.0);
+    }
+    else
+    {
+        const float alpha = 0.5 * t_Texture.SampleLevel(s_Sampler, i_uv, 0).r;
+        o_rgba = float4(alpha.xxx + checker, 0.5);
+    }
 }

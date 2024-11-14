@@ -401,6 +401,7 @@ typedef struct ommCpuBakeInputDesc
    // Texel opacity = texture > alphaCutoff ? alphaCutoffGT : alphaCutoffLE
    // This can be used to construct different pairings such as transparent and unknown opaque which is useful 
    // for applications requiring partial accumulated opacity, like smoke and particle effects
+   float                    nearDuplicateDeduplicationFactor;
    union
    {
        OMM_DEPRECATED_MSG("alphaCutoffLE has been deprecated, please use alphaCutoffLessEqual")
@@ -466,6 +467,7 @@ inline ommCpuBakeInputDesc ommCpuBakeInputDescDefault()
    v.dynamicSubdivisionScale       = 2;
    v.rejectionThreshold            = 0;
    v.alphaCutoff                   = 0.5f;
+   v.nearDuplicateDeduplicationFactor = 0.15f;
    v.alphaCutoffLessEqual          = ommOpacityState_Transparent;
    v.alphaCutoffGreater            = ommOpacityState_Opaque;
    v.format                        = ommFormat_OC1_4_State;

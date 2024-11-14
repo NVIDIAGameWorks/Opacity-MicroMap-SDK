@@ -21,6 +21,7 @@
 */
 
 #include "shader_cb.h"
+#include "util.hlsli"
 
 
 struct OmmDesc
@@ -52,6 +53,7 @@ void main_vs(
     
     vert += g_constants.offset;
     vert *= g_constants.zoom;
+    vert *= g_constants.aspectRatio;
 
 	o_pos = float4(vert, 0, 1);
 }
@@ -162,21 +164,14 @@ void main_ps(
     {
         clr *= 0.5f;
     }
-    
-    float alphaLerp = t_Texture.SampleLevel(s_Sampler, i_texCoord, 0).r;
-    const float2 e = 0.35f * g_constants.invTexSize;
-    const float alpha00 = t_Texture.SampleLevel(s_Sampler, i_texCoord, 0).r;
-    const float alpha01 = t_Texture.SampleLevel(s_Sampler, i_texCoord + float2(e.x, 0.f), 0).r;
-    const float alpha10 = t_Texture.SampleLevel(s_Sampler, i_texCoord + float2(0.0f, e.y), 0).r;
-    const float alpha11 = t_Texture.SampleLevel(s_Sampler, i_texCoord + e, 0).r;
-    const float4 alpha = float4(alpha00, alpha01, alpha10, alpha11);
-    
-    const bool isIntersection = any(alpha < 0.5f) && any(alpha >= 0.5f);
+    const float alphaLerp = t_Texture.SampleLevel(s_Sampler, i_texCoord, 0).r;
+
+    const bool isIntersection = IsOverIntersectionLine(t_Texture, s_Sampler, g_constants.invTexSize, g_constants.alphaCutoff, i_texCoord);
     
     float3 color = float3(0, 0, 0);
     if (g_constants.drawAlphaContour && isIntersection)
     {
-        o_color = float4(1, 1, 1, 1.0);
+        o_color = float4(kContourLineColor, 1.0);
         return;
     }
     else

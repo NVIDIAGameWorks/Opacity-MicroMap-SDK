@@ -317,6 +317,7 @@ private:
         nvrhi::TextureDesc d;
         d.height = ommTex.mips[0].height;
         d.width = ommTex.mips[0].width;
+        d.mipLevels = 1;
         d.format = ommTex.format == omm::Cpu::TextureFormat::FP32 ? nvrhi::Format::R32_FLOAT : nvrhi::Format::R8_UNORM;
         d.initialState = nvrhi::ResourceStates::ShaderResource;
         d.keepInitialState = true;
@@ -527,9 +528,14 @@ private:
         omm::Cpu::TextureMipDesc mips[16];
         omm::Cpu::TextureDesc texDesc;
         texDesc.mips = mips;
+        texDesc.mipCount = 1; // TODO
 
         OMM_ABORT_ON_ERROR(omm::Cpu::GetTextureDesc(input.texture, &texDesc));
-        std::vector<uint8_t> textureData(texDesc.mips[0].width * texDesc.mips[0].height);
+        const size_t size = texDesc.format == omm::Cpu::TextureFormat::FP32 ? sizeof(float) : sizeof(uint8_t);
+
+        // Todo: figure out the conservative memory bound...
+        size_t maxDim = std::max(std::max(texDesc.mips[0].rowPitch, texDesc.mips[0].height), texDesc.mips[0].width);
+        std::vector<uint8_t> textureData(size * maxDim * maxDim);
 
         mips[0].textureData = (const void*)textureData.data();
 
@@ -685,13 +691,21 @@ protected:
         xpos *= scaleX;
         ypos *= scaleY;
 
+        float2 aspectRatioTex(1.f, 1.f);
+
+        if (nvrhi::TextureHandle alphaTex = m_ommData.GetAlphaTexture())
+        {
+            aspectRatioTex = float2((float)alphaTex->getDesc().width / (float)alphaTex->getDesc().height, 1.f);
+        }
+
         int2 windowSize;
         GetDeviceManager()->GetWindowDimensions(windowSize.x, windowSize.y);
+        windowSize.x = windowSize.y;
 
         m_mousePos = float2((float)xpos, (float)ypos);
         if (m_mouseDown)
         {
-            m_ui.offset = (2.f / (float2)windowSize) * (m_referencePos - m_mousePos) / m_ui.zoom;
+            m_ui.offset = (2.f / ((float2)windowSize * aspectRatioTex)) * (m_referencePos - m_mousePos) / m_ui.zoom;
             m_ui.offset.x = -m_ui.offset.x;
         }
         return false;
@@ -836,14 +850,24 @@ private:
 
         m_CommandList->open();
 
+        int2 windowSize;
+        GetDeviceManager()->GetWindowDimensions(windowSize.x, windowSize.y);
+
+        nvrhi::TextureHandle alphaTex = m_ommData.GetAlphaTexture();
+
+        const float2 aspectRatioTex = float2((float)alphaTex->getDesc().width / (float)alphaTex->getDesc().height, 1.f);
+        const float2 aspectRatioScreen = float2((float)windowSize.y / (float)windowSize.x, 1.f);
+
         Constants constants;
-        constants.texSize = donut::math::uint2(m_ommData.GetAlphaTexture()->getDesc().width, m_ommData.GetAlphaTexture()->getDesc().height);
+        constants.texSize = math::uint2(alphaTex->getDesc().width, alphaTex->getDesc().height);
         constants.invTexSize = float2(1.f / constants.texSize.x, 1.f / constants.texSize.y);
         constants.zoom = m_ui.zoom;
         constants.offset = m_ui.offset + m_ui.prevOffset;
+        constants.aspectRatio = aspectRatioTex * aspectRatioScreen;
         constants.primitiveOffset = m_ui.primitiveStart;
         constants.mode = 0;
         constants.drawAlphaContour = m_ui.drawAlphaContour;
+        constants.alphaCutoff = m_ui.input.has_value() ? m_ui.input->alphaCutoff : -1.f;
 
         m_CommandList->writeBuffer(m_ConstantBuffer, &constants, sizeof(constants));
 
@@ -1055,7 +1079,7 @@ public:
         : ImGui_Renderer(deviceManager)
         , m_app(app)
         , m_ui(ui)
-        , fileDialog(ImGuiFileBrowserFlags_SelectDirectory)
+        , fileDialog(ImGuiFileBrowserFlags_SelectDirectory | ImGuiFileBrowserFlags_NoModal | ImGuiFileBrowserFlags_CloseOnEsc | ImGuiFileBrowserFlags_ConfirmOnEnter)
     {
         std::filesystem::path frameworkShaderPath = app::GetDirectoryWithExecutable() / "../shaders/framework" / app::GetShaderTypeName(GetDevice()->getGraphicsAPI());
         auto rootFs = std::make_shared<vfs::RootFileSystem>();
@@ -1145,7 +1169,6 @@ protected:
             if (ImGui::Button("Select a path with .bin files"))
                 fileDialog.Open();
         }
-
 
         fileDialog.Display();
 
@@ -1281,6 +1304,8 @@ protected:
 
                 ImGui::SeparatorText("Bake Settings");
 
+               // ImGui_SliderFloat("Alpha Cutoff", id++, m_ui.input->alphaCutoff, input.alphaCutoff, 0.f, 1.f);
+
                 ImGui_Combo<omm::Format, 2>("Format", id++,
                     {
                         "OC1_2_State",
@@ -1326,7 +1351,8 @@ protected:
                 }
 
                 ImGui_SliderFloat("Rejection Threshold", id++, m_ui.input->rejectionThreshold, input.rejectionThreshold, 0.f, 1.f);
-
+                ImGui_SliderFloat("Near Duplicate Deduplication Factor", id++, m_ui.input->nearDuplicateDeduplicationFactor, input.nearDuplicateDeduplicationFactor, 0.f, 1.f);
+                
                 ImGui::BeginDisabled(m_ui.input->format == omm::Format::OC1_4_State);
                 ImGui_Combo<omm::UnknownStatePromotion, 3>("Unknown State Promotion", id++,
                     {

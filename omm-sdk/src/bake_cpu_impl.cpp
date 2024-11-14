@@ -1120,7 +1120,7 @@ namespace Cpu
             return ommResult_SUCCESS;
         }
 
-        static ommResult DeduplicateSimilarLSH(const StdAllocator<uint8_t>& allocator, const Options& options, vector<OmmWorkItem>& vmWorkItems, uint32_t iterations)
+        static ommResult DeduplicateSimilarLSH(const StdAllocator<uint8_t>& allocator, const ommCpuBakeInputDesc& desc, const Options& options, vector<OmmWorkItem>& vmWorkItems, uint32_t iterations)
         {
             if (options.disableDuplicateDetection)
                 return ommResult_SUCCESS;
@@ -1189,7 +1189,7 @@ namespace Cpu
                     const uint32_t n = (uint32_t)batchWorkItems.size();     // number of points.
                     const uint32_t d = numMicroTriangles;                   // dimensionality.
 
-                    const float r = 0.15f * d;   // Distance must be at most 25%
+                    const float r = desc.nearDuplicateDeduplicationFactor /* 0.15f*/ * d;   // Distance must be at most 25%
                     const float c = 4.0f;        // Allow 2x deviation from this
 
                     const float p1 = 1 - r / d;         // Lower bound probability, for close two points
@@ -1702,7 +1702,7 @@ namespace Cpu
 
             RETURN_STATUS_IF_FAILED(impl::DeduplicateExact(m_stdAllocator, options, vmWorkItems));
 
-            RETURN_STATUS_IF_FAILED(impl::DeduplicateSimilarLSH(m_stdAllocator, options, vmWorkItems, 3 /*iterations*/));
+            RETURN_STATUS_IF_FAILED(impl::DeduplicateSimilarLSH(m_stdAllocator, desc, options, vmWorkItems, 3 /*iterations*/));
 
             RETURN_STATUS_IF_FAILED(impl::DeduplicateSimilarBruteForce(m_stdAllocator, options, vmWorkItems));
 

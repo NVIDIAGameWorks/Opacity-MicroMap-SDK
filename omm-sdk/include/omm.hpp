@@ -297,6 +297,7 @@ namespace omm
          // Texel Opacity = texture > alphaCutoff ? alphaCutoffGreater : alphaCutoffLessEqual
          // This can be used to construct different pairings such as transparent and unknown opaque which is useful 
          // for applications requiring partial accumulated opacity, like smoke and particle effects
+         float                 nearDuplicateDeduplicationFactor = 0.15f;
          union
          {
              OMM_DEPRECATED_MSG("alphaCutoffLE has been deprecated, please use alphaCutoffLessEqual")
