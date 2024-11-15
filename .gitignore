@@ -12,7 +12,7 @@ cmake_install.cmake
 Makefile
 
 # ShaderMake
-shaders.cfg
+omm-sdk/shaders.cfg
 
 # VS
 *.vcxproj*

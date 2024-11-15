@@ -138,6 +138,15 @@ void main_ps(
         discard;
     }
     
+    const bool isIntersection = IsOverIntersectionLine(t_Texture, s_Sampler, g_constants.invTexSize, g_constants.alphaCutoff, i_texCoord);
+    
+    float3 color = float3(0, 0, 0);
+    if (g_constants.drawAlphaContour && isIntersection)
+    {
+        o_color = float4(kContourLineColor, 1.0);
+        return;
+    }
+    
     int ommIndex = t_OmmIndexBuffer[i_primitiveId + g_constants.primitiveOffset];
     
     if (ommIndex < 0)
@@ -166,15 +175,6 @@ void main_ps(
     }
     const float alphaLerp = t_Texture.SampleLevel(s_Sampler, i_texCoord, 0).r;
 
-    const bool isIntersection = IsOverIntersectionLine(t_Texture, s_Sampler, g_constants.invTexSize, g_constants.alphaCutoff, i_texCoord);
-    
-    float3 color = float3(0, 0, 0);
-    if (g_constants.drawAlphaContour && isIntersection)
-    {
-        o_color = float4(kContourLineColor, 1.0);
-        return;
-    }
-    else
     {
         color = 0.01 * alphaLerp.xxx;
     }

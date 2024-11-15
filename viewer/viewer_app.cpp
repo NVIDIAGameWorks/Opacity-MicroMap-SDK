@@ -657,6 +657,24 @@ public:
 
 protected:
 
+    virtual bool KeyboardUpdate(int key, int scancode, int action, int mods)
+    {
+        if (key == GLFW_KEY_RIGHT && action == GLFW_PRESS)
+        {
+            auto& files = m_ui.ommFiles;
+            m_ui.selectedFile = (m_ui.selectedFile + 1) % m_ui.ommFiles.size();
+            m_ui.load = true;
+            m_ui.rebake = true;
+        } else if (key == GLFW_KEY_LEFT && action == GLFW_PRESS)
+        {
+            auto& files = m_ui.ommFiles;
+            m_ui.selectedFile = uint(m_ui.selectedFile - 1) % m_ui.ommFiles.size();
+            m_ui.load = true;
+            m_ui.rebake = true;
+        }
+        return false;
+    }
+
     virtual bool MouseButtonUpdate(int button, int action, int mods)
     {
         if (button == 0)
@@ -1085,14 +1103,46 @@ public:
         auto rootFs = std::make_shared<vfs::RootFileSystem>();
         rootFs->mount("/shaders/donut", frameworkShaderPath);
 
-        m_ShaderFactory = std::make_shared<engine::ShaderFactory>(GetDevice(), rootFs, "/shaders");
-        ImGui::GetIO().IniFilename = nullptr;
-
         // (optional) set browser properties
         fileDialog.SetTitle("Select directory of bake input binaries to view (.bin)");
         fileDialog.SetTypeFilters({ ".bin" });
 
-        SelectFileDir(".\\..\\..\\data");
+        m_ShaderFactory = std::make_shared<engine::ShaderFactory>(GetDevice(), rootFs, "/shaders");
+        ImGui::GetIO().IniFilename = "ui_state.ini";
+
+        ImGui::LoadIniSettingsFromDisk(ImGui::GetIO().IniFilename);
+
+        if (fileDialog.HasSelected())
+        {
+            SelectFileDir(fileDialog.GetSelected().string());
+            fileDialog.ClearSelected();
+        }
+        else {
+
+            std::string defaultPath = ".\\";
+
+            std::ifstream infile;
+            infile.open("ui_dir_state.ini", std::ios_base::in);
+            if (infile.is_open())
+            {
+                std::string dir;
+                infile >> dir;
+                infile.close();
+
+                if (std::filesystem::exists(dir))
+                {
+                    SelectFileDir(dir);
+                }
+                else
+                {
+                    SelectFileDir(defaultPath);
+                }
+            }
+            else
+            {
+                SelectFileDir(defaultPath);
+            }
+        }
     }
 
     void Init()
@@ -1102,10 +1152,18 @@ public:
 
 protected:
 
-    void SelectFileDir(std::string dir)
+    void SelectFileDir(const std::string& dir)
     {
         m_ui.ommFiles.clear();
         m_ui.path = dir;
+
+        std::ofstream outfile;
+        outfile.open("ui_dir_state.ini", std::ios_base::trunc);
+        if (outfile.is_open())
+        {
+            outfile << dir;
+            outfile.close();
+        }
 
         if (!std::filesystem::exists(m_ui.path))
             return;
