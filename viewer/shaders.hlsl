@@ -107,14 +107,29 @@ static uint bary2index(float2 bc, uint level, out bool isUpright)
 
 float3 MicroStateColor(int state)
 {
-    if (state == 0)
-        return float3(0, 0, 1.f);
-    if (state == 1)
-        return float3(0, 1, 0.f);
-    if (state == 2)
-        return float3(1.f, 0, 1.f);
+    if (g_constants.colorizeStates)
+    {
+        if (state == 0)
+            return float3(0, 0, 1.f);
+        if (state == 1)
+            return float3(0, 1, 0.f);
+        if (state == 2)
+            return float3(1.f, 0, 1.f);
     //if (state == 3)
+
         return float3(1.f, 1.f, 0.f);
+    }
+    else
+    {
+        if (state == 0)
+            return float3(0, 0, 0.f);
+        if (state == 1)
+            return float3(1, 1, 1.f);
+        if (state == 2)
+            return float3(1.f, 0, 0.f);
+    //if (state == 3)
+        return float3(0.f, 0.f, 0.f);
+    }
 }
 
 void main_ps(
@@ -169,13 +184,16 @@ void main_ps(
     uint stateDW = t_OmmArrayData.Load(offsetDW);
     const uint bitOffset = (is2State ? 1 : 2) * (microIndex % statesPerDW);
     const uint state = (stateDW >> bitOffset) & (is2State ? 0x1u : 0x3u);
-    float3 clr = MicroStateColor(state);
+    
+    float3 clr;
+        clr = MicroStateColor(state);
+        
+        clr *= 0.5;
+        if (isUpright)
+        {
+            clr *= 0.5f;
+        }
 
-    clr *= 0.5;
-    if (isUpright)
-    {
-        clr *= 0.5f;
-    }
     const float alphaLerp = t_Texture.Sample(s_SamplerAniso, i_texCoord).r;
 
     {

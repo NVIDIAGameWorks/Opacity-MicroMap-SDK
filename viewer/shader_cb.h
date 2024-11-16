@@ -34,8 +34,8 @@ struct Constants
 	
 	uint mode; // 0 = lines, 1 = fill
 	uint drawAlphaContour;
+	uint colorizeStates;
 	float alphaCutoff;
-	uint pad2;
 
 	int mouseCoordX; // uv texture space
 	int mouseCoordY; // uv texture space

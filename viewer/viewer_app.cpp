@@ -155,10 +155,10 @@ struct UIData
     bool recompile = true;
 
     // viz
-    bool enableAniso = false;
-    bool enableMip = true;
     bool drawAlphaContour = true;
     bool drawWireFrame = true;
+    bool drawMicroTriangles = true;
+    bool colorizeStates = true;
 };
 
 class OmmGpuData
@@ -310,15 +310,13 @@ private:
         }
     }
 
-    void _InitSampler(const omm::Cpu::BakeInputDesc& input, bool enableAniso)
+    void _InitSampler(const omm::Cpu::BakeInputDesc& input)
     {
         nvrhi::SamplerAddressMode addressMode = GetSampler(input.runtimeSamplerDesc.addressingMode);
         
         auto samplerDesc = nvrhi::SamplerDesc()
             .setAllAddressModes(addressMode);
         samplerDesc.setAllFilters(true);
-        if (enableAniso)
-            samplerDesc.maxAnisotropy = 16;
         _sampler = m_device->createSampler(samplerDesc);
     }
 
@@ -328,8 +326,6 @@ private:
         d.height = ommTex.mips[0].height;
         d.width = ommTex.mips[0].width;
         d.mipLevels = (uint)( std::log2f((float)std::max(ommTex.mips[0].height, ommTex.mips[0].width)) + 0.5f);
-        if (!m_ui.enableMip)
-            d.mipLevels = 1;
 
         d.format = ommTex.format == omm::Cpu::TextureFormat::FP32 ? nvrhi::Format::R32_FLOAT : nvrhi::Format::R8_UNORM;
         d.initialState = nvrhi::ResourceStates::ShaderResource;
@@ -575,7 +571,7 @@ private:
         }
 
         _InitBuffers(input);
-        _InitSampler(input, m_ui.enableAniso);
+        _InitSampler(input);
         _InitTexture(texDesc);
 
         if (loadOnly)
@@ -935,6 +931,7 @@ private:
         constants.primitiveOffset = m_ui.primitiveStart;
         constants.mode = 0;
         constants.drawAlphaContour = m_ui.drawAlphaContour;
+        constants.colorizeStates = m_ui.colorizeStates;
         constants.alphaCutoff = m_ui.input.has_value() ? m_ui.input->alphaCutoff : -1.f;
         int2 mouseCoord = GetTextureUvFromScreenPos(constants, m_mousePos / (float2)(windowSize));
         constants.mouseCoordX = mouseCoord.x;
@@ -968,6 +965,7 @@ private:
             m_CommandList->draw(args);
         }
 
+        if (m_ui.drawMicroTriangles)
         {
             nvrhi::GraphicsState state;
             state.pipeline = m_Pipeline;
@@ -1426,6 +1424,46 @@ protected:
             const omm::Cpu::TextureDesc& texDesc = m_app->GetOmmGpuData().GetDefaultTextureDesc();
             const omm::Cpu::BakeInputDesc& input = m_app->GetOmmGpuData().GetDefaultInput();
             
+            ImGui::SeparatorText("Memory");
+
+            if (const omm::Cpu::BakeResultDesc* result = m_app->GetOmmGpuData().GetResult())
+            {
+                size_t arrayDataSize = result->arrayDataSize;
+                size_t indexSize = result->indexCount * (result->indexFormat == omm::IndexFormat::UINT_16 ? 2 : 4);
+                size_t descArraySize = result->descArrayCount * sizeof(omm::Cpu::OpacityMicromapDesc);
+                size_t totalSize = arrayDataSize + indexSize + descArraySize;
+                ImGui::Text("Array Data Size %.4f mb", arrayDataSize / (1024.f * 1024.f));
+                ImGui::Text("Index Data Size %.4f mb", indexSize / (1024.f * 1024.f));
+                ImGui::Text("Desc Array Size %.4f mb", descArraySize / (1024.f * 1024.f));
+                ImGui::Text("Total Size %.4f mb", totalSize / (1024.f * 1024.f));
+            }
+
+            ImGui::SeparatorText("Stats");
+
+            omm::Debug::Stats stats = m_app->GetOmmGpuData().GetStats();
+            const float known = (float)stats.totalOpaque + stats.totalTransparent;
+            const float unknown = (float)stats.totalUnknownTransparent + stats.totalUnknownOpaque;
+
+            if (const omm::Cpu::BakeResultDesc* result = m_app->GetOmmGpuData().GetResult())
+            {
+                const float indexCount = (float)result->indexCount;
+                const float descCount = (float)result->descArrayCount;
+
+                ImGui::Text("Tri per block: %.2f", indexCount / descCount);
+            }
+
+            float total = known + unknown;
+            ImGui::Text("Known %.2f%%", 100.f * known / (known + unknown));
+            ImGui::Text("Total Opaque %llu (%.2f%%)", stats.totalOpaque, 100.f * stats.totalOpaque / total);
+            ImGui::Text("Total Transparent %llu (%.2f%%)", stats.totalTransparent, 100.f * stats.totalTransparent / total);
+            ImGui::Text("Total Unknown Transparent %llu (%.2f%%)", stats.totalUnknownTransparent, 100.f * stats.totalUnknownTransparent / total);
+            ImGui::Text("Total Unknown Opaque %llu (%.2f%%)", stats.totalUnknownOpaque, 100.f * stats.totalUnknownOpaque / total);
+
+            ImGui::Text("Total Fully Opaque %llu", stats.totalFullyOpaque);
+            ImGui::Text("Total Fully Transparent %llu", stats.totalFullyTransparent);
+            ImGui::Text("Total Fully Unknown Transparent %llu", stats.totalFullyUnknownTransparent);
+            ImGui::Text("Total Fully Unknown Opaque %llu", stats.totalFullyUnknownOpaque);
+
             if (ImGui::CollapsingHeader("Bake Settings", ImGuiTreeNodeFlags_DefaultOpen))
             {
                 uint32_t id = 0;
@@ -1612,46 +1650,6 @@ protected:
                 ImGui::Text("Last bake time %llus, (%llu ms)", m_app->GetOmmGpuData().GetBakeTimeInSeconds(), m_app->GetOmmGpuData().GetBakeTimeInMs());
             }
            
-            ImGui::SeparatorText("Memory");
-
-            if (const omm::Cpu::BakeResultDesc* result = m_app->GetOmmGpuData().GetResult())
-            {
-                size_t arrayDataSize = result->arrayDataSize;
-                size_t indexSize = result->indexCount * (result->indexFormat == omm::IndexFormat::UINT_16 ? 2 : 4);
-                size_t descArraySize = result->descArrayCount * sizeof(omm::Cpu::OpacityMicromapDesc);
-                size_t totalSize = arrayDataSize + indexSize + descArraySize;
-                ImGui::Text("Array Data Size %.4f mb", arrayDataSize / (1024.f * 1024.f));
-                ImGui::Text("Index Data Size %.4f mb", indexSize / (1024.f * 1024.f));
-                ImGui::Text("Desc Array Size %.4f mb", descArraySize / (1024.f * 1024.f));
-                ImGui::Text("Total Size %.4f mb", totalSize / (1024.f * 1024.f));
-            }
-
-            ImGui::SeparatorText("Stats");
-
-            omm::Debug::Stats stats = m_app->GetOmmGpuData().GetStats();
-            const float known = (float)stats.totalOpaque + stats.totalTransparent;
-            const float unknown = (float)stats.totalUnknownTransparent + stats.totalUnknownOpaque;
-
-            if (const omm::Cpu::BakeResultDesc* result = m_app->GetOmmGpuData().GetResult())
-            {
-                const float indexCount = (float)result->indexCount;
-                const float descCount = (float)result->descArrayCount;
-
-                ImGui::Text("Tri per block: %.2f", indexCount / descCount);
-            }
-
-            float total = known + unknown;
-            ImGui::Text("Known %.2f%%", 100.f * known / (known + unknown));
-            ImGui::Text("Total Opaque %llu (%.2f%%)", stats.totalOpaque, 100.f * stats.totalOpaque / total);
-            ImGui::Text("Total Transparent %llu (%.2f%%)", stats.totalTransparent, 100.f * stats.totalTransparent / total);
-            ImGui::Text("Total Unknown Transparent %llu (%.2f%%)", stats.totalUnknownTransparent, 100.f * stats.totalUnknownTransparent / total);
-            ImGui::Text("Total Unknown Opaque %llu (%.2f%%)", stats.totalUnknownOpaque, 100.f * stats.totalUnknownOpaque / total);
-
-            ImGui::Text("Total Fully Opaque %llu", stats.totalFullyOpaque);
-            ImGui::Text("Total Fully Transparent %llu", stats.totalFullyTransparent);
-            ImGui::Text("Total Fully Unknown Transparent %llu", stats.totalFullyUnknownTransparent);
-            ImGui::Text("Total Fully Unknown Opaque %llu", stats.totalFullyUnknownOpaque);
-
             if (ImGui::CollapsingHeader("Histogram"))
             {
                 if (const omm::Cpu::BakeResultDesc* result = m_app->GetOmmGpuData().GetResult())
@@ -1680,18 +1678,12 @@ protected:
                 }
             }
 
-            if (ImGui::CollapsingHeader("Visualiztion Settings"))
+            if (ImGui::CollapsingHeader("Visualiztion"))
             {
-                if (ImGui::Checkbox("Enable Aniso", &m_ui.enableAniso))
-                {
-                    m_ui.rebake = true;
-                }
-                if (ImGui::Checkbox("Enable Mip", &m_ui.enableMip))
-                {
-                    m_ui.rebake = true;
-                }
                 ImGui::Checkbox("Draw Alpha Contour", &m_ui.drawAlphaContour);
                 ImGui::Checkbox("Draw Wire-Frame", &m_ui.drawWireFrame);
+                ImGui::Checkbox("Draw Micro-Triangles", &m_ui.drawMicroTriangles);
+                ImGui::Checkbox("Colorize States", &m_ui.colorizeStates);
             }
         }
        
