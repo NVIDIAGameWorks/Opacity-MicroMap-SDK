@@ -26,6 +26,7 @@
 #include <donut/core/log.h>
 #include <donut/core/math/math.h>
 #include <donut/core/vfs/VFS.h>
+#include <donut/render/MipMapGenPass.h>
 #include <nvrhi/utils.h>
 #include <donut/app/imgui_console.h>
 #include <donut/app/imgui_renderer.h>
@@ -154,6 +155,8 @@ struct UIData
     bool recompile = true;
 
     // viz
+    bool enableAniso = false;
+    bool enableMip = true;
     bool drawAlphaContour = true;
     bool drawWireFrame = true;
 };
@@ -164,6 +167,7 @@ class OmmGpuData
     UIData& m_ui;
     nvrhi::IDevice* m_device = nullptr;
     nvrhi::CommandListHandle m_commandList = nullptr;
+    std::shared_ptr<engine::ShaderFactory> m_shaderFactory;
 
     bool _hasLoadedData = false;
     std::string _fileName;
@@ -171,6 +175,8 @@ class OmmGpuData
 
     nvrhi::SamplerHandle _sampler;
     nvrhi::TextureHandle _alphaTexture = nullptr;
+    nvrhi::TextureHandle _alphaTextureMin = nullptr;
+    nvrhi::TextureHandle _alphaTextureMax = nullptr;
     nvrhi::BufferHandle _texCoordBuffer = nullptr;
     nvrhi::BufferHandle _indexBuffer = nullptr;
     nvrhi::BufferHandle _ommIndexBuffer = nullptr;
@@ -192,10 +198,11 @@ public:
     {
     }
 
-    void Init(nvrhi::IDevice* device)
+    void Init(nvrhi::IDevice* device, std::shared_ptr<engine::ShaderFactory> shaderFactory)
     {
         m_device = device;
         m_commandList = device->createCommandList();
+        m_shaderFactory = shaderFactory;
     }
 
     ~OmmGpuData()
@@ -247,6 +254,8 @@ public:
 
     nvrhi::SamplerHandle GetSampler() const { return _sampler; }
     nvrhi::TextureHandle GetAlphaTexture() const { return _alphaTexture; }
+    nvrhi::TextureHandle GetAlphaTextureMin() const { return _alphaTextureMin; }
+    nvrhi::TextureHandle GetAlphaTextureMax() const { return _alphaTextureMax; }
     nvrhi::BufferHandle GetIndexBuffer() const { return _indexBuffer; }
     nvrhi::BufferHandle GetTexCoordBuffer() const { return _texCoordBuffer; }
     nvrhi::BufferHandle GetOmmIndexBuffer() const { return _ommIndexBuffer; }
@@ -301,14 +310,15 @@ private:
         }
     }
 
-    void _InitSampler(const omm::Cpu::BakeInputDesc& input)
+    void _InitSampler(const omm::Cpu::BakeInputDesc& input, bool enableAniso)
     {
         nvrhi::SamplerAddressMode addressMode = GetSampler(input.runtimeSamplerDesc.addressingMode);
         
         auto samplerDesc = nvrhi::SamplerDesc()
-            .setAllFilters(false)
             .setAllAddressModes(addressMode);
         samplerDesc.setAllFilters(true);
+        if (enableAniso)
+            samplerDesc.maxAnisotropy = 16;
         _sampler = m_device->createSampler(samplerDesc);
     }
 
@@ -317,18 +327,36 @@ private:
         nvrhi::TextureDesc d;
         d.height = ommTex.mips[0].height;
         d.width = ommTex.mips[0].width;
-        d.mipLevels = 1;
+        d.mipLevels = (uint)( std::log2f((float)std::max(ommTex.mips[0].height, ommTex.mips[0].width)) + 0.5f);
+        if (!m_ui.enableMip)
+            d.mipLevels = 1;
+
         d.format = ommTex.format == omm::Cpu::TextureFormat::FP32 ? nvrhi::Format::R32_FLOAT : nvrhi::Format::R8_UNORM;
         d.initialState = nvrhi::ResourceStates::ShaderResource;
         d.keepInitialState = true;
+        d.isUAV = true;
         d.debugName = "AlphaTexture";
         _alphaTexture = m_device->createTexture(d);
+        _alphaTextureMin = m_device->createTexture(d);
+        _alphaTextureMax = m_device->createTexture(d);
 
         size_t texelSize = ommTex.format == omm::Cpu::TextureFormat::FP32 ? sizeof(float) : sizeof(uint8_t);
 
         m_commandList->open();
         m_commandList->setEnableAutomaticBarriers(true);
         m_commandList->writeTexture(_alphaTexture, 0, 0, ommTex.mips[0].textureData, texelSize * ommTex.mips[0].rowPitch);
+        m_commandList->copyTexture(_alphaTextureMin, nvrhi::TextureSlice().setMipLevel(0), _alphaTexture, nvrhi::TextureSlice().setMipLevel(0));
+        m_commandList->copyTexture(_alphaTextureMax, nvrhi::TextureSlice().setMipLevel(0), _alphaTexture, nvrhi::TextureSlice().setMipLevel(0));
+
+        donut::render::MipMapGenPass mipMapAvg(m_device, m_shaderFactory, _alphaTexture, donut::render::MipMapGenPass::MODE_COLOR);
+        mipMapAvg.Dispatch(m_commandList);
+
+        donut::render::MipMapGenPass mipMapMin(m_device, m_shaderFactory, _alphaTextureMin, donut::render::MipMapGenPass::MODE_MIN);
+        mipMapMin.Dispatch(m_commandList);
+
+        donut::render::MipMapGenPass mipMapMax(m_device, m_shaderFactory, _alphaTextureMax, donut::render::MipMapGenPass::MODE_MAX);
+        mipMapMax.Dispatch(m_commandList);
+
         m_commandList->close();
         m_device->executeCommandList(m_commandList);
         m_device->waitForIdle();
@@ -547,7 +575,7 @@ private:
         }
 
         _InitBuffers(input);
-        _InitSampler(input);
+        _InitSampler(input, m_ui.enableAniso);
         _InitTexture(texDesc);
 
         if (loadOnly)
@@ -648,7 +676,7 @@ public:
 
         m_CommandList = GetDevice()->createCommandList();
 
-        m_ommData.Init(GetDevice());
+        m_ommData.Init(GetDevice(), m_ShaderFactory);
         //m_ommData.Load(m_ommFiles[0].string());
         //m_ommData.Bake();
     
@@ -665,11 +693,16 @@ protected:
             m_ui.selectedFile = (m_ui.selectedFile + 1) % m_ui.ommFiles.size();
             m_ui.load = true;
             m_ui.rebake = true;
-        } else if (key == GLFW_KEY_LEFT && action == GLFW_PRESS)
+        } 
+        else if (key == GLFW_KEY_LEFT && action == GLFW_PRESS)
         {
             auto& files = m_ui.ommFiles;
             m_ui.selectedFile = uint(m_ui.selectedFile - 1) % m_ui.ommFiles.size();
             m_ui.load = true;
+            m_ui.rebake = true;
+        }
+        else if (key == GLFW_KEY_SPACE && action == GLFW_PRESS)
+        {
             m_ui.rebake = true;
         }
         return false;
@@ -721,6 +754,7 @@ protected:
         windowSize.x = windowSize.y;
 
         m_mousePos = float2((float)xpos, (float)ypos);
+        
         if (m_mouseDown)
         {
             m_ui.offset = (2.f / ((float2)windowSize * aspectRatioTex)) * (m_referencePos - m_mousePos) / m_ui.zoom;
@@ -816,10 +850,13 @@ private:
             bindingSetDesc.bindings = {
                 nvrhi::BindingSetItem::ConstantBuffer(0, m_ConstantBuffer),
                 nvrhi::BindingSetItem::Sampler(0, m_ommData.GetSampler()),
+                nvrhi::BindingSetItem::Sampler(1, m_ommData.GetSampler()),
                 nvrhi::BindingSetItem::Texture_SRV(0, m_ommData.GetAlphaTexture()),
-                nvrhi::BindingSetItem::TypedBuffer_SRV(1, m_ommData.GetOmmIndexBuffer()),
-                nvrhi::BindingSetItem::StructuredBuffer_SRV(2, m_ommData.GetOmmDesc()),
-                nvrhi::BindingSetItem::RawBuffer_SRV(3, m_ommData.GetOmmArrayData()),
+                nvrhi::BindingSetItem::Texture_SRV(1, m_ommData.GetAlphaTextureMin()),
+                nvrhi::BindingSetItem::Texture_SRV(2, m_ommData.GetAlphaTextureMax()),
+                nvrhi::BindingSetItem::TypedBuffer_SRV(3, m_ommData.GetOmmIndexBuffer()),
+                nvrhi::BindingSetItem::StructuredBuffer_SRV(4, m_ommData.GetOmmDesc()),
+                nvrhi::BindingSetItem::RawBuffer_SRV(5, m_ommData.GetOmmArrayData()),
             };
 
             // Create the binding layout (if it's empty -- so, on the first iteration) and the binding set.
@@ -876,6 +913,19 @@ private:
         const float2 aspectRatioTex = float2((float)alphaTex->getDesc().width / (float)alphaTex->getDesc().height, 1.f);
         const float2 aspectRatioScreen = float2((float)windowSize.y / (float)windowSize.x, 1.f);
 
+        auto GetTextureUvFromScreenPos = [this](const Constants& constants, float2 screenPos)
+            {
+                float2 uv = float2(screenPos.x, 1.f - screenPos.y);
+                uv -= float2(0.5, 0.5);
+                uv /= constants.zoom;
+                uv /= constants.aspectRatio;
+                uv += float2(0.5, 0.5);
+                uv -= 0.5f * constants.offset;
+
+                const int2 texelMousePos = (int2)donut::math::round(uv * (float2)constants.texSize);
+                return texelMousePos;
+            };
+
         Constants constants;
         constants.texSize = math::uint2(alphaTex->getDesc().width, alphaTex->getDesc().height);
         constants.invTexSize = float2(1.f / constants.texSize.x, 1.f / constants.texSize.y);
@@ -886,7 +936,9 @@ private:
         constants.mode = 0;
         constants.drawAlphaContour = m_ui.drawAlphaContour;
         constants.alphaCutoff = m_ui.input.has_value() ? m_ui.input->alphaCutoff : -1.f;
-
+        int2 mouseCoord = GetTextureUvFromScreenPos(constants, m_mousePos / (float2)(windowSize));
+        constants.mouseCoordX = mouseCoord.x;
+        constants.mouseCoordY = mouseCoord.y;
         m_CommandList->writeBuffer(m_ConstantBuffer, &constants, sizeof(constants));
 
         nvrhi::utils::ClearColorAttachment(m_CommandList, framebuffer, 0, nvrhi::Color(0.f));
@@ -1009,7 +1061,7 @@ void ImGui_SliderInt(const char* name, uint32_t ID, T& value, T origValue, int m
     value = intVal;
 }
 
-void ImGui_SliderFloat(const char* name, uint32_t ID, float& value, float origValue, float min, float max)
+bool ImGui_SliderFloat(const char* name, uint32_t ID, float& value, float origValue, float min, float max)
 {
     ImGui::BeginDisabled(origValue == value);
 
@@ -1024,7 +1076,7 @@ void ImGui_SliderFloat(const char* name, uint32_t ID, float& value, float origVa
 
     ImGui::SameLine();
 
-    ImGui::SliderFloat(name, &value, min, max);
+    return ImGui::SliderFloat(name, &value, min, max);
 }
 
 void ImGui_ValueUInt64(const char* name, uint32_t ID, uint64_t& value, uint64_t origValue)
@@ -1108,39 +1160,40 @@ public:
         fileDialog.SetTypeFilters({ ".bin" });
 
         m_ShaderFactory = std::make_shared<engine::ShaderFactory>(GetDevice(), rootFs, "/shaders");
-        ImGui::GetIO().IniFilename = "ui_state.ini";
+        // ImGui::GetIO().IniFilename = "ui_state.ini";
 
         ImGui::LoadIniSettingsFromDisk(ImGui::GetIO().IniFilename);
 
         if (fileDialog.HasSelected())
         {
-            SelectFileDir(fileDialog.GetSelected().string());
+            SelectFileDir(fileDialog.GetSelected().string(), -1);
             fileDialog.ClearSelected();
         }
         else {
 
             std::string defaultPath = ".\\";
-
+            int fileIndex = -1;
             std::ifstream infile;
             infile.open("ui_dir_state.ini", std::ios_base::in);
             if (infile.is_open())
             {
                 std::string dir;
                 infile >> dir;
+                infile >> fileIndex;
                 infile.close();
 
                 if (std::filesystem::exists(dir))
                 {
-                    SelectFileDir(dir);
+                    SelectFileDir(dir, fileIndex);
                 }
                 else
                 {
-                    SelectFileDir(defaultPath);
+                    SelectFileDir(defaultPath, fileIndex);
                 }
             }
             else
             {
-                SelectFileDir(defaultPath);
+                SelectFileDir(defaultPath, fileIndex);
             }
         }
     }
@@ -1152,7 +1205,7 @@ public:
 
 protected:
 
-    void SelectFileDir(const std::string& dir)
+    void SelectFileDir(const std::string& dir, int fileIndex)
     {
         m_ui.ommFiles.clear();
         m_ui.path = dir;
@@ -1161,7 +1214,8 @@ protected:
         outfile.open("ui_dir_state.ini", std::ios_base::trunc);
         if (outfile.is_open())
         {
-            outfile << dir;
+            outfile << dir << std::endl;
+            outfile << fileIndex;
             outfile.close();
         }
 
@@ -1181,7 +1235,7 @@ protected:
 
         if (m_ui.ommFiles.size() != 0)
         {
-            m_ui.selectedFile = 0;
+            m_ui.selectedFile = std::clamp<int>(fileIndex, 0, (int)m_ui.ommFiles.size() - 1);
             m_ui.rebake = true;
         }
         else
@@ -1192,12 +1246,79 @@ protected:
         m_ui.load = true;
     }
 
+    ImVec4 sRGBToLinear(const ImVec4& color) {
+        auto linearize = [](float c) {
+            return (c <= 0.04045f) ? c / 12.92f : pow((c + 0.055f) / 1.055f, 2.4f);
+            };
+        return ImVec4(linearize(color.x), linearize(color.y), linearize(color.z), color.w);
+    }
+
+    void SetStyle()
+    {
+            ImGuiStyle& style = ImGui::GetStyle();
+            // Define the primary NVIDIA green color
+           // ImVec4 nvidiaGreen = ImVec4(0.46f, 0.73f, 0.00f, 1.00f); // #76B900
+            ImVec4 nvidiaGreen = sRGBToLinear(ImVec4(0.46f, 0.73f, 0.00f, 1.00f));
+            
+            // Darken background colors and adjust other colors for contrast
+            style.Colors[ImGuiCol_Text] = ImVec4(0.85f, 0.88f, 0.85f, 1.00f);  // Light grey text
+            style.Colors[ImGuiCol_TextDisabled] = ImVec4(0.50f, 0.55f, 0.50f, 1.00f);  // Dark grey for disabled text
+            style.Colors[ImGuiCol_WindowBg] = ImVec4(0.06f, 0.06f, 0.06f, 1.00f);  // Very dark background
+            style.Colors[ImGuiCol_Border] = ImVec4(0.18f, 0.18f, 0.18f, 1.00f);  // Darker border
+            style.Colors[ImGuiCol_BorderShadow] = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);  // No shadow
+
+            // Frame and background colors
+            style.Colors[ImGuiCol_FrameBg] = ImVec4(0.12f, 0.12f, 0.12f, 1.00f);  // Darker grey frame background
+            style.Colors[ImGuiCol_FrameBgHovered] = ImVec4(0.20f, 0.20f, 0.20f, 1.00f);  // Slightly lighter frame on hover
+            style.Colors[ImGuiCol_FrameBgActive] = nvidiaGreen;                         // NVIDIA green for active frame
+
+            // Title bar colors
+            style.Colors[ImGuiCol_TitleBg] = ImVec4(0.08f, 0.08f, 0.08f, 1.00f);  // Very dark title background
+            style.Colors[ImGuiCol_TitleBgActive] = nvidiaGreen;                         // Green for active title background
+            style.Colors[ImGuiCol_TitleBgCollapsed] = ImVec4(0.08f, 0.08f, 0.08f, 0.75f);  // Slight transparency when collapsed
+
+            // Scrollbars and sliders
+            style.Colors[ImGuiCol_ScrollbarBg] = ImVec4(0.10f, 0.10f, 0.10f, 1.00f);  // Dark scrollbar background
+            style.Colors[ImGuiCol_ScrollbarGrab] = ImVec4(0.25f, 0.25f, 0.25f, 1.00f);  // Darker grey for scrollbar grab
+            style.Colors[ImGuiCol_ScrollbarGrabHovered] = nvidiaGreen;                         // Green when hovered
+            style.Colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0.36f, 0.53f, 0.00f, 1.00f);  // Darker green when active
+
+            // Buttons
+            style.Colors[ImGuiCol_Button] = ImVec4(0.15f, 0.15f, 0.15f, 1.00f);  // Dark button
+            style.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.36f, 0.53f, 0.00f, 1.00f);  // Hovered button in darker green
+            style.Colors[ImGuiCol_ButtonActive] = nvidiaGreen;                         // Active button in NVIDIA green
+
+            // Headers (for collapsible headers, etc.)
+            style.Colors[ImGuiCol_Header] = ImVec4(0.14f, 0.14f, 0.14f, 1.00f);  // Dark header
+            style.Colors[ImGuiCol_HeaderHovered] = ImVec4(0.20f, 0.20f, 0.20f, 1.00f);  // Lighter on hover
+            style.Colors[ImGuiCol_HeaderActive] = nvidiaGreen;                         // Active header in green
+
+            // Other interactive elements
+            style.Colors[ImGuiCol_CheckMark] = nvidiaGreen;                         // Checkmark in NVIDIA green
+            style.Colors[ImGuiCol_SliderGrab] = nvidiaGreen;                         // Slider in NVIDIA green
+            style.Colors[ImGuiCol_SliderGrabActive] = ImVec4(0.36f, 0.53f, 0.00f, 1.00f);  // Darker green for active slider
+            style.Colors[ImGuiCol_Separator] = ImVec4(0.18f, 0.18f, 0.18f, 1.00f);  // Darker separator
+
+            // Plot colors
+            style.Colors[ImGuiCol_PlotLines] = nvidiaGreen;                         // Lines in green
+            style.Colors[ImGuiCol_PlotLinesHovered] = ImVec4(0.36f, 0.53f, 0.00f, 1.00f);  // Darker green for hover
+            style.Colors[ImGuiCol_PlotHistogram] = nvidiaGreen;                         // Histogram in green
+            style.Colors[ImGuiCol_PlotHistogramHovered] = ImVec4(0.36f, 0.53f, 0.00f, 1.00f);  // Darker green when hovered
+
+            // Selection and popup backgrounds
+            style.Colors[ImGuiCol_TextSelectedBg] = ImVec4(0.36f, 0.53f, 0.00f, 0.50f);  // Semi-transparent green selection
+            style.Colors[ImGuiCol_PopupBg] = ImVec4(0.08f, 0.08f, 0.08f, 0.95f);  // Very dark background for popups
+
+    }
+
     virtual void buildUI(void) override
     {
         if (!m_ui.ShowUI)
             return;
 
         const auto& io = ImGui::GetIO();
+        
+        SetStyle();
 
         int2 windowSize;
         GetDeviceManager()->GetWindowDimensions(windowSize.x, windowSize.y);
@@ -1205,6 +1326,17 @@ protected:
         float scaleX, scaleY;
         GetDeviceManager()->GetDPIScaleInfo(scaleX, scaleY);
 
+        ImGui::SetNextWindowPos(ImVec2(windowSize.x * scaleX - 100.f, windowSize.y * scaleY - 50.f), ImGuiCond_FirstUseEver);
+
+        ImGui::Begin("Nav Settings", 0, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoBackground);
+        if (ImGui::Button("Reset View"))
+        {
+            m_ui.offset = float2(0, 0);
+            m_ui.zoom = 1.f;
+        }
+        ImGui::End();
+
+        ImGui::SetNextWindowBgAlpha(0.9f);
         ImGui::SetNextWindowPos(ImVec2(10.f, 10.f), ImGuiCond_FirstUseEver);
         ImGui::SetNextWindowSizeConstraints(ImVec2(10.f, 10.f), ImVec2(windowSize.x / scaleX - 20.f, windowSize.y / scaleY - 20.f));
 
@@ -1232,7 +1364,7 @@ protected:
 
         if (fileDialog.HasSelected())
         {
-            SelectFileDir(fileDialog.GetSelected().string());
+            SelectFileDir(fileDialog.GetSelected().string(), -1);
             fileDialog.ClearSelected();
         }
 
@@ -1243,7 +1375,7 @@ protected:
         {
             auto& files = m_ui.ommFiles;
             auto selected = files[m_ui.selectedFile].filename().string();
-
+            bool updateFileDir = false;
             if (ImGui::BeginCombo("Data", selected.c_str())) // Pass in the label and the current item
             {
                 for (int i = 0; i < files.size(); i++)
@@ -1253,15 +1385,17 @@ protected:
                     bool is_selected = (m_ui.selectedFile == i);
                     if (ImGui::Selectable(file.c_str(), is_selected))
                     {
+                        updateFileDir = true;
                         m_ui.selectedFile = i;
-                        m_ui.load = true;
-                        m_ui.rebake = true;
                     }
                     if (is_selected)
                         ImGui::SetItemDefaultFocus();
                 }
                 ImGui::EndCombo();
             }
+
+            if (updateFileDir)
+                SelectFileDir(m_ui.path, m_ui.selectedFile);
         }
         else
         {
@@ -1362,7 +1496,11 @@ protected:
 
                 ImGui::SeparatorText("Bake Settings");
 
-               // ImGui_SliderFloat("Alpha Cutoff", id++, m_ui.input->alphaCutoff, input.alphaCutoff, 0.f, 1.f);
+                if (ImGui_SliderFloat("Alpha Cutoff", id++, m_ui.input->alphaCutoff, input.alphaCutoff, 0.f, 1.f))
+                {
+                    if (m_ui.textureDesc->alphaCutoff >= 0.f)
+                        m_ui.textureDesc->alphaCutoff = m_ui.input->alphaCutoff;
+                }
 
                 ImGui_Combo<omm::Format, 2>("Format", id++,
                     {
@@ -1402,10 +1540,33 @@ protected:
                     }
                     ImGui::PopID();
 
-
                     ImGui::SameLine();
 
                     ImGui::SliderFloat("Dynamic Subdivision Scale", &m_ui.input->dynamicSubdivisionScale, 0.f, 100.f, "%.3f", ImGuiSliderFlags_Logarithmic);
+                }
+
+                {
+                    ImGui::BeginDisabled(input.targetCoverageRatio == m_ui.input->targetCoverageRatio);
+
+                    ImGui::PushID(id++);
+                    if (ImGui::Button("Reset"))
+                    {
+                        m_ui.input->targetCoverageRatio = input.targetCoverageRatio;
+                    }
+                    ImGui::PopID();
+                    ImGui::EndDisabled();
+
+                    ImGui::PushID(id++);
+                    ImGui::SameLine();
+                    if (ImGui::Button("-1.f"))
+                    {
+                        m_ui.input->targetCoverageRatio = -1.f;
+                    }
+                    ImGui::PopID();
+
+                    ImGui::SameLine();
+
+                    ImGui::SliderFloat("Target Coverage Ratio", &m_ui.input->targetCoverageRatio, 0.f, 1.f, "%.3f");
                 }
 
                 ImGui_SliderFloat("Rejection Threshold", id++, m_ui.input->rejectionThreshold, input.rejectionThreshold, 0.f, 1.f);
@@ -1521,6 +1682,14 @@ protected:
 
             if (ImGui::CollapsingHeader("Visualiztion Settings"))
             {
+                if (ImGui::Checkbox("Enable Aniso", &m_ui.enableAniso))
+                {
+                    m_ui.rebake = true;
+                }
+                if (ImGui::Checkbox("Enable Mip", &m_ui.enableMip))
+                {
+                    m_ui.rebake = true;
+                }
                 ImGui::Checkbox("Draw Alpha Contour", &m_ui.drawAlphaContour);
                 ImGui::Checkbox("Draw Wire-Frame", &m_ui.drawWireFrame);
             }
@@ -1556,6 +1725,7 @@ int main(int __argc, const char** __argv)
     deviceParams.enablePerMonitorDPI = true;
     deviceParams.backBufferWidth = 2 * 1280;
     deviceParams.backBufferHeight = 2 * 720;
+    deviceParams.vsyncEnabled = true;
 
     if (!deviceManager->CreateWindowDeviceAndSwapChain(deviceParams, g_WindowTitle))
     {

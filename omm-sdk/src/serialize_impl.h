@@ -52,7 +52,7 @@ namespace Cpu
     };
 
     enum Serialize {
-        VERSION = 3
+        VERSION = 4
     };
 
 

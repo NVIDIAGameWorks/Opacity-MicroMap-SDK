@@ -36,4 +36,8 @@ struct Constants
 	uint drawAlphaContour;
 	float alphaCutoff;
 	uint pad2;
+
+	int mouseCoordX; // uv texture space
+	int mouseCoordY; // uv texture space
+	uint2 pad3;
 };

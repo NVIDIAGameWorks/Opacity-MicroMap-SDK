@@ -45,7 +45,7 @@ namespace Cpu
         DisableLevelLineIntersection    = 1u << 7,
         DisableFineClassification       = 1u << 8,
         EnableNearDuplicateDetectionBruteForce = 1u << 9,
-        EnableEdgeHeuristic             = 1u << 10,
+        EnableEdgeHeuristic             = 1u << 10
     };
 
     constexpr void ValidateInternalBakeFlags()
@@ -1425,6 +1425,9 @@ namespace Cpu
             {
                 OmmWorkItem& workItem = vmWorkItems[workItemIt];
 
+                if (workItem.HasSpecialIndex())
+                    continue;
+
                 const uint32_t numMicroTriangles = omm::bird::GetNumMicroTriangles(workItem.subdivisionLevel);
 
                 bool allEqual = true;
@@ -1452,6 +1455,72 @@ namespace Cpu
 
                 if (allEqual && !options.disableSpecialIndices) {
                     workItem.vmSpecialIndex = -int32_t(commonState) - 1;
+                }
+            }
+            return ommResult_SUCCESS;
+        }
+
+        static ommResult DownsampleOneLevel(OmmWorkItem& item, bool commit, float& knownRatio)
+        {
+            if (item.subdivisionLevel == 0)
+                return ommResult_FAILURE;
+
+            int subdivisionLevel = item.subdivisionLevel - 1;
+            if (commit)
+                item.subdivisionLevel = subdivisionLevel;
+
+            const size_t numOmmForSubDivLvl = (size_t)omm::bird::GetNumMicroTriangles(subdivisionLevel);
+
+            uint32_t known = 0;
+            for (uint i = 0; i < numOmmForSubDivLvl; ++i)
+            {
+                ommOpacityState state0 = item.vmStates.Get3State(4 * i);
+                ommOpacityState state1 = item.vmStates.Get3State(4 * i + 1);
+                ommOpacityState state2 = item.vmStates.Get3State(4 * i + 2);
+                ommOpacityState state3 = item.vmStates.Get3State(4 * i + 3);
+
+                if (state0 == state1 && state0 == state2 && state0 == state3)
+                {
+                    known++;
+                    if (commit)
+                        item.vmStates.SetState(i, state0);
+                }
+                else
+                {
+                    if (commit)
+                        item.vmStates.SetState(i, ommOpacityState_UnknownOpaque);
+                }
+            }
+            knownRatio = known / (float)numOmmForSubDivLvl;
+            return ommResult_SUCCESS;
+        }
+
+        static ommResult Downsample(const ommCpuBakeInputDesc& desc, const Options& options, vector<OmmWorkItem>& vmWorkItems)
+        {
+            if (desc.targetCoverageRatio < 0.f)
+                return ommResult_SUCCESS;
+
+            for (OmmWorkItem& item : vmWorkItems)
+            {
+                if (item.subdivisionLevel == 0)
+                    continue;
+
+                if (item.HasSpecialIndex())
+                    continue;
+
+                for (int i = item.subdivisionLevel; i > 0; --i)
+                {
+                    float knownRatio;
+                    RETURN_STATUS_IF_FAILED(DownsampleOneLevel(item, false /*commit*/, knownRatio));
+
+                    if (knownRatio > desc.targetCoverageRatio)
+                    {
+                        RETURN_STATUS_IF_FAILED(DownsampleOneLevel(item, true /*commit*/, knownRatio));
+                    }
+                    else
+                    {
+                        break;
+                    }
                 }
             }
             return ommResult_SUCCESS;
@@ -1705,6 +1774,10 @@ namespace Cpu
             RETURN_STATUS_IF_FAILED(impl::DeduplicateSimilarLSH(m_stdAllocator, desc, options, vmWorkItems, 3 /*iterations*/));
 
             RETURN_STATUS_IF_FAILED(impl::DeduplicateSimilarBruteForce(m_stdAllocator, options, vmWorkItems));
+
+            RETURN_STATUS_IF_FAILED(impl::PromoteToSpecialIndices(desc, options, vmWorkItems));
+
+            RETURN_STATUS_IF_FAILED(impl::Downsample(desc, options, vmWorkItems));
 
             RETURN_STATUS_IF_FAILED(impl::PromoteToSpecialIndices(desc, options, vmWorkItems));
 

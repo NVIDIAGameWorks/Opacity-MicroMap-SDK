@@ -31,11 +31,14 @@ struct OmmDesc
     uint16_t format;
 };
 
-SamplerState s_Sampler : register(s0);
+SamplerState s_SamplerAniso : register(s0);
+SamplerState s_SamplerAnisoCmp : register(s1);
 Texture2D t_Texture : register(t0);
-Buffer<uint> t_OmmIndexBuffer : register(t1);
-StructuredBuffer<OmmDesc> t_OmmDesc : register(t2);
-ByteAddressBuffer t_OmmArrayData : register(t3);
+Texture2D t_TextureMin : register(t1);
+Texture2D t_TextureMax : register(t2);
+Buffer<uint> t_OmmIndexBuffer : register(t3);
+StructuredBuffer<OmmDesc> t_OmmDesc : register(t4);
+ByteAddressBuffer t_OmmArrayData : register(t5);
 
 cbuffer c_Constants : register(b0)
 {
@@ -138,7 +141,7 @@ void main_ps(
         discard;
     }
     
-    const bool isIntersection = IsOverIntersectionLine(t_Texture, s_Sampler, g_constants.invTexSize, g_constants.alphaCutoff, i_texCoord);
+    const bool isIntersection = IsOverIntersectionLine(t_Texture, t_TextureMin, t_TextureMax, s_SamplerAnisoCmp, g_constants.invTexSize, g_constants.alphaCutoff, i_texCoord);
     
     float3 color = float3(0, 0, 0);
     if (g_constants.drawAlphaContour && isIntersection)
@@ -173,7 +176,7 @@ void main_ps(
     {
         clr *= 0.5f;
     }
-    const float alphaLerp = t_Texture.SampleLevel(s_Sampler, i_texCoord, 0).r;
+    const float alphaLerp = t_Texture.Sample(s_SamplerAniso, i_texCoord).r;
 
     {
         color = 0.01 * alphaLerp.xxx;

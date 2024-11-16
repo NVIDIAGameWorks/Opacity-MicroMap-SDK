@@ -23,14 +23,28 @@
 #include "shader_cb.h"
 #include "util.hlsli"
 
-SamplerState s_Sampler : register(s0);
+SamplerState s_SamplerAniso : register(s0);
+SamplerState s_SamplerAnisoCmp : register(s1);
 Texture2D t_Texture : register(t0);
-Buffer<uint> t_OmmIndexBuffer : register(t1);
+Texture2D t_TextureMin : register(t1);
+Texture2D t_TextureMax : register(t2);
+Buffer<uint> t_OmmIndexBuffer : register(t3);
 
 cbuffer c_Constants : register(b0)
 {
     Constants g_constants;
 };
+
+float2 GetTextureUvFromScreenPos(float2 screenPos)
+{
+    float2 uv = screenPos;
+    uv -= float2(0.5, 0.5);
+    uv /= g_constants.zoom;
+    uv /= g_constants.aspectRatio;
+    uv += float2(0.5, 0.5);
+    uv -= 0.5 * g_constants.offset;
+    return uv;
+}
 
 void main_vs(
 	in uint iVertex : SV_VertexID,
@@ -44,13 +58,7 @@ void main_vs(
     
     float2 uv = float2(u, 1.f -v);
     
-    uv -= float2(0.5, 0.5);
-    uv /= g_constants.zoom;
-    uv /= g_constants.aspectRatio;
-    uv += float2(0.5, 0.5);
-    uv -= 0.5 * g_constants.offset;
-    
-    o_uv = uv;
+    o_uv = GetTextureUvFromScreenPos(uv);
 }
 
 void main_ps(
@@ -62,9 +70,15 @@ void main_ps(
     uint mipNum;
     t_Texture.GetDimensions(0, dim.x, dim.y, mipNum);
     
-    const int2 texel = (int2) round(i_uv * dim);
+    int2 texel = (int2) round(i_uv * dim);
     const float2 texelf = (float2) i_uv * dim;
     
+    if (g_constants.mouseCoordX == texel.x && g_constants.mouseCoordY == texel.y)
+    {
+        o_rgba = float4(1,1,0, 0.5);
+        return;
+    }
+
     float3 checker = float3(0, 0, 0);
     
     const float size = 0.5f;
@@ -94,7 +108,7 @@ void main_ps(
         }
     }
     
-    bool isIntersection = IsOverIntersectionLine(t_Texture, s_Sampler, g_constants.invTexSize, g_constants.alphaCutoff, i_uv);
+    bool isIntersection = IsOverIntersectionLine(t_Texture, t_TextureMin, t_TextureMax, s_SamplerAnisoCmp, g_constants.invTexSize, g_constants.alphaCutoff, i_uv);
     
     if (g_constants.drawAlphaContour && isIntersection)
     {
@@ -103,7 +117,7 @@ void main_ps(
     }
     else
     {
-        const float alpha = 0.5 * t_Texture.SampleLevel(s_Sampler, i_uv, 0).r;
+        const float alpha = 0.5 * t_Texture.Sample(s_SamplerAniso, i_uv).r;
         o_rgba = float4(alpha.xxx + checker, 0.5);
     }
 }

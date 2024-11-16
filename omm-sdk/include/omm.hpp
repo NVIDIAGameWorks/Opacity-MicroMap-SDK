@@ -288,6 +288,7 @@ namespace omm
          // > 0: The subdivision level be chosen such that a single micro-triangle covers approximatley a dynamicSubdivisionScale *
          // dynamicSubdivisionScale texel area.
          float                 dynamicSubdivisionScale       = 2;
+         float                 targetCoverageRatio           = -1.f;
          // Rejection threshold [0,1]. Unless OMMs achive a rate of at least rejectionThreshold known states OMMs will be discarded
          // for the primitive. Use this to weed out "poor" OMMs.
          float                 rejectionThreshold            = 0;

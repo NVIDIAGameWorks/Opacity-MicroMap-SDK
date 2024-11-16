@@ -22,16 +22,27 @@
 
 static const float3 kContourLineColor = float3(0.8f, 0, 0);
 
-bool IsOverIntersectionLine(Texture2D texture, SamplerState s, float2 invTexSize, float alphaCutoff, float2 uv)
+bool IsOverIntersectionLine(
+    Texture2D texture, 
+    Texture2D textureMin,
+    Texture2D textureMax, 
+    SamplerState s, float2 invTexSize, float alphaCutoff, float2 uv)
 {
-    float alphaLerp = texture.SampleLevel(s, uv, 0).r;
-    const float2 e = 0.35f * invTexSize;
-    const float alpha00 = texture.SampleLevel(s, uv, 0).r;
-    const float alpha01 = texture.SampleLevel(s, uv + float2(e.x, 0.f), 0).r;
-    const float alpha10 = texture.SampleLevel(s, uv + float2(0.0f, e.y), 0).r;
-    const float alpha11 = texture.SampleLevel(s, uv + e, 0).r;
+    float alphaLerp = texture.Sample(s, uv).r;
+    const float2 e = 0.3f * invTexSize;
+    const float alpha00 = texture.Sample(s, uv).r;
+    const float alpha01 = texture.Sample(s, uv + float2(e.x, 0.f)).r;
+    const float alpha10 = texture.Sample(s, uv + float2(0.0f, e.y)).r;
+    const float alpha11 = texture.Sample(s, uv + e).r;
     const float4 alpha = float4(alpha00, alpha01, alpha10, alpha11);
     
-    const bool isIntersection = any(alpha < alphaCutoff) && any(alpha >= alphaCutoff);
+    bool isIntersection = any(alpha < alphaCutoff) && any(alpha >= alphaCutoff);
+    
+    {
+        const float min = textureMin.Sample(s, uv).r;
+        const float max = textureMax.Sample(s, uv).r;
+        isIntersection |= any(min < alphaCutoff) && any(max >= alphaCutoff);
+    }
+    
     return isIntersection;
 }

@@ -392,6 +392,7 @@ typedef struct ommCpuBakeInputDesc
    // > 0: The subdivision level be chosen such that a single micro-triangle covers approximatley a dynamicSubdivisionScale *
    // dynamicSubdivisionScale texel area.
    float                    dynamicSubdivisionScale;
+   float                    targetCoverageRatio;
    // Rejection threshold [0,1]. Unless OMMs achive a rate of at least rejectionThreshold known states OMMs will be discarded
    // for the primitive. Use this to weed out "poor" OMMs.
    float                    rejectionThreshold;
@@ -465,6 +466,7 @@ inline ommCpuBakeInputDesc ommCpuBakeInputDescDefault()
    v.indexBuffer                   = NULL;
    v.indexCount                    = 0;
    v.dynamicSubdivisionScale       = 2;
+   v.targetCoverageRatio           = -1.f;
    v.rejectionThreshold            = 0;
    v.alphaCutoff                   = 0.5f;
    v.nearDuplicateDeduplicationFactor = 0.15f;

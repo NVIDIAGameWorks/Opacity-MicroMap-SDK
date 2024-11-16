@@ -83,7 +83,7 @@ namespace Cpu
     {
         std::ostream os(&buffer);
 
-        static_assert(sizeof(ommCpuBakeInputDesc) == 136);
+        static_assert(sizeof(ommCpuBakeInputDesc) == 144);
 
         os.write(reinterpret_cast<const char*>(&inputDesc.bakeFlags), sizeof(inputDesc.bakeFlags));
 
@@ -112,6 +112,7 @@ namespace Cpu
         os.write(reinterpret_cast<const char*>(inputDesc.indexBuffer), indexBufferSize);
 
         os.write(reinterpret_cast<const char*>(&inputDesc.dynamicSubdivisionScale), sizeof(inputDesc.dynamicSubdivisionScale));
+        os.write(reinterpret_cast<const char*>(&inputDesc.targetCoverageRatio), sizeof(inputDesc.targetCoverageRatio));
         os.write(reinterpret_cast<const char*>(&inputDesc.rejectionThreshold), sizeof(inputDesc.rejectionThreshold));
         os.write(reinterpret_cast<const char*>(&inputDesc.alphaCutoff), sizeof(inputDesc.alphaCutoff));
         os.write(reinterpret_cast<const char*>(&inputDesc.alphaCutoffLessEqual), sizeof(inputDesc.alphaCutoffLessEqual));
@@ -364,7 +365,7 @@ namespace Cpu
     {
         std::istream os(&buffer);
 
-        static_assert(sizeof(ommCpuBakeInputDesc) == 136);
+        static_assert(sizeof(ommCpuBakeInputDesc) == 144);
 
         os.read(reinterpret_cast<char*>(&inputDesc.bakeFlags), sizeof(inputDesc.bakeFlags));
 
@@ -400,6 +401,8 @@ namespace Cpu
         inputDesc.indexBuffer = indexBuffer;
 
         os.read(reinterpret_cast<char*>(&inputDesc.dynamicSubdivisionScale), sizeof(inputDesc.dynamicSubdivisionScale));
+        if (header.inputDescVersion >= 4)
+            os.read(reinterpret_cast<char*>(&inputDesc.targetCoverageRatio), sizeof(inputDesc.targetCoverageRatio));
         os.read(reinterpret_cast<char*>(&inputDesc.rejectionThreshold), sizeof(inputDesc.rejectionThreshold));
         os.read(reinterpret_cast<char*>(&inputDesc.alphaCutoff), sizeof(inputDesc.alphaCutoff));
         os.read(reinterpret_cast<char*>(&inputDesc.alphaCutoffLessEqual), sizeof(inputDesc.alphaCutoffLessEqual));
