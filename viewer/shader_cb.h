@@ -25,6 +25,9 @@ struct Constants
 	uint2 texSize;
 	float2 invTexSize;
 
+	float2 screenSize;
+	float2 invScreenSize;
+
 	float zoom;
 	float2 offset;
 	uint pad;

@@ -49,7 +49,8 @@ float2 GetTextureUvFromScreenPos(float2 screenPos)
 void main_vs(
 	in uint iVertex : SV_VertexID,
 	out float4 o_posClip : SV_Position,
-	out float2 o_uv : UV)
+	out float2 o_uv : UV0,
+    out float2 o_uvDelta : UV1)
 {
     uint u = iVertex & 1;
     uint v = (iVertex >> 1) & 1;
@@ -57,13 +58,16 @@ void main_vs(
     o_posClip = float4(float(u) * 2 - 1, 1 - float(v) * 2, 0, 1);
     
     float2 uv = float2(u, 1.f -v);
-    
     o_uv = GetTextureUvFromScreenPos(uv);
+    
+    float2 uvDelta = float2(u + g_constants.invScreenSize.x, 1.f - v + g_constants.invScreenSize.y);
+    o_uvDelta = GetTextureUvFromScreenPos(uvDelta);
 }
 
 void main_ps(
 	in float4 i_pos : SV_Position,
-	in float2 i_uv : UV,
+	in float2 i_uv : UV0,
+	in float2 i_uvDelta : UV1,
 	out float4 o_rgba : SV_Target)
 {
     uint2 dim;
@@ -71,6 +75,7 @@ void main_ps(
     t_Texture.GetDimensions(0, dim.x, dim.y, mipNum);
     
     int2 texel = (int2) round(i_uv * dim);
+    int2 texelDelta = (int2) round(i_uvDelta * dim);
     const float2 texelf = (float2) i_uv * dim;
     
     if (g_constants.mouseCoordX == texel.x && g_constants.mouseCoordY == texel.y)
@@ -100,12 +105,19 @@ void main_ps(
         const float clr = lerp(0.0f, 0.1f, fade);
         if (((texel.x / dim.x) & 1) == ((texel.y / dim.y) & 1))
         {
-            checker += float3(clr, clr, clr);
+          //  checker += float3(clr, clr, clr);
         }
         else
         {
            // checker += float3(0, 0, clr);
         }
+    }
+    
+    // Draw vertical and horizontal lines to outline macro textures
+    if (texel.x / dim.x != texelDelta.x / dim.x || 
+        texel.y / dim.y != texelDelta.y / dim.y)
+    {
+        checker = float3(1, 1.0, 1.0);
     }
     
     bool isIntersection = IsOverIntersectionLine(t_Texture, t_TextureMin, t_TextureMax, s_SamplerAnisoCmp, g_constants.invTexSize, g_constants.alphaCutoff, i_uv);

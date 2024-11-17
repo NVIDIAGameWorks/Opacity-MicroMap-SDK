@@ -925,6 +925,8 @@ private:
         Constants constants;
         constants.texSize = math::uint2(alphaTex->getDesc().width, alphaTex->getDesc().height);
         constants.invTexSize = float2(1.f / constants.texSize.x, 1.f / constants.texSize.y);
+        constants.screenSize = float2(framebuffer->getFramebufferInfo().getViewport().width(), framebuffer->getFramebufferInfo().getViewport().height());
+        constants.invScreenSize = 1.f / constants.screenSize;
         constants.zoom = m_ui.zoom;
         constants.offset = m_ui.offset + m_ui.prevOffset;
         constants.aspectRatio = aspectRatioTex * aspectRatioScreen;
