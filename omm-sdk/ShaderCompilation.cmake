@@ -136,7 +136,7 @@ if (OMM_ENABLE_PRECOMPILED_SHADERS_DXIL)
         TARGET omm-shaders-dxil
         CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/shaders.cfg
         SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/shaders
-        FOLDER "shaders"
+        FOLDER ${OMM_PROJECT_FOLDER}
         DXIL ${PROJECT_BINARY_DIR}/bin
     )
 endif()
@@ -146,7 +146,7 @@ if (OMM_ENABLE_PRECOMPILED_SHADERS_SPIRV)
         TARGET omm-shaders-spirv
         CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/shaders.cfg
         SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/shaders
-        FOLDER "shaders"
+        FOLDER ${OMM_PROJECT_FOLDER}
         SPIRV ${PROJECT_BINARY_DIR}/bin
     )
 endif()

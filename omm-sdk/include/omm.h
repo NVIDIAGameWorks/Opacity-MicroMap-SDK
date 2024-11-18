@@ -392,6 +392,7 @@ typedef struct ommCpuBakeInputDesc
    // > 0: The subdivision level be chosen such that a single micro-triangle covers approximatley a dynamicSubdivisionScale *
    // dynamicSubdivisionScale texel area.
    float                    dynamicSubdivisionScale;
+   float                    targetCoverageRatio;
    // Rejection threshold [0,1]. Unless OMMs achive a rate of at least rejectionThreshold known states OMMs will be discarded
    // for the primitive. Use this to weed out "poor" OMMs.
    float                    rejectionThreshold;
@@ -401,6 +402,7 @@ typedef struct ommCpuBakeInputDesc
    // Texel opacity = texture > alphaCutoff ? alphaCutoffGT : alphaCutoffLE
    // This can be used to construct different pairings such as transparent and unknown opaque which is useful 
    // for applications requiring partial accumulated opacity, like smoke and particle effects
+   float                    nearDuplicateDeduplicationFactor;
    union
    {
        OMM_DEPRECATED_MSG("alphaCutoffLE has been deprecated, please use alphaCutoffLessEqual")
@@ -464,8 +466,10 @@ inline ommCpuBakeInputDesc ommCpuBakeInputDescDefault()
    v.indexBuffer                   = NULL;
    v.indexCount                    = 0;
    v.dynamicSubdivisionScale       = 2;
+   v.targetCoverageRatio           = -1.f;
    v.rejectionThreshold            = 0;
    v.alphaCutoff                   = 0.5f;
+   v.nearDuplicateDeduplicationFactor = 0.15f;
    v.alphaCutoffLessEqual          = ommOpacityState_Transparent;
    v.alphaCutoffGreater            = ommOpacityState_Opaque;
    v.format                        = ommFormat_OC1_4_State;
@@ -555,6 +559,8 @@ inline ommCpuDeserializedDesc ommCpuDeserializedDescDefault()
 }
 
 OMM_API ommResult ommCpuCreateTexture(ommBaker baker, const ommCpuTextureDesc* desc, ommCpuTexture* outTexture);
+
+OMM_API ommResult ommCpuGetTextureDesc(ommCpuTexture texture, ommCpuTextureDesc* outDesc);
 
 OMM_API ommResult ommCpuDestroyTexture(ommBaker baker, ommCpuTexture texture);
 

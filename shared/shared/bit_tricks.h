@@ -17,6 +17,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #define IMMINTRIN_ENABLED (0)
 #endif
 
+#include "math.h"
 #include <stdint.h>
 
 namespace omm
@@ -30,6 +31,10 @@ namespace omm
         v |= v >> 8;
         v |= v >> 16;
         return ++v;
+    }
+
+    static bool isPow2(int32_t x) {
+        return x > 0 && !(x & (x-1));
     }
 
     static uint32_t _bit_interleave_sw(uint32_t in_x, uint32_t in_y) {
@@ -58,7 +63,29 @@ namespace omm
         return z;
     }
 
-    inline uint64_t bit_interleave(uint32_t x, uint32_t y)
+#ifdef _MSC_VER
+#include <intrin.h>
+    uint32_t __inline ctz(uint32_t value)
+    {
+        unsigned long trailing_zero = 0;
+
+        if (_BitScanForward(&trailing_zero, value))
+        {
+            return trailing_zero;
+        }
+        else
+        {
+            // This is undefined, I better choose 32 than 0
+            return 32;
+        }
+    }
+    uint2 __inline ctz(uint2 value)
+    {
+        return uint2(ctz(value.x), ctz(value.y));
+    }
+#endif
+
+    inline uint32_t bit_interleave(uint32_t x, uint32_t y)
     {
 #if IMMINTRIN_ENABLED
         // Significantly faster than _morton_bit_interleave_sw
@@ -68,15 +95,35 @@ namespace omm
 #endif
     }
 
-    inline uint64_t xy_to_morton_sw(uint32_t x, uint32_t y)
+    inline uint32_t morton1(uint32_t x)
+    {
+        x = x & 0x55555555;
+        x = (x | (x >> 1)) & 0x33333333;
+        x = (x | (x >> 2)) & 0x0F0F0F0F;
+        x = (x | (x >> 4)) & 0x00FF00FF;
+        x = (x | (x >> 8)) & 0x0000FFFF;
+        return x;
+    }
+
+    inline void bit_deinterleave_sw(uint32_t i, uint32_t& x, uint32_t& y)
+    {
+        x = morton1(i);
+        y = morton1(i >> 1);
+    }
+
+    inline uint32_t xy_to_morton_sw(uint32_t x, uint32_t y)
     {
         return _bit_interleave_sw(x, y);
     }
 
-    inline uint64_t xy_to_morton(uint32_t x, uint32_t y)
+    inline uint32_t xy_to_morton(uint32_t x, uint32_t y)
     {
         return bit_interleave(x, y);
     }
 
+    inline void morton_to_xy(uint32_t i, uint32_t& x, uint32_t& y)
+    {
+        return bit_deinterleave_sw(i, x, y);
+    }
 
 } // namespace omm

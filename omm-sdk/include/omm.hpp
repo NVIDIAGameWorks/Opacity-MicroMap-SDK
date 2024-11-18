@@ -288,6 +288,7 @@ namespace omm
          // > 0: The subdivision level be chosen such that a single micro-triangle covers approximatley a dynamicSubdivisionScale *
          // dynamicSubdivisionScale texel area.
          float                 dynamicSubdivisionScale       = 2;
+         float                 targetCoverageRatio           = -1.f;
          // Rejection threshold [0,1]. Unless OMMs achive a rate of at least rejectionThreshold known states OMMs will be discarded
          // for the primitive. Use this to weed out "poor" OMMs.
          float                 rejectionThreshold            = 0;
@@ -297,6 +298,7 @@ namespace omm
          // Texel Opacity = texture > alphaCutoff ? alphaCutoffGreater : alphaCutoffLessEqual
          // This can be used to construct different pairings such as transparent and unknown opaque which is useful 
          // for applications requiring partial accumulated opacity, like smoke and particle effects
+         float                 nearDuplicateDeduplicationFactor = 0.15f;
          union
          {
              OMM_DEPRECATED_MSG("alphaCutoffLE has been deprecated, please use alphaCutoffLessEqual")
@@ -404,6 +406,8 @@ namespace omm
       };
 
       static inline Result CreateTexture(Baker baker, const TextureDesc& desc, Texture* outTexture);
+
+      static inline Result FillTextureDesc(Texture* texture, TextureDesc* outDesc);
 
       static inline Result DestroyTexture(Baker baker, Texture texture);
 
@@ -974,6 +978,10 @@ namespace omm
         static inline Result CreateTexture(Baker baker, const TextureDesc& desc, Texture* outTexture)
         {
             return (Result)ommCpuCreateTexture((ommBaker)baker, reinterpret_cast<const ommCpuTextureDesc*>(&desc), (ommCpuTexture*)outTexture);
+        }
+        static inline Result GetTextureDesc(Texture texture, TextureDesc* outDesc)
+        {
+            return (Result)ommCpuGetTextureDesc((ommCpuTexture)texture, reinterpret_cast<ommCpuTextureDesc*>(outDesc));
         }
         static inline Result DestroyTexture(Baker baker, Texture texture)
         {
