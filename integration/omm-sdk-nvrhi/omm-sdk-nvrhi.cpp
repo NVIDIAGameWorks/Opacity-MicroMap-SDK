@@ -430,15 +430,13 @@ void GpuBakeNvrhiImpl::SetupPipelines(
 	auto CreateBindingLayout = [this, shaderProvider, desc](
 		nvrhi::ShaderType visibility, 
 		const omm::Gpu::DescriptorRangeDesc* ranges, uint32_t numRanges)->nvrhi::BindingLayoutHandle {
-		nvrhi::VulkanBindingOffsets defaultBindingOffsets;
-		defaultBindingOffsets.shaderResource = desc->spirvBindingOffsets.textureOffset;
-		defaultBindingOffsets.sampler = desc->spirvBindingOffsets.samplerOffset;
-		defaultBindingOffsets.constantBuffer = desc->spirvBindingOffsets.constantBufferOffset;
-		defaultBindingOffsets.unorderedAccess = desc->spirvBindingOffsets.storageTextureAndBufferOffset;
 
 		nvrhi::BindingLayoutDesc layoutDesc;
 		layoutDesc.visibility = visibility;
-		layoutDesc.bindingOffsets = shaderProvider ? shaderProvider->bindingOffsets : defaultBindingOffsets;
+        layoutDesc.bindingOffsets.shaderResource    = (shaderProvider != nullptr && shaderProvider->bindingOffsets.shaderResource  != UINT_MAX) ? shaderProvider->bindingOffsets.shaderResource  : desc->spirvBindingOffsets.textureOffset;
+        layoutDesc.bindingOffsets.sampler           = (shaderProvider != nullptr && shaderProvider->bindingOffsets.sampler         != UINT_MAX) ? shaderProvider->bindingOffsets.sampler         : desc->spirvBindingOffsets.samplerOffset;
+        layoutDesc.bindingOffsets.constantBuffer    = (shaderProvider != nullptr && shaderProvider->bindingOffsets.constantBuffer  != UINT_MAX) ? shaderProvider->bindingOffsets.constantBuffer  : desc->spirvBindingOffsets.constantBufferOffset;
+        layoutDesc.bindingOffsets.unorderedAccess   = (shaderProvider != nullptr && shaderProvider->bindingOffsets.unorderedAccess != UINT_MAX) ? shaderProvider->bindingOffsets.unorderedAccess : desc->spirvBindingOffsets.storageTextureAndBufferOffset;
 
 		nvrhi::BindingLayoutItem constantBufferItem = nvrhi::BindingLayoutItem::ConstantBuffer(desc->globalConstantBufferDesc.registerIndex);
 		layoutDesc.bindings.push_back(constantBufferItem);
