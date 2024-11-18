@@ -1479,7 +1479,7 @@ namespace Cpu
                 ommOpacityState state2 = item.vmStates.Get3State(4 * i + 2);
                 ommOpacityState state3 = item.vmStates.Get3State(4 * i + 3);
 
-                if (state0 == state1 && state0 == state2 && state0 == state3)
+                if (IsKnown(state0) && state0 == state1 && state0 == state2 && state0 == state3)
                 {
                     known++;
                     if (commit)

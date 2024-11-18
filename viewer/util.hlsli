@@ -29,7 +29,7 @@ bool IsOverIntersectionLine(
     SamplerState s, float2 invTexSize, float alphaCutoff, float2 uv)
 {
     float alphaLerp = texture.Sample(s, uv).r;
-    const float2 e = 0.3f * invTexSize;
+    const float2 e = float2(ddx(uv.x), ddy(uv.y)); // * invTexSize;
     const float alpha00 = texture.Sample(s, uv).r;
     const float alpha01 = texture.Sample(s, uv + float2(e.x, 0.f)).r;
     const float alpha10 = texture.Sample(s, uv + float2(0.0f, e.y)).r;
@@ -38,6 +38,7 @@ bool IsOverIntersectionLine(
     
     bool isIntersection = any(alpha < alphaCutoff) && any(alpha >= alphaCutoff);
     
+    if (false)
     {
         const float min = textureMin.Sample(s, uv).r;
         const float max = textureMax.Sample(s, uv).r;

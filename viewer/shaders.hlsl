@@ -33,10 +33,13 @@ struct OmmDesc
 
 SamplerState s_SamplerAniso : register(s0);
 SamplerState s_SamplerAnisoCmp : register(s1);
+// ROV is more correct but struggles with SPIR-V conversion
+// RasterizerOrderedTexture2D<float4> u_ReadbackTexture : register(u0);
+RWTexture2D<float4> u_ReadbackTexture : register(u0);
 Texture2D t_Texture : register(t0);
 Texture2D t_TextureMin : register(t1);
 Texture2D t_TextureMax : register(t2);
-Buffer<uint> t_OmmIndexBuffer : register(t3);
+Buffer<int> t_OmmIndexBuffer : register(t3);
 StructuredBuffer<OmmDesc> t_OmmDesc : register(t4);
 ByteAddressBuffer t_OmmArrayData : register(t5);
 
@@ -47,8 +50,8 @@ cbuffer c_Constants : register(b0)
 
 void main_vs(
 	in float2 i_texCoord : SV_Position,
-	out float2 o_texCoord : TEXCOORD0,
-	out float4 o_pos : SV_Position
+	out float4 o_pos : SV_Position,
+	out float2 o_texCoord : TEXCOORD0
 )
 {
     o_texCoord = i_texCoord;
@@ -133,6 +136,7 @@ float3 MicroStateColor(int state)
 }
 
 void main_ps(
+	in float4 i_pos : SV_Position,
 	in float2 i_texCoord : TEXCOORD0,
 	in uint i_primitiveId : SV_PrimitiveID,
     in float3 bc : SV_Barycentrics,
@@ -140,6 +144,22 @@ void main_ps(
 	out float4 o_color : SV_Target0
 )
 {
+    int ommIndex = t_OmmIndexBuffer[i_primitiveId + g_constants.primitiveOffset];
+
+    if (g_constants.ommIndexIsolate >= 0 && ommIndex != g_constants.ommIndexIsolate)
+    {
+        discard;
+    }
+    
+    u_ReadbackTexture[i_pos.xy].w = asfloat(ommIndex + 1);
+    
+    float highlight = g_constants.ommIndexHighlightEnable ? 0.5f : 1.f;
+    if (g_constants.ommIndexHighlightEnable &&
+        ommIndex == g_constants.ommIndexHighlight)
+    {
+        highlight = 1.0f;
+    }
+    
     if (g_constants.mode == 1) // wireframe
     {
         o_color = float4(1, 0, 0, 1.0);
@@ -165,14 +185,12 @@ void main_ps(
         return;
     }
     
-    int ommIndex = t_OmmIndexBuffer[i_primitiveId + g_constants.primitiveOffset];
-    
     if (ommIndex < 0)
     {
-        o_color = float4(MicroStateColor(-(ommIndex + 1)), 0.5);
+        o_color = highlight * float4(MicroStateColor(-(ommIndex + 1)), 0.5);
         return;
     }
-    
+
     OmmDesc ommDesc = t_OmmDesc[ommIndex];
     const bool is2State = ommDesc.format == 1;
     
@@ -185,15 +203,15 @@ void main_ps(
     const uint bitOffset = (is2State ? 1 : 2) * (microIndex % statesPerDW);
     const uint state = (stateDW >> bitOffset) & (is2State ? 0x1u : 0x3u);
     
-    float3 clr;
-        clr = MicroStateColor(state);
-        
-        clr *= 0.5;
-        if (isUpright)
-        {
-            clr *= 0.5f;
-        }
-
+    float3 clr = MicroStateColor(state);
+    clr *= 0.5;
+    if (isUpright)
+    {
+        clr *= 0.5f;
+    }
+    
+    clr *= highlight;
+    
     const float alphaLerp = t_Texture.Sample(s_SamplerAniso, i_texCoord).r;
 
     {

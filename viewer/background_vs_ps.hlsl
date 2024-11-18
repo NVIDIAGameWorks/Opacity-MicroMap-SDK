@@ -25,6 +25,7 @@
 
 SamplerState s_SamplerAniso : register(s0);
 SamplerState s_SamplerAnisoCmp : register(s1);
+RWTexture2D<float4> u_ReadbackTexture : register(u0);
 Texture2D t_Texture : register(t0);
 Texture2D t_TextureMin : register(t1);
 Texture2D t_TextureMax : register(t2);
@@ -78,10 +79,20 @@ void main_ps(
     int2 texelDelta = (int2) round(i_uvDelta * dim);
     const float2 texelf = (float2) i_uv * dim;
     
+    const float alpha = t_Texture.Sample(s_SamplerAniso, i_uv).r;
+    u_ReadbackTexture[i_pos.xy] = float4(alpha, asfloat(texel), 0);
+    
     if (g_constants.mouseCoordX == texel.x && g_constants.mouseCoordY == texel.y)
     {
-        o_rgba = float4(1,1,0, 0.5);
-        return;
+        float2 fracTexelf = frac(texelf - 0.5f);
+        
+        const float e = 2 * ddx(texelf.x);
+        if (fracTexelf.x < e || fracTexelf.x > (1 - e) || 
+            fracTexelf.y < e || fracTexelf.y > (1 - e))
+        {
+            o_rgba = float4(1, 1, 0, 0.5);
+            return;
+        }
     }
 
     float3 checker = float3(0, 0, 0);
@@ -105,7 +116,7 @@ void main_ps(
         const float clr = lerp(0.0f, 0.1f, fade);
         if (((texel.x / dim.x) & 1) == ((texel.y / dim.y) & 1))
         {
-          //  checker += float3(clr, clr, clr);
+           // checker += float3(clr, clr, clr);
         }
         else
         {
@@ -117,19 +128,17 @@ void main_ps(
     if (texel.x / dim.x != texelDelta.x / dim.x || 
         texel.y / dim.y != texelDelta.y / dim.y)
     {
-        checker = float3(1, 1.0, 1.0);
+        checker = float3(0.0, 1.0, 1.0);
     }
     
     bool isIntersection = IsOverIntersectionLine(t_Texture, t_TextureMin, t_TextureMax, s_SamplerAnisoCmp, g_constants.invTexSize, g_constants.alphaCutoff, i_uv);
     
     if (g_constants.drawAlphaContour && isIntersection)
     {
-    
         o_rgba = float4(kContourLineColor, 1.0);
     }
     else
     {
-        const float alpha = 0.5 * t_Texture.Sample(s_SamplerAniso, i_uv).r;
         o_rgba = float4(alpha.xxx + checker, 0.5);
     }
 }

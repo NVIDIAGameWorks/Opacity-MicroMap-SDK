@@ -181,9 +181,6 @@ namespace omm
                         memcpy(cpyDst, cpySrc, sizePerPixel);
                     }
                 }
-
-                size_t maxDim = nextPow2(std::max(m_mips[mipIt].size.x, m_mips[mipIt].size.y));
-                m_mips[mipIt].numElements = maxDim * maxDim;
             }
             else
             {

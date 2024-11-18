@@ -27,10 +27,12 @@
 #include <donut/core/math/math.h>
 #include <donut/core/vfs/VFS.h>
 #include <donut/render/MipMapGenPass.h>
+#include <donut/render/PixelReadbackPass.h>
 #include <nvrhi/utils.h>
 #include <donut/app/imgui_console.h>
 #include <donut/app/imgui_renderer.h>
 #include <imfilebrowser.h>
+#include "OpenSans_Regular.h"
 
 using namespace donut;
 using namespace donut::math;
@@ -139,9 +141,13 @@ struct UIData
 
     int primitiveStart = 0;
     int primitiveEnd = -1;
+    int ommIndexHighlight = -1;
+    int ommIndexIsolate = -1;
     float zoom = 1.f;
     float2 offset = 0.f;
     float2 prevOffset = 0.f;
+    float alphaVal = 0.f;
+    int2 texel = int2(0, 0);
 
     std::string path;
     std::vector<std::filesystem::path> ommFiles;
@@ -159,6 +165,7 @@ struct UIData
     bool drawWireFrame = true;
     bool drawMicroTriangles = true;
     bool colorizeStates = true;
+    bool ommIndexHighlightEnable = true;
 };
 
 class OmmGpuData
@@ -192,6 +199,7 @@ class OmmGpuData
     uint64_t _bakeTimeInMs = 0;
     uint64_t _bakeTimeInSeconds = 0;
     uint32_t _indexCount = 0;
+    uint32_t _ommIndexCount = 0;
 
 public:
     OmmGpuData(UIData& ui):m_ui(ui)
@@ -263,6 +271,7 @@ public:
     nvrhi::BufferHandle GetOmmArrayData() const { return _ommArrayData; }
 
     uint32_t GetIndexCount() const { return _indexCount; }
+    uint32_t GetOmmIndexCount() const { return _ommIndexCount; }
     const omm::Cpu::TextureDesc& GetDefaultTextureDesc() const { return _textureDesc; }
     const omm::Cpu::BakeInputDesc& GetDefaultInput() const { return _input; }
     const omm::Cpu::BakeResultDesc* GetResult() const { return _resultDesc; }
@@ -450,6 +459,8 @@ private:
         }
 
         {
+            _ommIndexCount = _resultDesc ? _resultDesc->descArrayCount : 0;
+
             nvrhi::BufferDesc ommDesc;
             ommDesc.debugName = "OmmDescBuffer";
             if (_resultDesc && _resultDesc->descArrayCount != 0)
@@ -621,8 +632,11 @@ class BasicTriangle : public app::IRenderPass
 {
 private:
     nvrhi::BufferHandle m_ConstantBuffer;
+    nvrhi::TextureHandle m_ReadbackTexture;
     nvrhi::ShaderHandle m_VertexShader;
     nvrhi::ShaderHandle m_PixelShader;
+
+    std::shared_ptr<donut::render::PixelReadbackPass> m_pixelReadback;
 
     nvrhi::ShaderHandle m_BackgroundVS;
     nvrhi::ShaderHandle m_BackgroundPS;
@@ -646,7 +660,7 @@ private:
 public:
     using IRenderPass::IRenderPass;
 
-    BasicTriangle(app::DeviceManager* deviceManager, UIData& ui):IRenderPass(deviceManager),m_ui(ui), m_ommData(ui){}
+    BasicTriangle(app::DeviceManager* deviceManager, UIData& ui):IRenderPass(deviceManager),m_ui(ui), m_ommData(ui) {}
 
     std::shared_ptr<engine::ShaderFactory> GetShaderFactory()
     {
@@ -791,7 +805,8 @@ private:
         if (m_ui.rebake || m_ui.load || m_ui.recompile)
         {
             GetDevice()->waitForIdle();
-            m_ommData.ClearAll();
+            if (m_ui.rebake || m_ui.load)
+                m_ommData.ClearAll();
 
             if (m_ui.load && m_ui.selectedFile >= 0)
             {
@@ -828,6 +843,18 @@ private:
 
         if (!m_Pipeline)
         {
+            nvrhi::TextureDesc d;
+            d.height = framebuffer->getFramebufferInfo().height;
+            d.width = framebuffer->getFramebufferInfo().width;
+            d.format = nvrhi::Format::RGBA32_FLOAT;
+            d.initialState = nvrhi::ResourceStates::ShaderResource;
+            d.keepInitialState = true;
+            d.isUAV = true;
+            d.debugName = "ReadbackTexture";
+            m_ReadbackTexture = GetDevice()->createTexture(d);
+
+            m_pixelReadback = std::make_shared<donut::render::PixelReadbackPass>(GetDevice(), m_ShaderFactory, m_ReadbackTexture.Get(), nvrhi::Format::RGBA32_FLOAT);
+
             m_VertexShader = m_ShaderFactory->CreateShader("viewer_app/shaders.hlsl", "main_vs", nullptr, nvrhi::ShaderType::Vertex);
             m_PixelShader = m_ShaderFactory->CreateShader("viewer_app/shaders.hlsl", "main_ps", nullptr, nvrhi::ShaderType::Pixel);
 
@@ -853,6 +880,7 @@ private:
                 nvrhi::BindingSetItem::TypedBuffer_SRV(3, m_ommData.GetOmmIndexBuffer()),
                 nvrhi::BindingSetItem::StructuredBuffer_SRV(4, m_ommData.GetOmmDesc()),
                 nvrhi::BindingSetItem::RawBuffer_SRV(5, m_ommData.GetOmmArrayData()),
+                nvrhi::BindingSetItem::Texture_UAV(0, m_ReadbackTexture),
             };
 
             // Create the binding layout (if it's empty -- so, on the first iteration) and the binding set.
@@ -932,6 +960,9 @@ private:
         constants.aspectRatio = aspectRatioTex * aspectRatioScreen;
         constants.primitiveOffset = m_ui.primitiveStart;
         constants.mode = 0;
+        constants.ommIndexHighlight = m_ui.ommIndexHighlightEnable ? m_ui.ommIndexHighlight : -1;
+        constants.ommIndexHighlightEnable = m_ui.ommIndexHighlightEnable;
+        constants.ommIndexIsolate = m_ui.ommIndexIsolate;
         constants.drawAlphaContour = m_ui.drawAlphaContour;
         constants.colorizeStates = m_ui.colorizeStates;
         constants.alphaCutoff = m_ui.input.has_value() ? m_ui.input->alphaCutoff : -1.f;
@@ -1000,6 +1031,16 @@ private:
             nvrhi::DrawArguments args;
             args.vertexCount = 3 * std::max(0, (m_ui.primitiveEnd - m_ui.primitiveStart));
             m_CommandList->drawIndexed(args);
+        }
+
+        if (m_pixelReadback)
+        {
+            m_pixelReadback->Capture(m_CommandList, (donut::math::uint2)m_mousePos);
+            auto val = m_pixelReadback->ReadFloats();
+            m_ui.alphaVal = val.x;
+            m_ui.texel.x = reinterpret_cast<int&>(val.y);
+            m_ui.texel.y = reinterpret_cast<int&>(val.z);
+            m_ui.ommIndexHighlight = reinterpret_cast<int&>(val.w) - 1;
         }
 
         m_CommandList->close();
@@ -1140,11 +1181,16 @@ private:
     UIData& m_ui;
     std::shared_ptr<engine::ShaderFactory> m_ShaderFactory;
     std::shared_ptr<BasicTriangle> m_app;
+    ImFont* m_FontOpenSans = nullptr;
 
     // create a file browser instance
     ImGui::FileBrowser fileDialog;
 
 public:
+    ~UIRenderer()
+    {
+
+    }
     UIRenderer(donut::app::DeviceManager* deviceManager, std::shared_ptr<BasicTriangle> app, UIData& ui)
         : ImGui_Renderer(deviceManager)
         , m_app(app)
@@ -1155,12 +1201,20 @@ public:
         auto rootFs = std::make_shared<vfs::RootFileSystem>();
         rootFs->mount("/shaders/donut", frameworkShaderPath);
 
+        float scaleX, scaleY;
+        GetDeviceManager()->GetDPIScaleInfo(scaleX, scaleY);
+
+        ImFontConfig cfg;
+        cfg.RasterizerDensity = 2.5;
+        m_FontOpenSans = ImGui::GetIO().Fonts->AddFontFromMemoryCompressedTTF((void*)OpenSans_compressed_data, OpenSans_compressed_size, 17.f, &cfg);
+
         // (optional) set browser properties
         fileDialog.SetTitle("Select directory of bake input binaries to view (.bin)");
         fileDialog.SetTypeFilters({ ".bin" });
 
         m_ShaderFactory = std::make_shared<engine::ShaderFactory>(GetDevice(), rootFs, "/shaders");
         // ImGui::GetIO().IniFilename = "ui_state.ini";
+
 
         ImGui::LoadIniSettingsFromDisk(ImGui::GetIO().IniFilename);
 
@@ -1319,6 +1373,8 @@ protected:
         const auto& io = ImGui::GetIO();
         
         SetStyle();
+        if (m_FontOpenSans)
+            ImGui::PushFont(m_FontOpenSans);
 
         int2 windowSize;
         GetDeviceManager()->GetWindowDimensions(windowSize.x, windowSize.y);
@@ -1326,21 +1382,21 @@ protected:
         float scaleX, scaleY;
         GetDeviceManager()->GetDPIScaleInfo(scaleX, scaleY);
 
-        ImGui::SetNextWindowPos(ImVec2(windowSize.x * scaleX - 100.f, windowSize.y * scaleY - 50.f), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowBgAlpha(0.98f);
+        ImGui::SetNextWindowPos(ImVec2(windowSize.x / scaleX - 160, windowSize.y / scaleY - 80.f));
+        ImGui::SetNextWindowSizeConstraints(ImVec2(10.f, 10.f), ImVec2(windowSize.x / scaleX - 20.f, windowSize.y / scaleY - 20.f));
 
-        ImGui::Begin("Nav Settings", 0, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoBackground);
-        if (ImGui::Button("Reset View"))
-        {
-            m_ui.offset = float2(0, 0);
-            m_ui.zoom = 1.f;
-        }
+        ImGui::Begin("Info", 0, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoTitleBar);
+        ImGui::Text("Alpha:%.6f (%d, %d)", m_ui.alphaVal);
+        ImGui::Text("Texel:(%d, %d)", m_ui.texel.x, m_ui.texel.y);
+        ImGui::Text("Desc Index:(%d)", m_ui.ommIndexHighlight);
         ImGui::End();
 
-        ImGui::SetNextWindowBgAlpha(0.9f);
+        ImGui::SetNextWindowBgAlpha(0.98f);
         ImGui::SetNextWindowPos(ImVec2(10.f, 10.f), ImGuiCond_FirstUseEver);
         ImGui::SetNextWindowSizeConstraints(ImVec2(10.f, 10.f), ImVec2(windowSize.x / scaleX - 20.f, windowSize.y / scaleY - 20.f));
 
-        ImGui::Begin("Settings", 0, ImGuiWindowFlags_AlwaysAutoResize);
+        ImGui::Begin("Settings", 0, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoScrollbar);
 
         ImGui::Text("Renderer: %s", GetDeviceManager()->GetRendererString());
         double frameTime = GetDeviceManager()->GetAverageFrameTimeSeconds();
@@ -1422,6 +1478,9 @@ protected:
                 if (m_ui.primitiveStart >= m_ui.primitiveEnd)
                     m_ui.primitiveStart = m_ui.primitiveEnd - 1;
             }
+
+            int ommIndexCount = m_app->GetOmmGpuData().GetOmmIndexCount();
+            ImGui::SliderInt("Isolate OMM Desc", &m_ui.ommIndexIsolate, -1, ommIndexCount, "%d");
 
             const omm::Cpu::TextureDesc& texDesc = m_app->GetOmmGpuData().GetDefaultTextureDesc();
             const omm::Cpu::BakeInputDesc& input = m_app->GetOmmGpuData().GetDefaultInput();
@@ -1686,6 +1745,7 @@ protected:
                 ImGui::Checkbox("Draw Wire-Frame", &m_ui.drawWireFrame);
                 ImGui::Checkbox("Draw Micro-Triangles", &m_ui.drawMicroTriangles);
                 ImGui::Checkbox("Colorize States", &m_ui.colorizeStates);
+                ImGui::Checkbox("Enable OMM Index Highlight", &m_ui.ommIndexHighlightEnable);
             }
         }
        
@@ -1697,8 +1757,10 @@ protected:
                 m_ui.recompile = true;
             }
         }
-
         ImGui::End();
+
+        if (m_FontOpenSans)
+            ImGui::PopFont();
     }
 };
 

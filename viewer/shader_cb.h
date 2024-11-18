@@ -29,18 +29,24 @@ struct Constants
 	float2 invScreenSize;
 
 	float zoom;
+	uint pad0;
 	float2 offset;
-	uint pad;
 
 	float2 aspectRatio;
 	uint primitiveOffset;
 	
 	uint mode; // 0 = lines, 1 = fill
+	int ommIndexHighlight;
+	int ommIndexHighlightEnable;
+	int ommIndexIsolate;
+
 	uint drawAlphaContour;
 	uint colorizeStates;
 	float alphaCutoff;
+	int pad1;
 
 	int mouseCoordX; // uv texture space
 	int mouseCoordY; // uv texture space
-	uint2 pad3;
+	int pad2;
+	int pad3;
 };
