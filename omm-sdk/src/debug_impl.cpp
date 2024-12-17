@@ -86,11 +86,6 @@ namespace omm
             return bilinearValue;
         }
 
-        T Load(ommTextureAddressMode mode, const int2& idx) const {
-            const int2 idxAddessed = omm::GetTexCoord(mode, idx, _size);
-            return Load(idxAddessed);
-        }
-
         void for_each(const std::function<void(int2, T&)>& cb) {
             for (int j = 0; j < _size.y; ++j) {
                 for (int i = 0; i < _size.x; ++i) {
