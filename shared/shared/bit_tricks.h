@@ -63,9 +63,21 @@ namespace omm
         return z;
     }
 
-#ifdef _MSC_VER
-#include <intrin.h>
-    uint32_t __inline ctz(uint32_t value)
+    inline uint32_t ctz_slow(uint32_t n) {
+        if (n == 0) {
+            return 32;
+        }
+
+        uint32_t count = 0;
+        while ((n & 1) == 0) {
+            count++;
+            n >>= 1;
+        }
+        return count;
+    }
+
+#if defined(_MSC_VER) && IMMINTRIN_ENABLED
+    inline uint32_t ctz_fast(uint32_t value)
     {
         unsigned long trailing_zero = 0;
 
@@ -79,9 +91,25 @@ namespace omm
             return 32;
         }
     }
-    uint2 __inline ctz(uint2 value)
+
+    inline uint32_t ctz(uint32_t value)
     {
-        return uint2(ctz(value.x), ctz(value.y));
+        return ctz_fast(value);
+    }
+
+    inline uint2 ctz(uint2 value)
+    {
+        return uint2(ctz_fast(value.x), ctz_fast(value.y));
+    }
+#else
+    inline uint32_t ctz(uint32_t value)
+    {
+        return ctz_slow(value);
+    }
+
+    inline uint2 ctz(uint2 value)
+    {
+        return uint2(ctz_slow(value.x), ctz_slow(value.y));
     }
 #endif
 
