@@ -43,11 +43,6 @@ struct Image {
 		return _data[idx.x + idx.y * _size.x];
 	}
 
-	T Sample(omm::TextureAddressMode mode, const float2& p) const {
-		const int2 pi = (int2)(p * float2(_size));
-		const int2 idx = omm::GetTexCoord(mode, pi, _size);
-		return _Load(idx);
-	}
 	T Load(omm::TextureAddressMode mode, const int2& idx) const {
 		const int2 idxAddessed = omm::GetTexCoord(mode, idx, _size);
 		return _Load(idxAddessed);
