@@ -22,3 +22,9 @@
 [submodule "thirdparty/lz4"]
 	path = thirdparty/lz4
 	url = https://github.com/lz4/lz4.git
+[submodule "thirdparty/donut"]
+	path = thirdparty/donut
+	url = https://github.com/NVIDIAGameWorks/donut.git
+[submodule "thirdparty/imgui-filebrowser"]
+	path = thirdparty/imgui-filebrowser
+	url = https://github.com/AirGuanZ/imgui-filebrowser.git

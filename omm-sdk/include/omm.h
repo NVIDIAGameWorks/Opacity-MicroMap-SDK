@@ -15,8 +15,8 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include <stddef.h>
 
 #define OMM_VERSION_MAJOR 1
-#define OMM_VERSION_MINOR 6
-#define OMM_VERSION_BUILD 1
+#define OMM_VERSION_MINOR 7
+#define OMM_VERSION_BUILD 0
 
 #define OMM_MAX_TRANSIENT_POOL_BUFFERS 8
 
@@ -401,6 +401,7 @@ typedef struct ommCpuBakeInputDesc
    // Texel opacity = texture > alphaCutoff ? alphaCutoffGT : alphaCutoffLE
    // This can be used to construct different pairings such as transparent and unknown opaque which is useful 
    // for applications requiring partial accumulated opacity, like smoke and particle effects
+   float                    nearDuplicateDeduplicationFactor;
    union
    {
        OMM_DEPRECATED_MSG("alphaCutoffLE has been deprecated, please use alphaCutoffLessEqual")
@@ -433,6 +434,10 @@ typedef struct ommCpuBakeInputDesc
    // When dynamicSubdivisionScale is disabled maxSubdivisionLevel is the subdivision level applied uniformly to all
    // triangles.
    uint8_t                  maxSubdivisionLevel;
+   // Max allowed size of ommCpuBakeResultDesc::arrayData
+   // The baker will choose to downsample the most appropriate omm blocks (based on area, reuse, coverage and other factors)
+   // until this limit is met.
+   uint32_t                 maxArrayDataSize;
    // [optional] Use subdivisionLevels to control subdivision on a per triangle granularity.
    // +14 - reserved for future use.
    // 13 - use global value specified in 'subdivisionLevel.
@@ -466,6 +471,7 @@ inline ommCpuBakeInputDesc ommCpuBakeInputDescDefault()
    v.dynamicSubdivisionScale       = 2;
    v.rejectionThreshold            = 0;
    v.alphaCutoff                   = 0.5f;
+   v.nearDuplicateDeduplicationFactor = 0.15f;
    v.alphaCutoffLessEqual          = ommOpacityState_Transparent;
    v.alphaCutoffGreater            = ommOpacityState_Opaque;
    v.format                        = ommFormat_OC1_4_State;
@@ -473,6 +479,7 @@ inline ommCpuBakeInputDesc ommCpuBakeInputDescDefault()
    v.unknownStatePromotion         = ommUnknownStatePromotion_ForceOpaque;
    v.unresolvedTriState            = ommSpecialIndex_FullyUnknownOpaque;
    v.maxSubdivisionLevel           = 8;
+   v.maxArrayDataSize              = 0xFFFFFFFF;
    v.subdivisionLevels             = NULL;
    v.maxWorkloadSize               = 0xFFFFFFFFFFFFFFFF;
    return v;
@@ -555,6 +562,8 @@ inline ommCpuDeserializedDesc ommCpuDeserializedDescDefault()
 }
 
 OMM_API ommResult ommCpuCreateTexture(ommBaker baker, const ommCpuTextureDesc* desc, ommCpuTexture* outTexture);
+
+OMM_API ommResult ommCpuGetTextureDesc(ommCpuTexture texture, ommCpuTextureDesc* outDesc);
 
 OMM_API ommResult ommCpuDestroyTexture(ommBaker baker, ommCpuTexture texture);
 
@@ -1159,6 +1168,7 @@ typedef struct ommDebugStats
    uint32_t totalFullyTransparent;
    uint32_t totalFullyUnknownOpaque;
    uint32_t totalFullyUnknownTransparent;
+   float knownAreaMetric; // this is known area in uv space, divided by the total uv space. -1.f if unknown
 } ommDebugStats;
 
 inline ommDebugStats ommDebugStatsDefault()
@@ -1172,6 +1182,7 @@ inline ommDebugStats ommDebugStatsDefault()
    v.totalFullyTransparent         = 0;
    v.totalFullyUnknownOpaque       = 0;
    v.totalFullyUnknownTransparent  = 0;
+   v.knownAreaMetric               = 0;
    return v;
 }
 
@@ -1179,6 +1190,7 @@ inline ommDebugStats ommDebugStatsDefault()
 OMM_API ommResult ommDebugSaveAsImages(ommBaker baker, const ommCpuBakeInputDesc* bakeInputDesc, const ommCpuBakeResultDesc* res, const ommDebugSaveImagesDesc* desc);
 
 OMM_API ommResult ommDebugGetStats(ommBaker baker, const ommCpuBakeResultDesc* res, ommDebugStats* out);
+OMM_API ommResult ommDebugGetStats2(ommBaker baker, ommCpuBakeResult res, ommDebugStats* out);
 
 OMM_API ommResult ommDebugSaveBinaryToDisk(ommBaker baker, const ommCpuBlobDesc& data, const char* path);
 

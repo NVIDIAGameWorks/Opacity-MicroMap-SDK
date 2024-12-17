@@ -129,7 +129,8 @@ namespace Cpu
         os.write(reinterpret_cast<const char*>(&inputDesc.unknownStatePromotion), sizeof(inputDesc.unknownStatePromotion));
         os.write(reinterpret_cast<const char*>(&inputDesc.unresolvedTriState), sizeof(inputDesc.unresolvedTriState));
         os.write(reinterpret_cast<const char*>(&inputDesc.maxSubdivisionLevel), sizeof(inputDesc.maxSubdivisionLevel));
-
+        os.write(reinterpret_cast<const char*>(&inputDesc.maxArrayDataSize), sizeof(inputDesc.maxArrayDataSize));
+        
         size_t numSubdivLvls = inputDesc.subdivisionLevels == nullptr ? 0 : inputDesc.indexCount;
         os.write(reinterpret_cast<const char*>(&numSubdivLvls), sizeof(numSubdivLvls));
         if (numSubdivLvls != 0)
@@ -369,7 +370,8 @@ namespace Cpu
         os.read(reinterpret_cast<char*>(&inputDesc.bakeFlags), sizeof(inputDesc.bakeFlags));
 
         TextureImpl* texture = Allocate<TextureImpl>(m_stdAllocator, m_stdAllocator, m_log);
-        texture->Deserialize(buffer);
+        texture->Deserialize(buffer, header.inputDescVersion);
+
         inputDesc.texture = CreateHandle<omm::Cpu::Texture, TextureImpl>(texture);
 
         os.read(reinterpret_cast<char*>(&inputDesc.runtimeSamplerDesc.addressingMode), sizeof(inputDesc.runtimeSamplerDesc.addressingMode));
@@ -421,6 +423,10 @@ namespace Cpu
             os.read(reinterpret_cast<char*>(&inputDesc.unresolvedTriState), sizeof(inputDesc.unresolvedTriState));
         }
         os.read(reinterpret_cast<char*>(&inputDesc.maxSubdivisionLevel), sizeof(inputDesc.maxSubdivisionLevel));
+        if (header.inputDescVersion >= 4)
+        {
+            os.read(reinterpret_cast<char*>(&inputDesc.maxArrayDataSize), sizeof(inputDesc.maxArrayDataSize));
+        }
 
         size_t numSubdivLvls = 0;
         os.read(reinterpret_cast<char*>(&numSubdivLvls), sizeof(numSubdivLvls));
@@ -433,6 +439,13 @@ namespace Cpu
         }
 
         os.read(reinterpret_cast<char*>(&inputDesc.maxWorkloadSize), sizeof(inputDesc.maxWorkloadSize));
+
+        if (texture->HasSAT() && header.inputDescVersion < 3)
+        {
+            // old bug: pre v2 m_alphaCutoff was not serialized, but the SAT data was:
+            // to recover this lost information we recorver the alpha cutoff from the input desc.
+            texture->SetAlphaCutoff(inputDesc.alphaCutoff);
+        }
 
         return ommResult_SUCCESS;
     }
