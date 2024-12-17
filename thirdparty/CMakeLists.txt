@@ -45,7 +45,7 @@ if (NOT TARGET lz4)
 	set(LZ4_BUILD_CLI OFF)
 	set(LZ4_BUILD_LEGACY_LZ4C OFF)
 	add_subdirectory("lz4/build/cmake")
-	set_property(TARGET lz4 PROPERTY FOLDER "Third-Party Libraries") 
+	# set_property(TARGET lz4 PROPERTY FOLDER "Third-Party Libraries") 
 endif()
 
 # ShaderMake
