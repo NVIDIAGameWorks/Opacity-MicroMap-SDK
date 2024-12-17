@@ -132,16 +132,16 @@ private:
         const float _length;
     };
      
-    __forceinline static bool IsZero(float value, float kEpsilon = 1e-6f) {
+    inline static bool IsZero(float value, float kEpsilon = 1e-6f) {
         return value < kEpsilon && value > -kEpsilon;
     };
 
-    __forceinline static bool IsPointInsideUnitSquare(const float2& p)
+    inline static bool IsPointInsideUnitSquare(const float2& p)
     {
         return p.x >= 0.f && p.x <= 1.f && p.y >= 0.f && p.y <= 1.f;
     }
 
-    __forceinline static bool TestEdgeHyperbolaIntersection(
+    inline static bool TestEdgeHyperbolaIntersection(
         float2& p0, float2& p1,                     // 'Edge'       - Defined by the end points (in any order)
         const float4& h                             // 'Hyperbola'  - Hyperbolic curve on the form x * h.x + y * h.y + x * y + h.z + h.w = 0
     )

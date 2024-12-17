@@ -98,7 +98,7 @@ namespace omm
         }
 
 #if CACHED_POINT_IN_TRI
-        __forceinline bool PointInTriangle(const float2& pt) const
+        inline bool PointInTriangle(const float2& pt) const
         {
             float2 ptp2 = pt - p2;
             float2 ptp0 = pt - p0;
@@ -113,7 +113,7 @@ namespace omm
             return d == 0 || (d < 0) == (s + t <= 0);
         }
 #else
-        __forceinline bool PointInTriangle(const float2& pt) const
+        inline bool PointInTriangle(const float2& pt) const
         {
             float s = (p0.x - p2.x) * (pt.y - p2.y) - (p0.y - p2.y) * (pt.x - p2.x);
             float t = (p1.x - p0.x) * (pt.y - p0.y) - (p1.y - p0.y) * (pt.x - p0.x);

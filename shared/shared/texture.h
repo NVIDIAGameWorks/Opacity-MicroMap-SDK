@@ -32,7 +32,7 @@ namespace omm
     };
 
     template<ommTextureAddressMode eAddressMode, bool bTexSizeIsPow2>
-    __forceinline static inline int2 GetTexCoord(const int2& texCoord, const int2& texSize, const int2& texSizeLog2) {
+    inline static inline int2 GetTexCoord(const int2& texCoord, const int2& texSize, const int2& texSizeLog2) {
         switch (eAddressMode)
         {
         case ommTextureAddressMode_Wrap: {
@@ -114,7 +114,7 @@ namespace omm
         }
     }
 
-    __forceinline static int2 GetTexCoord(omm::TextureAddressMode addressingMode, bool texSizeIsLog2, const int2& texCoord, const int2& texSize, const int2& texSizeLog2) {
+    inline static int2 GetTexCoord(omm::TextureAddressMode addressingMode, bool texSizeIsLog2, const int2& texCoord, const int2& texSize, const int2& texSizeLog2) {
         return GetTexCoord((ommTextureAddressMode)addressingMode, texSizeIsLog2, texCoord, texSize, texSizeLog2);
     }
 
@@ -128,7 +128,7 @@ namespace omm
     }
 
     template<ommTextureAddressMode eAddressMode, bool bTexSizeIsPow2>
-    __forceinline static inline void GatherTexCoord4(const int2& texCoord, const int2& texSize, const int2& texSizeLog2, int2* __restrict coords) {
+    inline static inline void GatherTexCoord4(const int2& texCoord, const int2& texSize, const int2& texSizeLog2, int2* __restrict coords) {
         const int2 offset = GetTexCoord<eAddressMode, bTexSizeIsPow2>(texCoord, texSize, texSizeLog2);
         const int2 offset11 = GetTexCoord<eAddressMode, bTexSizeIsPow2>(texCoord + int2{ 1, 1 }, texSize, texSizeLog2);
         coords[TexelOffset::I0x0] = { offset.x,     offset.y };
@@ -138,7 +138,7 @@ namespace omm
     }
 
     template<ommTextureAddressMode eAddressMode, bool bTexSizeIsPow2>
-    __forceinline static inline void GatherTexCoord4(const int2& texCoord, const int2& texSize, const int2& texSizeLog2, int2& out00, int2& out10, int2& out01, int2& out11) {
+    inline static inline void GatherTexCoord4(const int2& texCoord, const int2& texSize, const int2& texSizeLog2, int2& out00, int2& out10, int2& out01, int2& out11) {
         const int2 offset = GetTexCoord<eAddressMode, bTexSizeIsPow2>(texCoord, texSize, texSizeLog2);
         const int2 offset11 = GetTexCoord<eAddressMode, bTexSizeIsPow2>(texCoord + int2{ 1, 1 }, texSize, texSizeLog2);
         out00 = { offset.x,     offset.y };
