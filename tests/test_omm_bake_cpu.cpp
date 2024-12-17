@@ -1703,10 +1703,11 @@ namespace {
 			}, { .format = omm::Format::OC1_4_State, .mergeSimilar = true });
 
 		ExpectEqual(stats, {
-			.totalOpaque = 172854, 
-			.totalTransparent = 11500,
-			.totalUnknownTransparent = 38296,
-			.totalUnknownOpaque = 39494,
+			.totalOpaque = 170724,
+			.totalTransparent = 11380,
+			.totalUnknownTransparent = 37864,
+			.totalUnknownOpaque = 39104,
+			.totalFullyTransparent = 12,
 			});
 	}
 
