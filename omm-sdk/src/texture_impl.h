@@ -137,12 +137,12 @@ namespace omm
         template<TilingMode eTilingMode>
         static uint32_t From2Dto1D(const int2& idx, const int2& size) {
             OMM_ASSERT(false && "Not implemented");
-            return 0;
+            return uint2(0, 0);
         }
         template<TilingMode eTilingMode>
         static uint2 From1Dto2D(const uint32_t idx, const int2& size) {
             OMM_ASSERT(false && "Not implemented");
-            return 0;
+            return uint2(0, 0);
         }
     private:
         static inline uint2  kMaxDim = int2(65536);
