@@ -297,6 +297,7 @@ namespace omm
          // Texel Opacity = texture > alphaCutoff ? alphaCutoffGreater : alphaCutoffLessEqual
          // This can be used to construct different pairings such as transparent and unknown opaque which is useful 
          // for applications requiring partial accumulated opacity, like smoke and particle effects
+         float                 nearDuplicateDeduplicationFactor = 0.15f;
          union
          {
              OMM_DEPRECATED_MSG("alphaCutoffLE has been deprecated, please use alphaCutoffLessEqual")
@@ -329,6 +330,10 @@ namespace omm
          // When dynamicSubdivisionScale is disabled maxSubdivisionLevel is the subdivision level applied uniformly to all
          // triangles.
          uint8_t               maxSubdivisionLevel           = 8;
+         // Max allowed size of ommCpuBakeResultDesc::arrayData
+         // The baker will choose to downsample the most appropriate omm blocks (based on area, reuse, coverage and other factors)
+         // until this limit is met.
+         uint32_t              maxArrayDataSize              = 0xFFFFFFFF;
          // [optional] Use subdivisionLevels to control subdivision on a per triangle granularity.
          // +14 - reserved for future use.
          // 13 - use global value specified in 'subdivisionLevel.
@@ -404,6 +409,8 @@ namespace omm
       };
 
       static inline Result CreateTexture(Baker baker, const TextureDesc& desc, Texture* outTexture);
+
+      static inline Result GetTextureDesc(Texture* texture, TextureDesc* outDesc);
 
       static inline Result DestroyTexture(Baker baker, Texture texture);
 
@@ -945,9 +952,11 @@ namespace omm
          uint32_t totalFullyTransparent         = 0;
          uint32_t totalFullyUnknownOpaque       = 0;
          uint32_t totalFullyUnknownTransparent  = 0;
+         float    knownAreaMetric               = -1.f;
       };
 
       static inline Result GetStats(Baker baker, const Cpu::BakeResultDesc* res, Stats* out);
+      static inline Result GetStats2(Baker baker, Cpu::BakeResult res, Stats* out);
 
    } // namespace Debug
 
@@ -974,6 +983,10 @@ namespace omm
         static inline Result CreateTexture(Baker baker, const TextureDesc& desc, Texture* outTexture)
         {
             return (Result)ommCpuCreateTexture((ommBaker)baker, reinterpret_cast<const ommCpuTextureDesc*>(&desc), (ommCpuTexture*)outTexture);
+        }
+        static inline Result GetTextureDesc(Texture texture, TextureDesc* outDesc)
+        {
+            return (Result)ommCpuGetTextureDesc((ommCpuTexture)texture, reinterpret_cast<ommCpuTextureDesc*>(outDesc));
         }
         static inline Result DestroyTexture(Baker baker, Texture texture)
         {
@@ -1052,6 +1065,10 @@ namespace omm
         static inline Result GetStats(Baker baker, const Cpu::BakeResultDesc* res, Stats* out)
         {
             return (Result)ommDebugGetStats((ommBaker)baker, reinterpret_cast<const ommCpuBakeResultDesc*>(res), reinterpret_cast<ommDebugStats*>(out));
+        }
+        static inline Result GetStats2(Baker baker, Cpu::BakeResult bakeResult, Stats* out)
+        {
+            return (Result)ommDebugGetStats2((ommBaker)baker, (ommCpuBakeResult)(bakeResult), reinterpret_cast<ommDebugStats*>(out));
         }
         static inline Result SaveBinaryToDisk(Baker baker, const Cpu::BlobDesc& data, const char* path)
         {

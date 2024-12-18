@@ -4,6 +4,12 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/gtest)
 	option(OMM_ENABLE_TESTS "Enable unit test" ON)
 endif()
 
+if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/donut AND WIN32)
+	option(OMM_BUILD_VIEWER "Build omm viewer tool" ON)
+else()
+	option(OMM_BUILD_VIEWER "Build omm viewer tool" OFF)
+endif()
+
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/omm-sdk/src/version.h" ver_h)
 string(REGEX MATCH "VERSION_MAJOR ([0-9]*)" _ ${ver_h})
 set(ver_major ${CMAKE_MATCH_1})
@@ -29,6 +35,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
    
 if (NOT DEFINED OMM_PROJECT_FOLDER)
     set(OMM_PROJECT_FOLDER "Opacity Micro-Map SDK")
+endif()
+
+if (OMM_BUILD_VIEWER)
+    add_subdirectory(viewer)
 endif()
 
 add_subdirectory(thirdparty)
