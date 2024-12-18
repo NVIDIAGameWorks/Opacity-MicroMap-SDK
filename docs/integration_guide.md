@@ -1,4 +1,16 @@
 # NVIDIA Opacity Micro-Map SDK
+
+# New in 1.7.0: Opacity Micro-Map Viewer Tool
+
+Version 1.7.0 introcuces the new Opacity Micro-Map Viewer Tool
+<p align="center">
+    <img src="images/viewer/viewer.png" width=100% height=auto  alt="varying triangle subdivision levels">
+</p>
+
+Use the new serialization API to view your OMM assets and experiment with different bake settings to achive optimal performance and quality trade-offs. You can view and inspect your existing assets, zoom down to the micro-triangle level all the way out to the macro-triangle scale, highlights specific triangles, understand OMM block re-use and much more. 
+
+# NVIDIA Opacity Micro-Map SDK
+
 <p align="center">
     <img src="images/header/omm_off.png" alt="shader execution without OMMs">
     <img src="images/header/omm_on.png" alt="shader with OMMs">
