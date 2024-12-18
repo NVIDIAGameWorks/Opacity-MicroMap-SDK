@@ -678,10 +678,13 @@ public:
 
     bool Init()
     {
+#ifdef _WIN32
         std::filesystem::path appShaderPath = app::GetDirectoryWithExecutable() / "../shaders/viewer" /  app::GetShaderTypeName(GetDevice()->getGraphicsAPI());
         std::filesystem::path frameworkShaderPath = app::GetDirectoryWithExecutable() / "../shaders/framework" / app::GetShaderTypeName(GetDevice()->getGraphicsAPI());
-
-        //auto nativeFS = std::make_shared<vfs::NativeFileSystem>();
+#else
+        std::filesystem::path appShaderPath = app::GetDirectoryWithExecutable() / "shaders/viewer" / app::GetShaderTypeName(GetDevice()->getGraphicsAPI());
+        std::filesystem::path frameworkShaderPath = app::GetDirectoryWithExecutable() / "shaders/framework" / app::GetShaderTypeName(GetDevice()->getGraphicsAPI());
+#endif
         auto rootFs = std::make_shared<vfs::RootFileSystem>();
         rootFs->mount("viewer_app", appShaderPath);
         rootFs->mount("donut", frameworkShaderPath);
@@ -1201,7 +1204,11 @@ public:
         , m_ui(ui)
         , fileDialog(ImGuiFileBrowserFlags_SelectDirectory | ImGuiFileBrowserFlags_NoModal | ImGuiFileBrowserFlags_CloseOnEsc | ImGuiFileBrowserFlags_ConfirmOnEnter)
     {
+#ifdef _WIN32
         std::filesystem::path frameworkShaderPath = app::GetDirectoryWithExecutable() / "../shaders/framework" / app::GetShaderTypeName(GetDevice()->getGraphicsAPI());
+#else
+        std::filesystem::path frameworkShaderPath = app::GetDirectoryWithExecutable() / "shaders/framework" / app::GetShaderTypeName(GetDevice()->getGraphicsAPI());
+#endif
         auto rootFs = std::make_shared<vfs::RootFileSystem>();
         rootFs->mount("/shaders/donut", frameworkShaderPath);
 
@@ -1228,7 +1235,7 @@ public:
         }
         else {
 
-            std::string defaultPath = ".\\";
+            std::string defaultPath = OMM_VIEWER_DEFAULT_BINARY_FOLDER;
             int fileIndex = -1;
             std::ifstream infile;
             infile.open("ui_dir_state.ini", std::ios_base::in);

@@ -42,7 +42,7 @@ target_link_libraries(${project} donut_app donut_engine donut_render omm-sdk)
 target_include_directories(${project} PRIVATE "${CMAKE_SOURCE_DIR}/thirdparty/imgui-filebrowser")
 add_dependencies(${project} ${project}_shaders)
 set_target_properties(${project} PROPERTIES FOLDER ${folder})
-
+target_compile_definitions(${project} PRIVATE OMM_VIEWER_DEFAULT_BINARY_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}/example_data")
 
 if (MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W3 /MP")
