@@ -10,7 +10,7 @@ else()
 	option(OMM_BUILD_VIEWER "Build omm viewer tool" OFF)
 endif()
 
-file(READ "${CMAKE_CURRENT_SOURCE_DIR}/omm-sdk/src/version.h" ver_h)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/omm-lib/src/version.h" ver_h)
 string(REGEX MATCH "VERSION_MAJOR ([0-9]*)" _ ${ver_h})
 set(ver_major ${CMAKE_MATCH_1})
 string(REGEX MATCH "VERSION_MINOR ([0-9]*)" _ ${ver_h})
@@ -34,7 +34,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
    
 if (NOT DEFINED OMM_PROJECT_FOLDER)
-    set(OMM_PROJECT_FOLDER "Opacity Micro-Map SDK")
+    set(OMM_PROJECT_FOLDER "Opacity Micro-Map Lib")
 endif()
 
 if (OMM_BUILD_VIEWER)
@@ -43,7 +43,7 @@ endif()
 
 add_subdirectory(thirdparty)
 add_subdirectory(shared)
-add_subdirectory(omm-sdk)
+add_subdirectory(omm-lib)
 add_subdirectory(integration)
 
 if (OMM_ENABLE_TESTS)

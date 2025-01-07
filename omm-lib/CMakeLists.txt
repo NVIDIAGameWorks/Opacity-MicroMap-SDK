@@ -78,7 +78,7 @@ source_group("Sources" FILES ${OMM_RESOURCE})
 file(GLOB OMM_HEADERS "include/*")
 source_group("Include" FILES ${OMM_HEADERS})
 
-set(TARGET_NAME omm-sdk)
+set(TARGET_NAME omm-lib)
 
 if (OMM_STATIC_LIBRARY)
     add_library(${TARGET_NAME} STATIC ${OMM_SOURCE} ${OMM_RESOURCE} ${OMM_HEADERS})

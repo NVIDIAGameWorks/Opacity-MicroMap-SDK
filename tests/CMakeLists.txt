@@ -28,7 +28,7 @@ if (OMM_ENABLE_GPU_TESTS)
     set(omm_tests_src_gpu nvrhi/nvrhi_environment.h nvrhi/nvrhi_environment.cpp nvrhi/nvrhi_wrapper.h nvrhi/nvrhi_wrapper.cpp test_omm_bake_gpu.cpp )
 
     if (WIN32)
-        set(OMM_GPU_LIBS dxgi.lib d3d12.lib nvrhi nvrhi_d3d12 omm-sdk-nvrhi )
+        set(OMM_GPU_LIBS dxgi.lib d3d12.lib nvrhi nvrhi_d3d12 omm-lib-nvrhi )
     endif()
 endif()
 
@@ -43,7 +43,7 @@ endif()
 target_compile_definitions(omm-sdk-tests  PRIVATE -DOMM_ENABLE_GPU_TESTS=${OMM_ENABLE_GPU_TESTS_VALUE} -DOMM_TEST_ENABLE_IMAGE_DUMP=${OMM_TEST_ENABLE_IMAGE_DUMP_VALUE} -DPROJECT_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 include_directories(omm-sdk-tests  ${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR})
 
-target_link_libraries(omm-sdk-tests  gtest gtest_main stb_lib omm-shared omm-sdk   ${OMM_GPU_LIBS}  )
+target_link_libraries(omm-sdk-tests gtest gtest_main stb_lib omm-shared omm-lib ${OMM_GPU_LIBS})
 
 set_target_properties(omm-sdk-tests  PROPERTIES FOLDER "Tests")
 

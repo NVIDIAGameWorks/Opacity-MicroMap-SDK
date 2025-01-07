@@ -18,7 +18,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 #include <nvrhi/nvrhi.h>
 
-#include <omm-sdk-nvrhi.h>
+#include <omm-lib-nvrhi.h>
 #include <omm.h>
 #include <shared/bird.h>
 
