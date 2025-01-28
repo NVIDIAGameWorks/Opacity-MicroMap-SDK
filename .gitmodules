@@ -1,27 +1,27 @@
-[submodule "thirdparty/glm"]
-	path = thirdparty/glm
-	url = https://github.com/g-truc/glm.git
 [submodule "test/thirdparty/gtest"]
-	path = thirdparty/gtest
+	path = external/gtest
 	url = https://github.com/google/googletest.git
 [submodule "benchmark/thirdparty/gbenchmark"]
 	path = benchmark/thirdparty/gbenchmark
 	url = https://github.com/google/benchmark.git
 [submodule "thirdparty/xxHash"]
-	path = thirdparty/xxHash
+	path = external/xxHash
 	url = https://github.com/Cyan4973/xxHash.git
 [submodule "thirdparty/stb"]
-	path = thirdparty/stb
+	path = external/stb
 	url = https://github.com/nothings/stb.git
 [submodule "thirdparty/ShaderMake"]
-	path = thirdparty/ShaderMake
+	path = external/ShaderMake
 	url = https://github.com/NVIDIAGameWorks/ShaderMake.git
 [submodule "thirdparty/lz4"]
-	path = thirdparty/lz4
+	path = external/lz4
 	url = https://github.com/lz4/lz4.git
 [submodule "thirdparty/donut"]
-	path = thirdparty/donut
+	path = external/donut
 	url = https://github.com/NVIDIAGameWorks/donut.git
 [submodule "thirdparty/imgui-filebrowser"]
-	path = thirdparty/imgui-filebrowser
+	path = external/imgui-filebrowser
 	url = https://github.com/AirGuanZ/imgui-filebrowser.git
+[submodule "external/glm"]
+	path = external/glm
+	url = https://github.com/g-truc/glm.git

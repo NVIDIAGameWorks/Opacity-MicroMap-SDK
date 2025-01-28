@@ -38,10 +38,10 @@ if (NOT DEFINED OMM_PROJECT_FOLDER)
 endif()
 
 if (OMM_BUILD_VIEWER)
-    add_subdirectory(viewer)
+    add_subdirectory(tools/viewer)
 endif()
 
-add_subdirectory(thirdparty)
+add_subdirectory(external)
 add_subdirectory(shared)
 add_subdirectory(omm-lib)
 add_subdirectory(integration)

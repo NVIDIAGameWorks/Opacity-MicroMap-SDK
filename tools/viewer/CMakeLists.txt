@@ -20,12 +20,12 @@
 # DEALINGS IN THE SOFTWARE.
 
 
-include(../thirdparty/donut/compileshaders.cmake)
+include(../../external/donut/compileshaders.cmake)
 file(GLOB shaders "*.hlsl")
 file(GLOB sources "*.cpp" "*.h")
 
 set(project viewer)
-set(folder "Viewer")
+set(folder "Tools/Viewer")
 
 donut_compile_shaders(
     TARGET ${project}_shaders
@@ -39,7 +39,7 @@ donut_compile_shaders(
 
 add_executable(${project} WIN32 ${sources})
 target_link_libraries(${project} donut_app donut_engine donut_render omm-lib)
-target_include_directories(${project} PRIVATE "${CMAKE_SOURCE_DIR}/thirdparty/imgui-filebrowser")
+target_include_directories(${project} PRIVATE "${CMAKE_SOURCE_DIR}/external/imgui-filebrowser")
 add_dependencies(${project} ${project}_shaders)
 set_target_properties(${project} PROPERTIES FOLDER ${folder})
 target_compile_definitions(${project} PRIVATE OMM_VIEWER_DEFAULT_BINARY_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}/example_data")
