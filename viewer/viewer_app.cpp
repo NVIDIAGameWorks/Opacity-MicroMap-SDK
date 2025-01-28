@@ -753,12 +753,6 @@ protected:
 
     virtual bool MousePosUpdate(double xpos, double ypos)
     {
-        float scaleX, scaleY;
-        GetDeviceManager()->GetDPIScaleInfo(scaleX, scaleY);
-
-        xpos *= scaleX;
-        ypos *= scaleY;
-
         float2 aspectRatioTex(1.f, 1.f);
 
         if (nvrhi::TextureHandle alphaTex = m_ommData.GetAlphaTexture())
@@ -1188,8 +1182,7 @@ private:
     UIData& m_ui;
     std::shared_ptr<engine::ShaderFactory> m_ShaderFactory;
     std::shared_ptr<BasicTriangle> m_app;
-    ImFont* m_FontOpenSans = nullptr;
-
+    std::shared_ptr<donut::app::RegisteredFont> m_FontOpenSans;
     // create a file browser instance
     ImGui::FileBrowser fileDialog;
 
@@ -1215,9 +1208,8 @@ public:
         float scaleX, scaleY;
         GetDeviceManager()->GetDPIScaleInfo(scaleX, scaleY);
 
-        ImFontConfig cfg;
-        cfg.RasterizerDensity = 2.5;
-        m_FontOpenSans = ImGui::GetIO().Fonts->AddFontFromMemoryCompressedTTF((void*)OpenSans_compressed_data, OpenSans_compressed_size, 17.f, &cfg);
+        m_FontOpenSans = CreateFontFromMemoryCompressed((void*)OpenSans_compressed_data, sizeof(OpenSans_compressed_data), 17.f);
+        ImGui::GetStyle().ScaleAllSizes(scaleX);
 
         // (optional) set browser properties
         fileDialog.SetTitle("Select directory of bake input binaries to view (.bin)");
@@ -1389,17 +1381,17 @@ protected:
         
         SetStyle();
         if (m_FontOpenSans)
-            ImGui::PushFont(m_FontOpenSans);
+            ImGui::PushFont(m_FontOpenSans->GetScaledFont());
 
         int2 windowSize;
         GetDeviceManager()->GetWindowDimensions(windowSize.x, windowSize.y);
 
-        float scaleX, scaleY;
+        float scaleX = 1.f, scaleY = 1.f;
         GetDeviceManager()->GetDPIScaleInfo(scaleX, scaleY);
 
         ImGui::SetNextWindowBgAlpha(0.98f);
-        ImGui::SetNextWindowPos(ImVec2(windowSize.x / scaleX - 160, windowSize.y / scaleY - 80.f));
-        ImGui::SetNextWindowSizeConstraints(ImVec2(10.f, 10.f), ImVec2(windowSize.x / scaleX - 20.f, windowSize.y / scaleY - 20.f));
+        ImGui::SetNextWindowPos(ImVec2(windowSize.x - scaleX * 155, windowSize.y - scaleY * 80.f));
+        ImGui::SetNextWindowSizeConstraints(ImVec2(10.f, 10.f), ImVec2(windowSize.x - 20.f, windowSize.y - 20.f));
 
         ImGui::Begin("Info", 0, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoTitleBar);
         ImGui::Text("Alpha:%.6f (%d, %d)", m_ui.alphaVal);
@@ -1416,7 +1408,7 @@ protected:
 
         ImGui::SetNextWindowBgAlpha(0.98f);
         ImGui::SetNextWindowPos(ImVec2(10.f, 10.f), ImGuiCond_FirstUseEver);
-        ImGui::SetNextWindowSizeConstraints(ImVec2(10.f, 10.f), ImVec2(windowSize.x / scaleX - 20.f, windowSize.y / scaleY - 20.f));
+        ImGui::SetNextWindowSizeConstraints(ImVec2(10.f, 10.f), ImVec2(windowSize.x - 20.f, windowSize.y - 20.f));
 
         ImGui::Begin("Settings", 0, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoScrollbar);
 
@@ -1830,6 +1822,7 @@ int main(int __argc, const char** __argv)
     deviceParams.backBufferWidth = 2 * 1280;
     deviceParams.backBufferHeight = 2 * 720;
     deviceParams.vsyncEnabled = true;
+    deviceParams.supportExplicitDisplayScaling = true;
 #if DONUT_WITH_VULKAN
     deviceParams.requiredVulkanDeviceExtensions.push_back(VK_EXT_FRAGMENT_SHADER_INTERLOCK_EXTENSION_NAME);
     deviceParams.requiredVulkanDeviceExtensions.push_back(VK_KHR_FRAGMENT_SHADER_BARYCENTRIC_EXTENSION_NAME);

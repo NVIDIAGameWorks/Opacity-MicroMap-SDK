@@ -47,3 +47,7 @@ target_compile_definitions(${project} PRIVATE OMM_VIEWER_DEFAULT_BINARY_FOLDER="
 if (MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W3 /MP")
 endif()
+
+#install(TARGETS ${project} ${INSTALL_EXPORT} RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} )
+#install(DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders/${project}/dxil DESTINATION ${CMAKE_INSTALL_BINDIR}/../shaders/${project} )
+#install(DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders/framework/dxil DESTINATION ${CMAKE_INSTALL_BINDIR}/../shaders/framework )
