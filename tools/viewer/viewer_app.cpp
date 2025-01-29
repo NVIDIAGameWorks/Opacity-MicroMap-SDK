@@ -699,16 +699,7 @@ public:
 
     bool Init()
     {
-#ifdef _WIN32
-        std::filesystem::path appShaderPath = app::GetDirectoryWithExecutable() / "../shaders/viewer" /  app::GetShaderTypeName(GetDevice()->getGraphicsAPI());
-        std::filesystem::path frameworkShaderPath = app::GetDirectoryWithExecutable() / "../shaders/framework" / app::GetShaderTypeName(GetDevice()->getGraphicsAPI());
-#else
-        std::filesystem::path appShaderPath = app::GetDirectoryWithExecutable() / "shaders/viewer" / app::GetShaderTypeName(GetDevice()->getGraphicsAPI());
-        std::filesystem::path frameworkShaderPath = app::GetDirectoryWithExecutable() / "shaders/framework" / app::GetShaderTypeName(GetDevice()->getGraphicsAPI());
-#endif
         auto rootFs = std::make_shared<vfs::RootFileSystem>();
-        rootFs->mount("viewer_app", appShaderPath);
-        rootFs->mount("donut", frameworkShaderPath);
 
         m_ShaderFactory = std::make_shared<engine::ShaderFactory>(GetDevice(), rootFs, "");
 
@@ -1218,13 +1209,7 @@ public:
         , m_ui(ui)
         , fileDialog(ImGuiFileBrowserFlags_SelectDirectory | ImGuiFileBrowserFlags_NoModal | ImGuiFileBrowserFlags_CloseOnEsc | ImGuiFileBrowserFlags_ConfirmOnEnter)
     {
-#ifdef _WIN32
-        std::filesystem::path frameworkShaderPath = app::GetDirectoryWithExecutable() / "../shaders/framework" / app::GetShaderTypeName(GetDevice()->getGraphicsAPI());
-#else
-        std::filesystem::path frameworkShaderPath = app::GetDirectoryWithExecutable() / "shaders/framework" / app::GetShaderTypeName(GetDevice()->getGraphicsAPI());
-#endif
         auto rootFs = std::make_shared<vfs::RootFileSystem>();
-        rootFs->mount("/shaders/donut", frameworkShaderPath);
 
         float scaleX, scaleY;
         GetDeviceManager()->GetDPIScaleInfo(scaleX, scaleY);

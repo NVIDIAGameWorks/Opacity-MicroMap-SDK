@@ -30,8 +30,6 @@ set(folder "Tools/Viewer")
 option(OMM_VIEWER_INSTALL "Generate install rules for OMM Viewer" ON)
 
 set(output_base ${CMAKE_CURRENT_BINARY_DIR}/compiled_shaders)
-#message(adsasd ${CMAKE_CURRENT_BINARY_DIR}/compiled_shaders)
-#message(STATUS "message to display" ...)
 
 donut_compile_shaders(
     TARGET ${project}_shaders
@@ -40,7 +38,7 @@ donut_compile_shaders(
     FOLDER ${folder}
     DXBC ${output_base}
     DXIL ${output_base}
-    SPIRV_DXC ${output_base}/
+    SPIRV_DXC ${output_base}
     OUTPUT_FORMAT "HEADER"
     SHADERMAKE_OPTIONS_SPIRV --spirvExt=SPV_EXT_fragment_shader_interlock
 )
@@ -50,7 +48,7 @@ target_link_libraries(${project} donut_app donut_engine donut_render omm-lib)
 target_include_directories(${project} PRIVATE "${CMAKE_SOURCE_DIR}/external/imgui-filebrowser" "${CMAKE_CURRENT_BINARY_DIR}")
 add_dependencies(${project} ${project}_shaders)
 set_target_properties(${project} PROPERTIES FOLDER ${folder})
-target_compile_definitions(${project} PRIVATE OMM_VIEWER_DEFAULT_BINARY_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}/example_data")
+target_compile_definitions(${project} PRIVATE OMM_VIEWER_DEFAULT_BINARY_FOLDER="${PROJECT_SOURCE_DIR}/assets/omm_example_data")
 
 if (MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W3 /MP")

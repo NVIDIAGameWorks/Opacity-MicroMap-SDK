@@ -61,7 +61,6 @@ if (NOT TARGET lz4)
 	set_property(TARGET lz4_static PROPERTY FOLDER "External") 
 endif()
 
-
 # ShaderMake
 if (NOT TARGET ShaderMake)
     add_subdirectory("ShaderMake")
