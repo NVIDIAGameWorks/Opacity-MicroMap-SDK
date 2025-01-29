@@ -641,7 +641,7 @@ namespace {
 			float texCoords[6] = { 0.05f, 0.1f,  0.1f, 0.9f,  0.9f, 0.9f };
 
 			int width, height, channels;
-			unsigned char* pixelData = stbi_load(PROJECT_SOURCE_DIR "/tests/data/leaflet.png", &width, &height, &channels, 0);
+			unsigned char* pixelData = stbi_load(PROJECT_SOURCE_DIR "/assets/tests/leaflet.png", &width, &height, &channels, 0);
 
 			const uint32_t NumMipToGenerate = mipStart + NumMip;
 			std::vector<std::vector<float>> mips;
@@ -715,7 +715,7 @@ namespace {
 			float texCoords[6] = { 0.35f, 0.1f,  0.1f, 0.9f,  0.9f, 0.8f };
 
 			int width, height, channels;
-			unsigned char* pixelData = stbi_load(PROJECT_SOURCE_DIR "/tests/data/leaflet.png", &width, &height, &channels, 0);
+			unsigned char* pixelData = stbi_load(PROJECT_SOURCE_DIR "/assets/tests/leaflet.png", &width, &height, &channels, 0);
 
 			std::vector<float> mips;
 

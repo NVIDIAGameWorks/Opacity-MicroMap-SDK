@@ -1,28 +1,38 @@
 
 option(NVRHI_INSTALL OFF)
+set (SHADERMAKE_BIN_OUTPUT_PATH "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}" CACHE STRING "")
+# donut & nvrhi
+option(DONUT_WITH_AUDIO "" OFF)
+option(DONUT_WITH_ASSIMP "" OFF)
+option(DONUT_WITH_DX11 "" OFF)
+option(DONUT_WITH_LZ4 "" OFF)
+option(DONUT_WITH_MINIZ "" OFF)
+option(DONUT_WITH_STATIC_SHADERS "" ON)
+option(DONUT_WITH_TASKFLOW "" OFF)
+option(DONUT_WITH_TINYEXR "" ON) # temp - for now.
+	
+set(DONUT_SHADERS_OUTPUT_DIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders/framework")
+add_subdirectory(donut)
 
-# donut
-if (OMM_BUILD_VIEWER)
-    option(DONUT_WITH_ASSIMP "" OFF)
-    set(DONUT_SHADERS_OUTPUT_DIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders/framework")
-	add_subdirectory(donut)
+set_property(TARGET donut_app PROPERTY FOLDER "External/Donut") 
+set_property(TARGET donut_core PROPERTY FOLDER "External/Donut") 
+set_property(TARGET donut_engine PROPERTY FOLDER "External/Donut") 
+set_property(TARGET donut_render PROPERTY FOLDER "External/Donut") 
+set_property(TARGET donut_shaders PROPERTY FOLDER "External/Donut") 
+set_property(TARGET update_mappings PROPERTY FOLDER "External/GLFW3") 
 
-	set_property(TARGET donut_app PROPERTY FOLDER "External/Donut") 
-	set_property(TARGET donut_core PROPERTY FOLDER "External/Donut") 
-	set_property(TARGET donut_engine PROPERTY FOLDER "External/Donut") 
-	set_property(TARGET donut_render PROPERTY FOLDER "External/Donut") 
-	set_property(TARGET donut_shaders PROPERTY FOLDER "External/Donut") 
-	set_property(TARGET update_mappings PROPERTY FOLDER "External/GLFW3") 
+set_property(TARGET nvrhi PROPERTY FOLDER "External") 
+set_property(TARGET nvrhi_d3d12 PROPERTY FOLDER "External") 
+set_property(TARGET nvrhi_vk PROPERTY FOLDER "External") 
 
-	set_property(TARGET nvrhi PROPERTY FOLDER "External") 
-	set_property(TARGET nvrhi_d3d11 PROPERTY FOLDER "External") 
-	set_property(TARGET nvrhi_d3d12 PROPERTY FOLDER "External") 
-	set_property(TARGET nvrhi_vk PROPERTY FOLDER "External") 
-
-endif()
+set_property(TARGET imgui PROPERTY FOLDER "External")
+set_property(TARGET jsoncpp_static PROPERTY FOLDER "External")
+set_property(TARGET glfw PROPERTY FOLDER "External")
 
 # GLM
 add_subdirectory("glm")
+
+set_property(TARGET glm PROPERTY FOLDER "External") 
 
 if(BUILD_STATIC_LIBS)
 set_property(TARGET glm_static PROPERTY FOLDER "External") 
@@ -47,8 +57,10 @@ if (NOT TARGET lz4)
 	set(LZ4_BUILD_CLI OFF)
 	set(LZ4_BUILD_LEGACY_LZ4C OFF)
 	add_subdirectory("lz4/build/cmake")
-	# set_property(TARGET lz4 PROPERTY FOLDER "External") 
+	set_property(TARGET lz4 PROPERTY FOLDER "External") 
+	set_property(TARGET lz4_static PROPERTY FOLDER "External") 
 endif()
+
 
 # ShaderMake
 if (NOT TARGET ShaderMake)

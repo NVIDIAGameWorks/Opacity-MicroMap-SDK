@@ -21,7 +21,7 @@ option(OMM_STATIC_LIBRARY "build static lib" OFF)
 option(OMM_CROSSCOMPILE_AARCH64 "cross compilation for aarch64" OFF)
 option(OMM_CROSSCOMPILE_X86_64 "cross compilation for x86_64" OFF)
 option(OMM_SHADER_DEBUG_INFO "enable embedded shader debug info" OFF)
-option(OMM_INSTALL "Generate install rules for OMM" ON)
+option(OMM_LIB_INSTALL "Generate install rules for OMM" ON)
 option(OMM_ENABLE_FAST_MATH "Enable fast math optimizations()" ON)
 
 if (OMM_ENABLE_OPENMP)
@@ -170,12 +170,12 @@ if (NOT ${OMM_OUTPUT_BIN_PATH} STREQUAL "")
     set_target_properties(${TARGET_NAME} PROPERTIES ARCHIVE_OUTPUT_DIRECTORY "${OMM_OUTPUT_BIN_PATH}/$<CONFIG>")
 endif()
 
-if (OMM_INSTALL)
+if (OMM_LIB_INSTALL)
     install (TARGETS ${TARGET_NAME}
-             ARCHIVE DESTINATION lib
-             LIBRARY DESTINATION lib
-             RUNTIME DESTINATION bin)
+             ARCHIVE DESTINATION omm-lib/lib
+             LIBRARY DESTINATION omm-lib/lib
+             RUNTIME DESTINATION omm-lib/bin)
 
-    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/include/omm.h" DESTINATION include)
-    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/include/omm.hpp" DESTINATION include)
+    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/include/omm.h" DESTINATION omm-lib/include)
+    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/include/omm.hpp" DESTINATION omm-lib/include)
 endif()

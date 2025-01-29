@@ -54,7 +54,7 @@ jobs:
         name: Run Tests
         run: |
           cd "build/bin/Release"
-          ./omm-sdk-tests.exe --gtest_filter=-*GPU*
+          ./tests.exe --gtest_filter=-*GPU*
           cd ../../..
       -
         name: Install Release
@@ -119,7 +119,7 @@ jobs:
          run: |
            cd "build"
            cd "bin"
-           ./omm-sdk-tests
+           ./tests
       -
         name: Install Release
         run: |

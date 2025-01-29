@@ -34,6 +34,27 @@
 #include <imfilebrowser.h>
 #include "OpenSans_Regular.h"
 
+#if DONUT_WITH_STATIC_SHADERS
+#if DONUT_WITH_DX11
+#include "compiled_shaders/background_vs_ps_main_ps.dxbc.h"
+#include "compiled_shaders/background_vs_ps_main_vs.dxbc.h"
+#include "compiled_shaders/shaders_main_ps.dxbc.h"
+#include "compiled_shaders/shaders_main_vs.dxbc.h"
+#endif
+#if DONUT_WITH_DX12
+#include "compiled_shaders/background_vs_ps_main_ps.dxil.h"
+#include "compiled_shaders/background_vs_ps_main_vs.dxil.h"
+#include "compiled_shaders/shaders_main_ps.dxil.h"
+#include "compiled_shaders/shaders_main_vs.dxil.h"
+#endif
+#if DONUT_WITH_VULKAN
+#include "compiled_shaders/background_vs_ps_main_ps.spirv.h"
+#include "compiled_shaders/background_vs_ps_main_vs.spirv.h"
+#include "compiled_shaders/shaders_main_ps.spirv.h"
+#include "compiled_shaders/shaders_main_vs.spirv.h"
+#endif
+#endif
+
 using namespace donut;
 using namespace donut::math;
 
@@ -856,11 +877,11 @@ private:
 
             m_pixelReadback = std::make_shared<donut::render::PixelReadbackPass>(GetDevice(), m_ShaderFactory, m_ReadbackTexture.Get(), nvrhi::Format::RGBA32_FLOAT);
 
-            m_VertexShader = m_ShaderFactory->CreateShader("viewer_app/shaders.hlsl", "main_vs", nullptr, nvrhi::ShaderType::Vertex);
-            m_PixelShader = m_ShaderFactory->CreateShader("viewer_app/shaders.hlsl", "main_ps", nullptr, nvrhi::ShaderType::Pixel);
+            m_VertexShader = m_ShaderFactory->CreateStaticPlatformShader(DONUT_MAKE_PLATFORM_SHADER(g_shaders_main_vs), nullptr, nvrhi::ShaderType::Vertex);
+            m_PixelShader = m_ShaderFactory->CreateStaticPlatformShader(DONUT_MAKE_PLATFORM_SHADER(g_shaders_main_ps), nullptr, nvrhi::ShaderType::Pixel);
 
-            m_BackgroundVS = m_ShaderFactory->CreateShader("viewer_app/background_vs_ps.hlsl", "main_vs", nullptr, nvrhi::ShaderType::Vertex);
-            m_BackgroundPS = m_ShaderFactory->CreateShader("viewer_app/background_vs_ps.hlsl", "main_ps", nullptr, nvrhi::ShaderType::Pixel);
+            m_BackgroundVS = m_ShaderFactory->CreateStaticPlatformShader(DONUT_MAKE_PLATFORM_SHADER(g_background_vs_ps_main_vs), nullptr, nvrhi::ShaderType::Vertex);
+            m_BackgroundPS = m_ShaderFactory->CreateStaticPlatformShader(DONUT_MAKE_PLATFORM_SHADER(g_background_vs_ps_main_ps), nullptr, nvrhi::ShaderType::Pixel);
 
             m_ConstantBuffer = GetDevice()->createBuffer(nvrhi::utils::CreateVolatileConstantBufferDesc(sizeof(Constants), "Constants", 16));
 

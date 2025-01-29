@@ -8,7 +8,7 @@ distribution of this software and related documentation without an express
 license agreement from NVIDIA CORPORATION is strictly prohibited.
 */
 
-#include <omm-lib-nvrhi.h>
+#include "omm-gpu-nvrhi.h"
 
 #include <nvrhi/common/misc.h>
 #include <nvrhi/utils.h>

@@ -27,19 +27,27 @@ file(GLOB sources "*.cpp" "*.h")
 set(project viewer)
 set(folder "Tools/Viewer")
 
+option(OMM_VIEWER_INSTALL "Generate install rules for OMM Viewer" ON)
+
+set(output_base ${CMAKE_CURRENT_BINARY_DIR}/compiled_shaders)
+#message(adsasd ${CMAKE_CURRENT_BINARY_DIR}/compiled_shaders)
+#message(STATUS "message to display" ...)
+
 donut_compile_shaders(
     TARGET ${project}_shaders
     CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/shaders.cfg
     SOURCES ${shaders}
     FOLDER ${folder}
-    DXIL ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders/${project}/dxil
-    SPIRV_DXC ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders/${project}/spirv
+    DXBC ${output_base}
+    DXIL ${output_base}
+    SPIRV_DXC ${output_base}/
+    OUTPUT_FORMAT "HEADER"
     SHADERMAKE_OPTIONS_SPIRV --spirvExt=SPV_EXT_fragment_shader_interlock
 )
 
 add_executable(${project} WIN32 ${sources})
 target_link_libraries(${project} donut_app donut_engine donut_render omm-lib)
-target_include_directories(${project} PRIVATE "${CMAKE_SOURCE_DIR}/external/imgui-filebrowser")
+target_include_directories(${project} PRIVATE "${CMAKE_SOURCE_DIR}/external/imgui-filebrowser" "${CMAKE_CURRENT_BINARY_DIR}")
 add_dependencies(${project} ${project}_shaders)
 set_target_properties(${project} PROPERTIES FOLDER ${folder})
 target_compile_definitions(${project} PRIVATE OMM_VIEWER_DEFAULT_BINARY_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}/example_data")
@@ -48,6 +56,6 @@ if (MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W3 /MP")
 endif()
 
-#install(TARGETS ${project} ${INSTALL_EXPORT} RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} )
-#install(DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders/${project}/dxil DESTINATION ${CMAKE_INSTALL_BINDIR}/../shaders/${project} )
-#install(DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders/framework/dxil DESTINATION ${CMAKE_INSTALL_BINDIR}/../shaders/framework )
+if (OMM_VIEWER_INSTALL)
+    install(TARGETS ${project} ${INSTALL_EXPORT} RUNTIME DESTINATION bin )
+endif()

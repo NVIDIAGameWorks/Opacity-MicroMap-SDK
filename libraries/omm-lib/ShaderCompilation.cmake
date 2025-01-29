@@ -139,6 +139,7 @@ if (OMM_ENABLE_PRECOMPILED_SHADERS_DXIL)
         FOLDER ${OMM_PROJECT_FOLDER}
         DXIL ${PROJECT_BINARY_DIR}/bin
     )
+    set_target_properties(omm-shaders-dxil PROPERTIES FOLDER ${OMM_PROJECT_FOLDER}/Misc)
 endif()
 
 if (OMM_ENABLE_PRECOMPILED_SHADERS_SPIRV)
@@ -149,4 +150,5 @@ if (OMM_ENABLE_PRECOMPILED_SHADERS_SPIRV)
         FOLDER ${OMM_PROJECT_FOLDER}
         SPIRV ${PROJECT_BINARY_DIR}/bin
     )
+    set_target_properties(omm-shaders-spirv PROPERTIES FOLDER ${OMM_PROJECT_FOLDER}/Misc)
 endif()

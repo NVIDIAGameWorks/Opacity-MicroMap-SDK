@@ -1,16 +1,16 @@
 cmake_minimum_required(VERSION 3.12)
 
-if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/gtest)
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/external/gtest)
 	option(OMM_ENABLE_TESTS "Enable unit test" ON)
 endif()
 
-if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/donut AND WIN32)
+if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/external/donut AND WIN32)
 	option(OMM_BUILD_VIEWER "Build omm viewer tool" ON)
 else()
 	option(OMM_BUILD_VIEWER "Build omm viewer tool" OFF)
 endif()
 
-file(READ "${CMAKE_CURRENT_SOURCE_DIR}/omm-lib/src/version.h" ver_h)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/libraries/omm-lib/src/version.h" ver_h)
 string(REGEX MATCH "VERSION_MAJOR ([0-9]*)" _ ${ver_h})
 set(ver_major ${CMAKE_MATCH_1})
 string(REGEX MATCH "VERSION_MINOR ([0-9]*)" _ ${ver_h})
@@ -34,7 +34,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
    
 if (NOT DEFINED OMM_PROJECT_FOLDER)
-    set(OMM_PROJECT_FOLDER "Opacity Micro-Map Lib")
+    set(OMM_PROJECT_FOLDER "Libraries")
 endif()
 
 if (OMM_BUILD_VIEWER)
@@ -42,10 +42,10 @@ if (OMM_BUILD_VIEWER)
 endif()
 
 add_subdirectory(external)
-add_subdirectory(shared)
-add_subdirectory(omm-lib)
-add_subdirectory(integration)
+add_subdirectory(libraries/omm-util)
+add_subdirectory(libraries/omm-lib)
+add_subdirectory(libraries/omm-gpu-nvrhi)
 
 if (OMM_ENABLE_TESTS)
-    add_subdirectory(tests)
+    add_subdirectory(support/tests)
 endif()
