@@ -1,7 +1,12 @@
 
 option(NVRHI_INSTALL OFF)
 set (SHADERMAKE_BIN_OUTPUT_PATH "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}" CACHE STRING "")
-# donut & nvrhi
+# donut & nvrhi & lz4
+
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries" FORCE)
+set(LZ4_BUILD_CLI OFF)
+set(LZ4_BUILD_LEGACY_LZ4C OFF)
+
 option(DONUT_WITH_AUDIO "" OFF)
 option(DONUT_WITH_ASSIMP "" OFF)
 option(DONUT_WITH_DX11 "" OFF)
@@ -53,9 +58,6 @@ target_include_directories(stb_lib INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_S
 
 # lz4
 if (NOT TARGET lz4)
-	set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries" FORCE)
-	set(LZ4_BUILD_CLI OFF)
-	set(LZ4_BUILD_LEGACY_LZ4C OFF)
 	add_subdirectory("lz4/build/cmake")
 	set_property(TARGET lz4 PROPERTY FOLDER "External") 
 	set_property(TARGET lz4_static PROPERTY FOLDER "External") 

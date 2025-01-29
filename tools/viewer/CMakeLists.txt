@@ -31,6 +31,11 @@ option(OMM_VIEWER_INSTALL "Generate install rules for OMM Viewer" ON)
 
 set(output_base ${CMAKE_CURRENT_BINARY_DIR}/compiled_shaders)
 
+set(byproducts 
+	background_vs_ps_main_ps
+	shaders_main_ps
+)
+
 donut_compile_shaders(
     TARGET ${project}_shaders
     CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/shaders.cfg
@@ -40,6 +45,7 @@ donut_compile_shaders(
     DXIL ${output_base}
     SPIRV_DXC ${output_base}
     OUTPUT_FORMAT "HEADER"
+    BYPRODUCTS_NO_EXT ${byproducts}
     SHADERMAKE_OPTIONS_SPIRV --spirvExt=SPV_EXT_fragment_shader_interlock
 )
 

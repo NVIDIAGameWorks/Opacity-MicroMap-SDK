@@ -37,14 +37,14 @@ if (NOT DEFINED OMM_PROJECT_FOLDER)
     set(OMM_PROJECT_FOLDER "Libraries")
 endif()
 
-if (OMM_BUILD_VIEWER)
-    add_subdirectory(tools/viewer)
-endif()
-
 add_subdirectory(external)
 add_subdirectory(libraries/omm-util)
 add_subdirectory(libraries/omm-lib)
 add_subdirectory(libraries/omm-gpu-nvrhi)
+
+if (OMM_BUILD_VIEWER)
+    add_subdirectory(tools/viewer)
+endif()
 
 if (OMM_ENABLE_TESTS)
     add_subdirectory(support/tests)
