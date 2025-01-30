@@ -10,12 +10,6 @@
 [submodule "thirdparty/stb"]
 	path = external/stb
 	url = https://github.com/nothings/stb.git
-[submodule "thirdparty/ShaderMake"]
-	path = external/ShaderMake
-	url = https://github.com/NVIDIAGameWorks/ShaderMake.git
-[submodule "thirdparty/lz4"]
-	path = external/lz4
-	url = https://github.com/lz4/lz4.git
 [submodule "thirdparty/donut"]
 	path = external/donut
 	url = https://github.com/NVIDIAGameWorks/donut.git

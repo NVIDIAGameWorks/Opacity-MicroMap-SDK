@@ -172,10 +172,10 @@ endif()
 
 if (OMM_LIB_INSTALL)
     install (TARGETS ${TARGET_NAME}
-             ARCHIVE DESTINATION omm-lib/lib
-             LIBRARY DESTINATION omm-lib/lib
-             RUNTIME DESTINATION omm-lib/bin)
+             ARCHIVE DESTINATION lib
+             LIBRARY DESTINATION lib
+             RUNTIME DESTINATION bin)
 
-    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/include/omm.h" DESTINATION omm-lib/include)
-    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/include/omm.hpp" DESTINATION omm-lib/include)
+    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/include/omm.h" DESTINATION include)
+    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/include/omm.hpp" DESTINATION include)
 endif()
