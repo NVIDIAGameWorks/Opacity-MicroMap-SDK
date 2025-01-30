@@ -1072,8 +1072,8 @@ void ImGui_CheckBoxFlag(const char* name, uint32_t ID, T& flags, T origFlags, T 
     ImGui::PushID(ID);
     if (ImGui::Button("Reset"))
     {
-        (uint32_t&)flags &= ~(uint32_t)mask;
-        (uint32_t&)flags |= (uint32_t)origFlags & (uint32_t)mask;
+        reinterpret_cast<uint32_t&>(flags) &= ~(uint32_t)mask;
+        reinterpret_cast<uint32_t&>(flags) |= (uint32_t)origFlags & (uint32_t)mask;
     }
     ImGui::PopID();
 
@@ -1085,11 +1085,11 @@ void ImGui_CheckBoxFlag(const char* name, uint32_t ID, T& flags, T origFlags, T 
     {
         if (value)
         {
-            (uint32_t&)flags |= (uint32_t)mask;
+            reinterpret_cast<uint32_t&>(flags) |= (uint32_t)mask;
         }
         else
         {
-            (uint32_t&)flags &= ~(uint32_t)mask;
+            reinterpret_cast<uint32_t&>(flags) &= ~(uint32_t)mask;
         }
     }
 }

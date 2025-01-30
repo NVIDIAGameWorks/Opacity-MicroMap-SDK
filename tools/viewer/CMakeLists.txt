@@ -49,7 +49,7 @@ donut_compile_shaders(
     SHADERMAKE_OPTIONS_SPIRV --spirvExt=SPV_EXT_fragment_shader_interlock
 )
 
-add_executable(${project} ${sources})
+add_executable(${project} WIN32 ${sources})
 target_link_libraries(${project} donut_app donut_engine donut_render omm-lib)
 target_include_directories(${project} PRIVATE "${CMAKE_SOURCE_DIR}/external/imgui-filebrowser" "${CMAKE_CURRENT_BINARY_DIR}")
 add_dependencies(${project} ${project}_shaders)
