@@ -1064,16 +1064,16 @@ private:
 template<class T>
 void ImGui_CheckBoxFlag(const char* name, uint32_t ID, T& flags, T origFlags, T mask)
 {
-    bool value = (mask & flags) == mask;
-    bool origValue = (mask & origFlags) == mask;
+    bool value = ((uint32_t)mask & (uint32_t)flags) == (uint32_t)mask;
+    bool origValue = ((uint32_t)mask & (uint32_t)origFlags) == (uint32_t)mask;
     
     ImGui::BeginDisabled(origValue == value);
 
     ImGui::PushID(ID);
     if (ImGui::Button("Reset"))
     {
-        flags &= ~mask;
-        flags |= origFlags & mask;
+        (uint32_t&)flags &= ~(uint32_t)mask;
+        (uint32_t&)flags |= (uint32_t)origFlags & (uint32_t)mask;
     }
     ImGui::PopID();
 
@@ -1085,11 +1085,11 @@ void ImGui_CheckBoxFlag(const char* name, uint32_t ID, T& flags, T origFlags, T 
     {
         if (value)
         {
-            flags |= mask;
+            (uint32_t&)flags |= (uint32_t)mask;
         }
         else
         {
-            flags &= ~mask;
+            (uint32_t&)flags &= ~(uint32_t)mask;
         }
     }
 }
@@ -1400,7 +1400,7 @@ protected:
         ImGui::SetNextWindowSizeConstraints(ImVec2(10.f, 10.f), ImVec2(windowSize.x - 20.f, windowSize.y - 20.f));
 
         ImGui::Begin("Info", 0, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoTitleBar);
-        ImGui::Text("Alpha:%.6f (%d, %d)", m_ui.alphaVal);
+        ImGui::Text("Alpha:%.6f", m_ui.alphaVal);
         ImGui::Text("Texel:(%d, %d)", m_ui.texel.x, m_ui.texel.y);
         if (const omm::Cpu::BakeResultDesc* result = m_app->GetOmmGpuData().GetResult())
         {
@@ -1513,10 +1513,10 @@ protected:
                 size_t indexSize = result->indexCount * (result->indexFormat == omm::IndexFormat::UINT_16 ? 2 : 4);
                 size_t descArraySize = result->descArrayCount * sizeof(omm::Cpu::OpacityMicromapDesc);
                 size_t totalSize = arrayDataSize + indexSize + descArraySize;
-                ImGui::Text("Array Data Size %.4f mb (%d bytes)", arrayDataSize / (1024.f * 1024.f), arrayDataSize);
-                ImGui::Text("Index Data Size %.4f mb (%d bytes)", indexSize / (1024.f * 1024.f), indexSize);
-                ImGui::Text("Desc Array Size %.4f mb (%d bytes)", descArraySize / (1024.f * 1024.f), descArraySize);
-                ImGui::Text("Total Size %.4f mb (%d bytes)", totalSize / (1024.f * 1024.f), totalSize);
+                ImGui::Text("Array Data Size %.4f mb (%zu bytes)", arrayDataSize / (1024.f * 1024.f), arrayDataSize);
+                ImGui::Text("Index Data Size %.4f mb (%zu bytes)", indexSize / (1024.f * 1024.f), indexSize);
+                ImGui::Text("Desc Array Size %.4f mb (%zu bytes)", descArraySize / (1024.f * 1024.f), descArraySize);
+                ImGui::Text("Total Size %.4f mb (%zu bytes)", totalSize / (1024.f * 1024.f), totalSize);
             }
 
             ImGui::SeparatorText("Stats");
@@ -1536,15 +1536,15 @@ protected:
             float total = known + unknown;
             ImGui::Text("Known %.2f%%", 100.f * known / (known + unknown));
             ImGui::Text("Known Area %.2f%%", 100.f * stats.knownAreaMetric);
-            ImGui::Text("Total Opaque %llu (%.2f%%)", stats.totalOpaque, 100.f * stats.totalOpaque / total);
-            ImGui::Text("Total Transparent %llu (%.2f%%)", stats.totalTransparent, 100.f * stats.totalTransparent / total);
-            ImGui::Text("Total Unknown Transparent %llu (%.2f%%)", stats.totalUnknownTransparent, 100.f * stats.totalUnknownTransparent / total);
-            ImGui::Text("Total Unknown Opaque %llu (%.2f%%)", stats.totalUnknownOpaque, 100.f * stats.totalUnknownOpaque / total);
+            ImGui::Text("Total Opaque %lu (%.2f%%)", stats.totalOpaque, 100.f * stats.totalOpaque / total);
+            ImGui::Text("Total Transparent %lu (%.2f%%)", stats.totalTransparent, 100.f * stats.totalTransparent / total);
+            ImGui::Text("Total Unknown Transparent %lu (%.2f%%)", stats.totalUnknownTransparent, 100.f * stats.totalUnknownTransparent / total);
+            ImGui::Text("Total Unknown Opaque %lu (%.2f%%)", stats.totalUnknownOpaque, 100.f * stats.totalUnknownOpaque / total);
 
-            ImGui::Text("Total Fully Opaque %llu", stats.totalFullyOpaque);
-            ImGui::Text("Total Fully Transparent %llu", stats.totalFullyTransparent);
-            ImGui::Text("Total Fully Unknown Transparent %llu", stats.totalFullyUnknownTransparent);
-            ImGui::Text("Total Fully Unknown Opaque %llu", stats.totalFullyUnknownOpaque);
+            ImGui::Text("Total Fully Opaque %u", stats.totalFullyOpaque);
+            ImGui::Text("Total Fully Transparent %u", stats.totalFullyTransparent);
+            ImGui::Text("Total Fully Unknown Transparent %u", stats.totalFullyUnknownTransparent);
+            ImGui::Text("Total Fully Unknown Opaque %u", stats.totalFullyUnknownOpaque);
 
             if (ImGui::CollapsingHeader("Bake Settings", ImGuiTreeNodeFlags_DefaultOpen))
             {
@@ -1754,7 +1754,7 @@ protected:
                 }
 
                 ImGui::SameLine();
-                ImGui::Text("Last bake time %llus, (%llu ms)", m_app->GetOmmGpuData().GetBakeTimeInSeconds(), m_app->GetOmmGpuData().GetBakeTimeInMs());
+                ImGui::Text("Last bake time %lus, (%lu ms)", m_app->GetOmmGpuData().GetBakeTimeInSeconds(), m_app->GetOmmGpuData().GetBakeTimeInMs());
             }
            
             if (ImGui::CollapsingHeader("Histogram"))

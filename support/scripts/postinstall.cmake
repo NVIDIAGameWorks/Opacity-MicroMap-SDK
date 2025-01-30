@@ -1,0 +1,8 @@
+if(WIN32)
+    file(REMOVE_RECURSE ${CMAKE_INSTALL_PREFIX}/include/json)
+    file(REMOVE ${CMAKE_INSTALL_PREFIX}/lib/jsoncpp.lib)
+elseif(UNIX)
+    file(REMOVE_RECURSE ${CMAKE_INSTALL_PREFIX}/include/json)
+    file(REMOVE ${CMAKE_INSTALL_PREFIX}/lib/libjsoncpp.a)
+endif()
+message("Uninstalling ${CMAKE_INSTALL_PREFIX}/include/json and ${CMAKE_INSTALL_PREFIX}/lib/libjsoncpp.a/jsoncpp.lib")
