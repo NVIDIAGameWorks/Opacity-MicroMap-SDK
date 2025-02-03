@@ -16,10 +16,10 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include "std_containers.h"
 #include "log.h"
 
-#include <shared/math.h>
-#include <shared/assert.h>
-#include <shared/bit_tricks.h>
-#include <shared/texture.h>
+#include "util/math.h"
+#include "util/assert.h"
+#include "util/bit_tricks.h"
+#include "util/texture.h"
 
 namespace omm
 {

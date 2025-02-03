@@ -20,7 +20,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 #include <omm-gpu-nvrhi.h>
 #include <omm.h>
-#include <shared/bird.h>
+#include "util/bird.h"
 
 namespace {
 

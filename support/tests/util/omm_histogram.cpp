@@ -10,8 +10,8 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 #include "omm_histogram.h"
 #include <gtest/gtest.h>
-#include <shared/bird.h>
-#include <shared/parse.h>
+#include "util/bird.h"
+#include "util/parse.h"
 
 namespace omm
 {

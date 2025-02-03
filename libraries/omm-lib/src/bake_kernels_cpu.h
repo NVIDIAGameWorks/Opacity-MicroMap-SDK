@@ -8,10 +8,10 @@ distribution of this software and related documentation without an express
 license agreement from NVIDIA CORPORATION is strictly prohibited.
 */
 
-#include <shared/math.h>
-#include <shared/cpu_raster.h>
-#include <shared/texture.h>
-#include <shared/util.h>
+#include "util/math.h"
+#include "util/cpu_raster.h"
+#include "util/texture.h"
+#include "util/util.h"
 
 namespace omm
 {

@@ -13,9 +13,9 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include "bake_kernels_cpu.h"
 #include "texture_impl.h"
 
-#include <shared/math.h>
-#include <shared/bird.h>
-#include <shared/cpu_raster.h>
+#include "util/math.h"
+#include "util/bird.h"
+#include "util/cpu_raster.h"
 
 #include <xxhash.h>
 
@@ -920,7 +920,7 @@ namespace Cpu
                                         // This is only correct for bilinear version, nearest sampling should map exactly to the source alpha texture.
 
                                         uint32_t mip = 0;
-                                        OMM_ASSERT(texture->GetMipCount() == 0);
+                                        OMM_ASSERT(texture->GetMipCount() == 1);
                                         const int2 rasterSize = texture->GetSize(mip);
                                         float2 pixelOffset = -float2(0.5, 0.5);
 

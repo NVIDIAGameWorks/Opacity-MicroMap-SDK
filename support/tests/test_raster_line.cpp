@@ -11,7 +11,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include <gtest/gtest.h>
 
 #include "util/image.h"
-#include <shared/cpu_raster.h>
+#include "util/cpu_raster.h"
 #include <omp.h>
 #include <algorithm>
 #include <filesystem>

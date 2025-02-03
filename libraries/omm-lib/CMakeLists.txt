@@ -94,11 +94,11 @@ if(OMM_ENABLE_OPENMP AND OpenMP_CXX_FOUND)
     endif()
 endif()
 
-target_link_libraries(${TARGET_NAME} omm-shared glm stb_lib xxHash::xxhash lz4) 
+target_link_libraries(${TARGET_NAME} glm stb_lib xxHash::xxhash lz4) 
 
 set_target_properties(${TARGET_NAME} PROPERTIES VERSION ${PROJECT_VERSION})
 target_include_directories(${TARGET_NAME} PUBLIC "include")
-target_include_directories(${TARGET_NAME} PRIVATE "shaders")
+target_include_directories(${TARGET_NAME} PRIVATE "shaders" "${CMAKE_CURRENT_SOURCE_DIR}/src")
 set_property(TARGET ${TARGET_NAME} PROPERTY FOLDER "${OMM_PROJECT_FOLDER}") 
 
 if (OMM_ENABLE_PRECOMPILED_SHADERS_DXIL)

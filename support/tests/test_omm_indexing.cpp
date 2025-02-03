@@ -13,8 +13,8 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include "util/image.h"
 
 #include <omm.h>
-#include <shared/bird.h>
-#include <shared/cpu_raster.h>
+#include "util/bird.h"
+#include "util/cpu_raster.h"
 
 #include <algorithm>
 #include <random>

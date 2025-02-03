@@ -1,10 +1,10 @@
 #pragma once
 #include <omm.h>
 #include "omm.h"
-#include <shared/geometry.h>
-#include <shared/texture.h>
-#include <shared/bird.h>
-#include <shared/cpu_raster.h>
+#include "util/geometry.h"
+#include "util/texture.h"
+#include "util/bird.h"
+#include "util/cpu_raster.h"
 #include <filesystem>
 #include <stb_image_write.h>
 

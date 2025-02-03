@@ -12,10 +12,10 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include "bake_gpu_impl.h"
 #include "texture_impl.h"
 
-#include <shared/math.h>
-#include <shared/bird.h>
-#include <shared/cpu_raster.h>
-#include <shared/util.h>
+#include "util/math.h"
+#include "util/bird.h"
+#include "util/cpu_raster.h"
+#include "util/util.h"
 
 #include <array>
 #include <algorithm>

@@ -9,7 +9,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 */
 
 #include <gtest/gtest.h>
-#include <shared/texture.h>
+#include "util/texture.h"
 #include <omm.h>
 
 namespace {

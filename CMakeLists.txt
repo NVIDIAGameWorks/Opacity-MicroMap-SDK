@@ -38,7 +38,6 @@ if (NOT DEFINED OMM_PROJECT_FOLDER)
 endif()
 
 add_subdirectory(external)
-add_subdirectory(libraries/omm-util)
 add_subdirectory(libraries/omm-lib)
 add_subdirectory(libraries/omm-gpu-nvrhi)
 

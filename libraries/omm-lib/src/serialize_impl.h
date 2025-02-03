@@ -16,8 +16,8 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include "texture_impl.h"
 #include "log.h"
 
-#include <shared/math.h>
-#include <shared/texture.h>
+#include "util/math.h"
+#include "util/texture.h"
 
 #include <map>
 #include <set>

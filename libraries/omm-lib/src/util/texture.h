@@ -12,7 +12,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 #include "math.h"
 #include "bit_tricks.h"
-#include <shared/bird.h>
+#include "util/bird.h"
 #include <algorithm>
 #include <omm.hpp>
 

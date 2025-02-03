@@ -16,7 +16,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include <stb_image.h>
 
 #include <omm.h>
-#include <shared/bird.h>
+#include "util/bird.h"
 
 #include <math.h>
 #include <cmath>

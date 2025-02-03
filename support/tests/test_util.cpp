@@ -9,7 +9,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 */
 
 #include <gtest/gtest.h>
-#include <shared/bit_tricks.h>
+#include "util/bit_tricks.h"
 
 namespace {
 

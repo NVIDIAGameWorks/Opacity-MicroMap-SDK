@@ -10,7 +10,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 #include <gtest/gtest.h>
 #include <omm.hpp>
-#include <shared/math.h>
+#include "util/math.h"
 
 namespace {
 
