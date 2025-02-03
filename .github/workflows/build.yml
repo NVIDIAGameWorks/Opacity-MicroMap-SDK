@@ -64,9 +64,9 @@ jobs:
           cd ..
       -
         name: Upload Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: Opacity Micro-Map SDK Windows
+          name: Opacity Micro-Map SDK Windows-${{ matrix.runs-on }}
           path: build/install
           
   Build-Ubuntu:
@@ -134,7 +134,7 @@ jobs:
           cd ..
       -
         name: Upload Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: Opacity Micro-Map SDK Linux
+          name: Opacity Micro-Map SDK Linux-${{ matrix.runs-on }}
           path: build/install
