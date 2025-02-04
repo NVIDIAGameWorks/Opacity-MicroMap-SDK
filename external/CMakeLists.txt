@@ -20,7 +20,7 @@ add_subdirectory(donut)
 
 set_property(TARGET donut_app PROPERTY FOLDER "External/Donut") 
 set_property(TARGET donut_core PROPERTY FOLDER "External/Donut") 
-# set_property(TARGET donut_engine PROPERTY FOLDER "External/Donut") 
+set_property(TARGET donut_engine PROPERTY FOLDER "External/Donut") 
 set_property(TARGET donut_render PROPERTY FOLDER "External/Donut") 
 set_property(TARGET donut_shaders PROPERTY FOLDER "External/Donut") 
 set_property(TARGET update_mappings PROPERTY FOLDER "External/GLFW3") 
