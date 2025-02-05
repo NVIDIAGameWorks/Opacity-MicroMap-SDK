@@ -43,7 +43,7 @@ endif()
 target_compile_definitions(tests  PRIVATE -DOMM_ENABLE_GPU_TESTS=${OMM_ENABLE_GPU_TESTS_VALUE} -DOMM_TEST_ENABLE_IMAGE_DUMP=${OMM_TEST_ENABLE_IMAGE_DUMP_VALUE} -DPROJECT_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 include_directories(tests  ${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/libraries/omm-lib/src)
 
-target_link_libraries(tests gtest gtest_main stb_lib omm-lib ${OMM_GPU_LIBS})
+target_link_libraries(tests gtest gtest_main stb_lib ${OMM_LIB_TARGET_NAME} ${OMM_GPU_LIBS})
 
 set_target_properties(tests  PROPERTIES FOLDER "Support/Tests")
 

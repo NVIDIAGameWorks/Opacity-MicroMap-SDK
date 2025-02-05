@@ -50,7 +50,7 @@ donut_compile_shaders(
 )
 
 add_executable(${project} WIN32 ${sources})
-target_link_libraries(${project} donut_app donut_engine donut_render omm-lib)
+target_link_libraries(${project} donut_app donut_engine donut_render ${OMM_LIB_TARGET_NAME})
 target_include_directories(${project} PRIVATE "${CMAKE_SOURCE_DIR}/external/imgui-filebrowser" "${CMAKE_CURRENT_BINARY_DIR}")
 add_dependencies(${project} ${project}_shaders)
 set_target_properties(${project} PROPERTIES FOLDER ${folder})

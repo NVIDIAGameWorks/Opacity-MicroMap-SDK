@@ -133,22 +133,22 @@ util_generate_shader_config_file(
 
 if (OMM_ENABLE_PRECOMPILED_SHADERS_DXIL)
     compile_shaders(
-        TARGET omm-shaders-dxil
+        TARGET ${OMM_LIB_TARGET_NAME}-dxil
         CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/shaders.cfg
         SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/shaders
         FOLDER ${OMM_PROJECT_FOLDER}
         DXIL ${PROJECT_BINARY_DIR}/bin
     )
-    set_target_properties(omm-shaders-dxil PROPERTIES FOLDER ${OMM_PROJECT_FOLDER}/Misc)
+    set_target_properties(${OMM_LIB_TARGET_NAME}-dxil PROPERTIES FOLDER ${OMM_PROJECT_FOLDER}/Shaders)
 endif()
 
 if (OMM_ENABLE_PRECOMPILED_SHADERS_SPIRV)
     compile_shaders(
-        TARGET omm-shaders-spirv
+        TARGET ${OMM_LIB_TARGET_NAME}-spirv
         CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/shaders.cfg
         SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/shaders
         FOLDER ${OMM_PROJECT_FOLDER}
         SPIRV ${PROJECT_BINARY_DIR}/bin
     )
-    set_target_properties(omm-shaders-spirv PROPERTIES FOLDER ${OMM_PROJECT_FOLDER}/Misc)
+    set_target_properties(${OMM_LIB_TARGET_NAME}-spirv PROPERTIES FOLDER ${OMM_PROJECT_FOLDER}/Shaders)
 endif()

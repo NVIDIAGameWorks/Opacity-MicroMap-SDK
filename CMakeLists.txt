@@ -10,6 +10,17 @@ else()
 	option(OMM_BUILD_VIEWER "Build omm viewer tool" OFF)
 endif()
 
+
+if (NOT OMM_LIB_TARGET_NAME)
+    option(OMM_USE_LEGACY_OMM_LIB_NAME "Use the legacy target name of omm-lib: \"omm-sdk\"" OFF)
+
+    if (OMM_USE_LEGACY_OMM_LIB_NAME)
+	    set(OMM_LIB_TARGET_NAME omm-sdk)
+    else()
+        set(OMM_LIB_TARGET_NAME omm-lib)
+    endif()
+endif()
+
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/libraries/omm-lib/src/version.h" ver_h)
 string(REGEX MATCH "VERSION_MAJOR ([0-9]*)" _ ${ver_h})
 set(ver_major ${CMAKE_MATCH_1})
@@ -50,3 +61,9 @@ if (OMM_ENABLE_TESTS)
 endif()
 
 add_subdirectory(support/scripts)
+
+if (OMM_BUILD_VIEWER)
+    set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT viewer)
+elseif(OMM_ENABLE_TESTS)
+    set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT tests)
+endif()
