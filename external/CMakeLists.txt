@@ -9,7 +9,7 @@ option(LZ4_BUILD_CLI "" OFF)
 option(DONUT_WITH_AUDIO "" OFF)
 option(DONUT_WITH_ASSIMP "" OFF)
 option(DONUT_WITH_DX11 "" OFF)
-option(DONUT_WITH_LZ4 "" ON) # dependency of omm-lib
+option(DONUT_WITH_LZ4 "" OFF)
 option(DONUT_WITH_MINIZ "" OFF)
 option(DONUT_WITH_STATIC_SHADERS "" ON)
 option(DONUT_WITH_TASKFLOW "" OFF)
@@ -52,6 +52,12 @@ endif()
 if(BUILD_SHARED_LIBS)
 	set_property(TARGET glm_shared PROPERTY FOLDER "External") 
 endif()
+
+# lz4
+set(LZ4_BUILD_CLI OFF)
+set(LZ4_BUILD_LEGACY_LZ4C OFF)
+add_subdirectory("lz4/build/cmake")
+set_property(TARGET lz4_static PROPERTY FOLDER "External") 
 
 # xxHash
 set(XXHASH_BUILD_XXHSUM OFF)
