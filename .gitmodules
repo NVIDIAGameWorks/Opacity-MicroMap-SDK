@@ -10,12 +10,12 @@
 [submodule "thirdparty/stb"]
 	path = external/stb
 	url = https://github.com/nothings/stb.git
-[submodule "thirdparty/donut"]
-	path = external/donut
-	url = https://github.com/NVIDIAGameWorks/donut.git
 [submodule "thirdparty/imgui-filebrowser"]
 	path = external/imgui-filebrowser
 	url = https://github.com/AirGuanZ/imgui-filebrowser.git
 [submodule "external/glm"]
 	path = external/glm
 	url = https://github.com/g-truc/glm.git
+[submodule "external/donut"]
+	path = external/donut
+	url = https://github.com/NVIDIA-RTX/Donut.git
