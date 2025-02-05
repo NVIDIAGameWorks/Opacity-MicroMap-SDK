@@ -1,4 +1,5 @@
 # NVIDIA Opacity Micro-Map SDK
+
 <p align="center">
     <img src="images/header/omm_off.png" alt="shader execution without OMMs">
     <img src="images/header/omm_on.png" alt="shader with OMMs">
