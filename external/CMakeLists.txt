@@ -13,7 +13,8 @@ option(DONUT_WITH_LZ4 "" ON) # dependency of omm-lib
 option(DONUT_WITH_MINIZ "" OFF)
 option(DONUT_WITH_STATIC_SHADERS "" ON)
 option(DONUT_WITH_TASKFLOW "" OFF)
-option(DONUT_WITH_TINYEXR "" ON) # temp - for now.
+option(DONUT_WITH_TINYEXR "" OFF)
+option(DONUT_WITH_STREAMLINE "" OFF)
 	
 set(DONUT_SHADERS_OUTPUT_DIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders/framework")
 add_subdirectory(donut)

@@ -36,7 +36,7 @@ jobs:
           $Env:Path += ";C:/VulkanSDK/Bin"
           mkdir "build"
           cd "build"
-          cmake .. -A x64
+          cmake -DOMM_VIEWER_INSTALL=OFF -A x64 .. 
           cd ..
       -
         name: Build Debug
@@ -106,7 +106,7 @@ jobs:
         run: |
           mkdir "build"
           cd "build"
-          cmake -G Ninja .. 
+          cmake -G Ninja -DOMM_VIEWER_INSTALL=OFF .. 
           cd ..
       -
         name: Build Debug
