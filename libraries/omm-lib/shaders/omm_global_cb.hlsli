@@ -39,7 +39,7 @@ OMM_CONSTANTS_START(GlobalConstants)							\
 	OMM_CONSTANT(uint, TexCoordFormat)							\
 	OMM_CONSTANT(uint, TexCoordOffset)							\
 	OMM_CONSTANT(uint, TexCoordStride)							\
-	OMM_CONSTANT(uint, Pad2)									\
+	OMM_CONSTANT(uint, InputIndexFormat)						\
 																\
 	OMM_CONSTANT(float, AlphaCutoff)							\
 	OMM_CONSTANT(uint, AlphaCutoffLessEqual)					\
@@ -73,6 +73,6 @@ OMM_CONSTANTS_START(GlobalConstants)							\
 	OMM_CONSTANT(uint, SpecialIndicesStateBufferOffset)			\
 	OMM_CONSTANT(uint, TempOmmBakeScheduleTrackerBufferOffset)	\
 	OMM_CONSTANT(uint, AssertBufferOffset)						\
-	OMM_CONSTANT(uint, Pad3)									\
+	OMM_CONSTANT(uint, InputIndexStride)						\
 																\
 OMM_CONSTANTS_END(GlobalConstants, 0)
