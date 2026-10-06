@@ -45,7 +45,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #endif
 
 #ifndef OMM_DEPRECATED_MSG
-    #if defined(__has_cpp_attribute) && __has_cpp_attribute(deprecated) && !defined(__GNUC__)
+    #if defined(__has_cpp_attribute) && __has_cpp_attribute(deprecated)
         #define OMM_DEPRECATED_MSG(msg) [[deprecated( msg )]]
     #else
         #define OMM_DEPRECATED_MSG(msg)
@@ -215,19 +215,23 @@ typedef struct ommMemoryAllocatorInterface
 {
    union {
        ommAllocate                                                                              allocate;
-       ommAllocate      OMM_DEPRECATED_MSG("Allocate is deprecated, use allocate instead")      Allocate;
+       OMM_DEPRECATED_MSG("Allocate is deprecated, use allocate instead")
+       ommAllocate Allocate;
    };
    union {
        ommReallocate                                                                            reallocate;
-       ommReallocate    OMM_DEPRECATED_MSG("Reallocate is deprecated, use reallocate instead")  Reallocate;
+       OMM_DEPRECATED_MSG("Reallocate is deprecated, use reallocate instead")
+       ommReallocate Reallocate;
    };
    union {
        ommFree                                                                                  free;
-       ommFree          OMM_DEPRECATED_MSG("Free is deprecated, use free instead")              Free;
+       OMM_DEPRECATED_MSG("Free is deprecated, use free instead")
+       ommFree Free;
    };
    union {
        void*                                                                                    userArg;
-       void*            OMM_DEPRECATED_MSG("UserArg is deprecated, use userArg instead")        UserArg;
+       OMM_DEPRECATED_MSG("UserArg is deprecated, use userArg instead")
+       void* UserArg;
    };
 } ommMemoryAllocatorInterface;
 

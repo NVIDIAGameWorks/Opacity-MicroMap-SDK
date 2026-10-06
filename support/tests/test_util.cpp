@@ -13,7 +13,26 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 namespace {
 
+	TEST(BitFunc, CountTrailingZeros) {
+		EXPECT_EQ(omm::ctz(0u), 32u);
+		for (uint32_t bit = 0; bit < 32; ++bit) {
+			EXPECT_EQ(omm::ctz(1u << bit), bit);
+			EXPECT_EQ(omm::ctz(0xffffffffu << bit), bit);
+			const uint2 result = omm::ctz(uint2(1u << bit, 0u));
+			EXPECT_EQ(result.x, bit);
+			EXPECT_EQ(result.y, 32u);
+		}
+		const uint2 result = omm::ctz(uint2(0u, 0x80000000u));
+		EXPECT_EQ(result.x, 32u);
+		EXPECT_EQ(result.y, 31u);
+	}
+
 	TEST(BitFunc, MortonOrder) {
+		EXPECT_EQ(omm::xy_to_morton(0xffffu, 0xffffu), 0xffffffffu);
+		for (uint32_t bit = 0; bit < 16; ++bit) {
+			EXPECT_EQ(omm::xy_to_morton(1u << bit, 0u), 1u << (2 * bit));
+			EXPECT_EQ(omm::xy_to_morton(0u, 1u << bit), 1u << (2 * bit + 1));
+		}
 
 		int N = 1024;
 		int M = 1024;

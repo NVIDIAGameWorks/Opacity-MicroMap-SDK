@@ -65,6 +65,8 @@ Additionally the OMM SDK GPU baker is integrated in to the Path Tracing SDK: *[h
 
 # Build Instructions
 
+Requires CMake 4.1 or newer.
+
 ## SDK Usage on Windows
 
 1. Clone the repository with all submodules:
@@ -107,6 +109,10 @@ Additionally the OMM SDK GPU baker is integrated in to the Path Tracing SDK: *[h
 `-DOMM_ENABLE_PRECOMPILED_SHADERS_DXIL=ON` - Enable this when using the GPU baker with precompiled shaders in D3D12. The DXIL will be part of the generated library files (.dll) and can be used direct to create the nessesary pipeline state objects at runtime. May get disabled if Windows SDK is not found on the system. Required to run GPU Unit Test.
 
 `-DOMM_ENABLE_PRECOMPILED_SHADERS_SPIRV=ON` - Enable this when using the GPU baker with precompiled shaders in Vulkan. The SPIRV will be part of the generated library files (.dll) and can be used direct to create the nessesary pipeline state objects at runtime. This may get disabled if Vulkan SDK is not found on the system.
+
+`-DOMM_ENABLE_BMI2=ON` - Enable BMI2 optimizations for x86-64 targets.
+
+`-DOMM_ENABLE_FAST_MATH=ON` - Enable fast math optimizations.
 
 `-DOMM_SHADER_DEBUG_INFO=OFF` - Will include and embed shader debug (-Zi, -Qembed_debug) info when running OMM_ENABLE_PRECOMPILED_SHADERS_DXIL=ON or OMM_ENABLE_PRECOMPILED_SHADERS_SPIRV=ON. Only recommended for debugging purpuses.
 

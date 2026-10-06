@@ -1,5 +1,3 @@
-cmake_minimum_required(VERSION 3.12)
-
 if (WIN32)
 	option(OMM_ENABLE_GPU_TESTS "Build GPU tests. Require nvrhi integration layer" ON)
 else()

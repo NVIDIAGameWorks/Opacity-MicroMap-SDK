@@ -10,9 +10,11 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 #pragma once
 
+#include "defines.h"
 #include "math.h"
 #include "omm.h"
 #include "assert.h"
+#include <bit>
 
 namespace omm
 {
@@ -36,9 +38,12 @@ namespace omm
 
     static bool IsInvalid(const float2& p0, const float2& p1, const float2& p2)
     {
-        const bool anyNan = glm::any(glm::isnan(p0)) || glm::any(glm::isnan(p1)) || glm::any(glm::isnan(p2));
-        const bool anyInf = glm::any(glm::isinf(p0)) || glm::any(glm::isinf(p1)) || glm::any(glm::isinf(p2));
-        return anyNan || anyInf;
+        const auto isNonFinite = [](const float& value) {
+            return (std::bit_cast<uint32_t>(value) & 0x7F800000u) == 0x7F800000u;
+        };
+        return isNonFinite(p0.x) || isNonFinite(p0.y) ||
+               isNonFinite(p1.x) || isNonFinite(p1.y) ||
+               isNonFinite(p2.x) || isNonFinite(p2.y);
     }
 
     static inline bool IsDegenerate(const float2& p0, const float2& p1, const float2& p2) {
@@ -70,8 +75,8 @@ namespace omm
             p1p0 = p1 - p0;
             p2p1 = p2 - p1;
 #endif
-            aabb_s = { std::min(std::min(p0.x, p1.x), p2.x), std::min(std::min(p0.y, p1.y), p2.y) };
-            aabb_e = { std::max(std::max(p0.x, p1.x), p2.x), std::max(std::max(p0.y, p1.y), p2.y) };
+            aabb_s = { std::min(std::min(_p0.x, _p1.x), _p2.x), std::min(std::min(_p0.y, _p1.y), _p2.y) };
+            aabb_e = { std::max(std::max(_p0.x, _p1.x), _p2.x), std::max(std::max(_p0.y, _p1.y), _p2.y) };
         }
 
         inline float2 getP(uint32_t index) const {
