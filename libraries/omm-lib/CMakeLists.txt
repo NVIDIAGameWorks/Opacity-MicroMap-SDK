@@ -92,7 +92,7 @@ if(OMM_ENABLE_OPENMP AND OpenMP_CXX_FOUND)
     endif()
 endif()
 
-target_link_libraries(${OMM_LIB_TARGET_NAME} glm stb_lib xxHash::xxhash lz4) 
+target_link_libraries(${OMM_LIB_TARGET_NAME} glm::glm-header-only stb_lib xxHash::xxhash lz4)
 
 set_target_properties(${OMM_LIB_TARGET_NAME} PROPERTIES VERSION ${PROJECT_VERSION})
 target_include_directories(${OMM_LIB_TARGET_NAME} PUBLIC "include")
