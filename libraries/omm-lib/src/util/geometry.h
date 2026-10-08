@@ -47,7 +47,9 @@ namespace omm
     }
 
     static inline bool IsDegenerate(const float2& p0, const float2& p1, const float2& p2) {
-        float area = 0.5f * std::abs(p0.x * (p1.y - p2.y) + p1.x * (p2.y - p0.y) + p2.x * (p0.y - p1.y));
+        const double2 v0 = double2(p1) - double2(p0);
+        const double2 v1 = double2(p2) - double2(p0);
+        const double area = 0.5 * std::abs(v0.x * v1.y - v0.y * v1.x);
         return area < 1e-9;
     }
 
