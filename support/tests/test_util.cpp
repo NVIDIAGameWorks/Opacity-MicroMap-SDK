@@ -9,10 +9,51 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 */
 
 #include <gtest/gtest.h>
+#include <limits>
 #include "util/bit_tricks.h"
 #include "util/geometry.h"
 
 namespace {
+
+	void CheckUvValidity(const float& value, bool expectedInvalid) {
+		volatile float runtimeValue = value;
+		for (uint32_t vertex = 0; vertex < 3; ++vertex) {
+			for (uint32_t component = 0; component < 2; ++component) {
+				float2 uv[] = { { 0.f, 0.f }, { 1.f, 0.f }, { 0.f, 1.f } };
+				uv[vertex][component] = runtimeValue;
+				EXPECT_EQ(omm::IsInvalid(uv[0], uv[1], uv[2]), expectedInvalid)
+					<< "value=" << value << ", vertex=" << vertex << ", component=" << component;
+				const uint32_t indices[] = { 0, 1, 2 };
+				const omm::Triangle triangle = omm::FetchUVTriangle(uv, sizeof(float2), ommTexCoordFormat_UV32_FLOAT, indices);
+				EXPECT_EQ(triangle.GetIsInvalid(), expectedInvalid)
+					<< "value=" << value << ", vertex=" << vertex << ", component=" << component;
+			}
+		}
+	}
+
+	TEST(GeometryValidity, RejectsNonFiniteUvs) {
+		constexpr float values[] = {
+			std::numeric_limits<float>::infinity(), -std::numeric_limits<float>::infinity(),
+			std::numeric_limits<float>::quiet_NaN(), -std::numeric_limits<float>::quiet_NaN(),
+			std::numeric_limits<float>::signaling_NaN(), -std::numeric_limits<float>::signaling_NaN(),
+		};
+		for (const float& value : values)
+			CheckUvValidity(value, true);
+	}
+
+	TEST(GeometryValidity, AcceptsFiniteUvs) {
+		constexpr float largestSubnormal = std::numeric_limits<float>::min() - std::numeric_limits<float>::denorm_min();
+		constexpr float values[] = {
+			0.f, -0.f,
+			std::numeric_limits<float>::denorm_min(), -std::numeric_limits<float>::denorm_min(),
+			largestSubnormal, -largestSubnormal,
+			std::numeric_limits<float>::min(), -std::numeric_limits<float>::min(),
+			1.f, -1.f,
+			std::numeric_limits<float>::max(), std::numeric_limits<float>::lowest(),
+		};
+		for (const float& value : values)
+			CheckUvValidity(value, false);
+	}
 
 	TEST(GeometryValidity, ClassifiesDegenerateUvs) {
 		struct Case {
