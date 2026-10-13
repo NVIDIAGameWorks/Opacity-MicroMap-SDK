@@ -7,12 +7,8 @@ option(LZ4_BUILD_CLI "" OFF)
 # donut & nvrhi
 if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/donut AND OMM_BUILD_VIEWER)
 	option(DONUT_WITH_AUDIO "" OFF)
-	option(DONUT_WITH_ASSIMP "" OFF)
 	option(DONUT_WITH_DX11 "" OFF)
-	option(DONUT_WITH_LZ4 "" OFF)
-	option(DONUT_WITH_MINIZ "" OFF)
 	option(DONUT_WITH_STATIC_SHADERS "" ON)
-	option(DONUT_WITH_TASKFLOW "" OFF)
 	option(DONUT_WITH_TINYEXR "" OFF)
 	option(DONUT_WITH_STREAMLINE "" OFF)
 	
@@ -32,7 +28,6 @@ if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/donut AND OMM_BUILD_VIEWER)
 elseif(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/donut/nvrhi AND OMM_INTEGRATION_LAYER_NVRHI)
 	if(NOT TARGET nvrhi)
 		option(NVRHI_INSTALL OFF)
-		set(NVRHI_WITH_SHADER_COMPILER OFF CACHE BOOL "" FORCE)
 		set(NVRHI_WITH_DX11 OFF CACHE BOOL "" FORCE)
 		set(NVRHI_WITH_VULKAN OFF CACHE BOOL "" FORCE)
 		add_subdirectory(donut/nvrhi)
@@ -48,16 +43,9 @@ if(TARGET DirectX-Headers)
 endif()
 
 # GLM
+option(GLM_BUILD_LIBRARY "Build dynamic/static library" OFF)
 add_subdirectory("glm")
 set_property(TARGET glm PROPERTY FOLDER "External") 
-
-if(BUILD_STATIC_LIBS)
-	set_property(TARGET glm_static PROPERTY FOLDER "External") 
-endif()
-
-if(BUILD_SHARED_LIBS)
-	set_property(TARGET glm_shared PROPERTY FOLDER "External") 
-endif()
 
 # lz4
 set(LZ4_BUILD_CLI OFF)

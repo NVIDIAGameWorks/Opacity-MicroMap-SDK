@@ -141,19 +141,23 @@ namespace omm
    {
       union {
           ommAllocate                                                                        allocate = nullptr;
-          ommAllocate     OMM_DEPRECATED_MSG("Allocate is deprecated, use allocate instead") Allocate;
+          OMM_DEPRECATED_MSG("Allocate is deprecated, use allocate instead")
+          ommAllocate Allocate;
       };
       union {
           ommReallocate                                                                          reallocate = nullptr;
-          ommReallocate   OMM_DEPRECATED_MSG("Reallocate is deprecated, use reallocate instead") Reallocate;
+          OMM_DEPRECATED_MSG("Reallocate is deprecated, use reallocate instead")
+          ommReallocate Reallocate;
       };
       union {
           ommFree                                                              free = nullptr;
-          ommFree         OMM_DEPRECATED_MSG("Free is deprecated, use free instead") Free;
+          OMM_DEPRECATED_MSG("Free is deprecated, use free instead")
+          ommFree Free;
       };
       union {
           void*                                                                   userArg = nullptr;
-          void*           OMM_DEPRECATED_MSG("UserArg is deprecated, use userArg instead")  UserArg;
+          OMM_DEPRECATED_MSG("UserArg is deprecated, use userArg instead")
+          void* UserArg;
       };
    };
 

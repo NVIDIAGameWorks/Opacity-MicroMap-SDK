@@ -483,6 +483,8 @@ namespace omm
         }
     }
 
+    // Preserve infinity sentinels so line traversal never steps along an inactive axis.
+    OMM_PRECISE_MATH_BEGIN
     template <typename F>
     inline void RasterizeLineConservativeImpl(const Line& _l, int2 r, const float2& offset, F f, void* context = nullptr)
     {
@@ -553,6 +555,7 @@ namespace omm
             }
         }
     }
+    OMM_PRECISE_MATH_END
 
     template <typename F>
     inline void RasterizeConservativeSerial(const Triangle& t, int2 r, F f, void* context = nullptr) { RasterizeTriImpl<RasterMode::OverConservative, false, false>(t, r, float2{0,0}, f, context); };

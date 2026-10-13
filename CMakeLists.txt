@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 4.1)
 
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/external/gtest)
 	option(OMM_ENABLE_TESTS "Enable unit test" ON)
