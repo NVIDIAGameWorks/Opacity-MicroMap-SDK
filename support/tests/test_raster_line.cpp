@@ -15,8 +15,41 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include <omp.h>
 #include <algorithm>
 #include <filesystem>
+#include <stdexcept>
+#include <vector>
 
 namespace {
+
+TEST(RasterLineValidity, AxisAlignedAndPoint) {
+	struct Case {
+		float2 start;
+		float2 end;
+		std::vector<int2> expected;
+	};
+	const Case cases[] = {
+		{ { 1.f, 2.f }, { 6.f, 2.f }, { {1, 2}, {2, 2}, {3, 2}, {4, 2}, {5, 2}, {6, 2} } },
+		{ { 6.f, 2.f }, { 1.f, 2.f }, { {1, 2}, {2, 2}, {3, 2}, {4, 2}, {5, 2}, {6, 2} } },
+		{ { 2.f, 1.f }, { 2.f, 6.f }, { {2, 1}, {2, 2}, {2, 3}, {2, 4}, {2, 5}, {2, 6} } },
+		{ { 2.f, 6.f }, { 2.f, 1.f }, { {2, 6}, {2, 5}, {2, 4}, {2, 3}, {2, 2}, {2, 1} } },
+		{ { 2.f, 2.f }, { 2.f, 2.f }, { {2, 2} } },
+		{ { 0.f, 0.f }, { -0.f, -0.f }, { {0, 0} } },
+		{ { 0.f, 0.f }, { 2.f, -0.f }, { {0, 0}, {1, 0}, {2, 0} } },
+		{ { -0.f, 0.f }, { 0.f, 2.f }, { {0, 0}, {0, 1}, {0, 2} } },
+	};
+	for (const Case& testCase : cases) {
+		for (float offset : { 0.f, -0.5f }) {
+			const omm::Line line((testCase.start - offset) / 8.f, (testCase.end - offset) / 8.f);
+			std::vector<int2> visited;
+			auto visit = [&visited, &testCase](int2 cell, void*) {
+				if (visited.size() >= testCase.expected.size())
+					throw std::runtime_error("Line rasterization did not terminate at its endpoint");
+				visited.push_back(cell);
+			};
+			EXPECT_NO_THROW(omm::RasterizeConservativeLineWithOffset(line, int2(8, 8), float2(offset), visit));
+			EXPECT_EQ(visited, testCase.expected);
+		}
+	}
+}
 
 class RasterLineTest : public ::testing::TestWithParam<std::tuple<omm::Line, int2>> {
 protected:

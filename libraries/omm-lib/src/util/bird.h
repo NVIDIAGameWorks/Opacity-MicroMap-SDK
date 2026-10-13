@@ -11,6 +11,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #pragma once
 
 #include "assert.h"
+#include "defines.h"
 #include "math.h"
 #include "geometry.h"
 #include "bit_tricks.h"
@@ -167,7 +168,7 @@ namespace bird // is the word
 	}
 
 	// Returns a micro-triangle for the index on the curve.
-	static inline Triangle GetMicroTriangle(const Triangle& t, uint32_t index, uint32_t subdivisionLevel)
+	static OMM_FORCE_INLINE Triangle GetMicroTriangle(const Triangle& t, uint32_t index, uint32_t subdivisionLevel)
 	{
 		float2 uv0;
 		float2 uv1;

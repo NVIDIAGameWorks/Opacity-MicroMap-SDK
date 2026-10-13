@@ -5,7 +5,6 @@
 # and any modifications thereto. Any use, reproduction, disclosure or
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION is strictly prohibited.
-cmake_minimum_required(VERSION 3.12)
 
 if (WIN32)
     set(DXIL_DEFAULT ON)
@@ -18,23 +17,13 @@ option(OMM_ENABLE_OPENMP "enable openmp" ON)
 option(OMM_ENABLE_PRECOMPILED_SHADERS_DXIL "Embedded precompiled DXIL shaders. Require path to dxc.exe (normally located in Window SDK)." ${DXIL_DEFAULT})
 option(OMM_ENABLE_PRECOMPILED_SHADERS_SPIRV "Embedded precompiled SPIRV shaders. Require path to Vulkan SDK." ON)
 option(OMM_STATIC_LIBRARY "build static lib" OFF)
-option(OMM_CROSSCOMPILE_AARCH64 "cross compilation for aarch64" OFF)
-option(OMM_CROSSCOMPILE_X86_64 "cross compilation for x86_64" OFF)
 option(OMM_SHADER_DEBUG_INFO "enable embedded shader debug info" OFF)
 option(OMM_LIB_INSTALL "Generate install rules for OMM" ON)
-option(OMM_ENABLE_FAST_MATH "Enable fast math optimizations()" ON)
+option(OMM_ENABLE_FAST_MATH "Enable fast math optimizations" ON)
+option(OMM_ENABLE_BMI2 "Enable BMI2 optimizations" ON)
 
 if (OMM_ENABLE_OPENMP)
 find_package(OpenMP)
-endif()
-
-if (OMM_CROSSCOMPILE_AARCH64)
-    set(CMAKE_SYSTEM_PROCESSOR "aarch64")
-    message(STATUS "CROSSCOMPILE_AARCH64 enabled.")
-endif()
-if (OMM_CROSSCOMPILE_X86_64)
-    set(CMAKE_SYSTEM_PROCESSOR "x86_64")
-    message(STATUS "CROSSCOMPILE_X86_64 enabled.")
 endif()
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
@@ -92,7 +81,7 @@ if(OMM_ENABLE_OPENMP AND OpenMP_CXX_FOUND)
     endif()
 endif()
 
-target_link_libraries(${OMM_LIB_TARGET_NAME} glm stb_lib xxHash::xxhash lz4) 
+target_link_libraries(${OMM_LIB_TARGET_NAME} glm::glm-header-only stb_lib xxHash::xxhash lz4)
 
 set_target_properties(${OMM_LIB_TARGET_NAME} PROPERTIES VERSION ${PROJECT_VERSION})
 target_include_directories(${OMM_LIB_TARGET_NAME} PUBLIC "include")
@@ -134,23 +123,33 @@ else()
     endif()
 endif()
 
-if ((CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64") OR (CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64"))
-    set(OMM_ARCHITECTURE_COMPILE_OPTIONS -msse4.1)
+if (CMAKE_CXX_COMPILER_ARCHITECTURE_ID MATCHES "^(x64|x86_64)$")
+    list(APPEND OMM_COMPILER_COMPILE_OPTIONS_MSVC /arch:AVX)
+    list(APPEND OMM_COMPILER_COMPILE_OPTIONS_CLANG -msse4.1)
+    list(APPEND OMM_COMPILER_COMPILE_OPTIONS_GCC -msse4.1)
+
+    if (OMM_ENABLE_BMI2)
+        target_compile_definitions(${OMM_LIB_TARGET_NAME} PUBLIC OMM_ENABLE_BMI2=1)
+        list(APPEND OMM_COMPILER_COMPILE_OPTIONS_CLANG -mbmi2)
+        list(APPEND OMM_COMPILER_COMPILE_OPTIONS_GCC -mbmi2)
+    endif()
 endif()
 
 if (OMM_ENABLE_FAST_MATH)
-    # Only enable fast math on msvc right now. It works on other compilers but requires a thurogh analysis of the consequecnes 
-    #set(OMM_COMPILER_COMPILE_OPTIONS_CLANG ${OMM_COMPILER_COMPILE_OPTIONS_CLANG} -ffast-math)
-    #set(OMM_COMPILER_COMPILE_OPTIONS_GCC ${OMM_COMPILER_COMPILE_OPTIONS_GCC} -ffast-math)
-    set(OMM_COMPILER_COMPILE_OPTIONS_MSVC ${OMM_COMPILER_COMPILE_OPTIONS_MSVC} /fp:fast)
+    list(APPEND OMM_COMPILER_COMPILE_OPTIONS_MSVC /fp:fast)
+    # Preserve operation order in UV interpolation and contour intersections.
+    list(APPEND OMM_COMPILER_COMPILE_OPTIONS_GCC -ffast-math -fno-associative-math)
+    # Clang fast math regresses CPU baking performance.
 endif()
 
-if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    target_compile_options(${OMM_LIB_TARGET_NAME} PRIVATE ${OMM_ARCHITECTURE_COMPILE_OPTIONS} ${OMM_COMPILER_COMPILE_OPTIONS_CLANG} -Wno-missing-braces -Wno-return-type-c-linkage)
-elseif (CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-    target_compile_options(${OMM_LIB_TARGET_NAME} PRIVATE ${OMM_ARCHITECTURE_COMPILE_OPTIONS} ${OMM_COMPILER_COMPILE_OPTIONS_GCC})
-elseif (CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
+list(APPEND OMM_COMPILER_COMPILE_OPTIONS_CLANG -Wno-missing-braces -Wno-return-type-c-linkage)
+
+if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     target_compile_options(${OMM_LIB_TARGET_NAME} PRIVATE ${OMM_COMPILER_COMPILE_OPTIONS_MSVC})
+elseif (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    target_compile_options(${OMM_LIB_TARGET_NAME} PRIVATE ${OMM_COMPILER_COMPILE_OPTIONS_CLANG})
+elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(${OMM_LIB_TARGET_NAME} PRIVATE ${OMM_COMPILER_COMPILE_OPTIONS_GCC})
 endif()
 
 if (NOT OMM_IS_SUBMODULE)

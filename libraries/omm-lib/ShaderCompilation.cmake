@@ -53,7 +53,7 @@ function(compile_shaders)
         endif()
 
         add_custom_command(TARGET ${params_TARGET} PRE_BUILD
-                          COMMAND ShaderMake
+                          COMMAND "${SHADERMAKE_PATH}"
                                    --header
                                    --config=${params_CONFIG}
                                    --out ${params_DXIL}
@@ -75,7 +75,7 @@ function(compile_shaders)
         endif()
 
         add_custom_command(TARGET ${params_TARGET} PRE_BUILD
-                            COMMAND ShaderMake
+                            COMMAND "${SHADERMAKE_PATH}"
                                     --header
                                     --vulkanVersion=1.2
                                     --config=${params_CONFIG}

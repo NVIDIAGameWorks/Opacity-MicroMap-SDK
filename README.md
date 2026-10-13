@@ -1,5 +1,17 @@
 [![Build Opacity Micro-Map SDK](https://github.com/NVIDIAGameWorks/Opacity-MicroMap-SDK/actions/workflows/build.yml/badge.svg?branch=main&event=push)](https://github.com/NVIDIAGameWorks/Opacity-MicroMap-SDK/actions/workflows/build.yml)
 
+# New in 1.10.0: ARM64 support
+
+- Added ARM64 support.
+- Fixed shader compilation when cross-compiling.
+- Added configurable BMI2 optimizations for x86-64.
+- Improved microtriangle inlining and bounds calculation.
+- Fixed degenerate UV triangle detection and NaN/Inf handling during fast-math CPU baking.
+- Fixed GCC fast-math regressions in UV interpolation and contour intersections.
+- Added regression tests for bit operations, UV validation, degenerate triangles, and axis-aligned line rasterization.
+- Enabled fast-math optimizations for GCC.
+- Updated dependencies and raised the minimum CMake version to 4.1.
+
 # New in 1.8.0: Official DXR 1.2 support
 
 Check out the sample app at [https://github.com/NVIDIA-RTX/OMM-Samples](https://github.com/NVIDIA-RTX/OMM-Samples) for a demonstration of OMM SDK usage with DXR 1.2 and Agility SDK version 1.616.
@@ -65,6 +77,8 @@ Additionally the OMM SDK GPU baker is integrated in to the Path Tracing SDK: *[h
 
 # Build Instructions
 
+Requires CMake 4.1 or newer.
+
 ## SDK Usage on Windows
 
 1. Clone the repository with all submodules:
@@ -107,6 +121,10 @@ Additionally the OMM SDK GPU baker is integrated in to the Path Tracing SDK: *[h
 `-DOMM_ENABLE_PRECOMPILED_SHADERS_DXIL=ON` - Enable this when using the GPU baker with precompiled shaders in D3D12. The DXIL will be part of the generated library files (.dll) and can be used direct to create the nessesary pipeline state objects at runtime. May get disabled if Windows SDK is not found on the system. Required to run GPU Unit Test.
 
 `-DOMM_ENABLE_PRECOMPILED_SHADERS_SPIRV=ON` - Enable this when using the GPU baker with precompiled shaders in Vulkan. The SPIRV will be part of the generated library files (.dll) and can be used direct to create the nessesary pipeline state objects at runtime. This may get disabled if Vulkan SDK is not found on the system.
+
+`-DOMM_ENABLE_BMI2=ON` - Enable BMI2 optimizations for x86-64 targets.
+
+`-DOMM_ENABLE_FAST_MATH=ON` - Enable fast math optimizations.
 
 `-DOMM_SHADER_DEBUG_INFO=OFF` - Will include and embed shader debug (-Zi, -Qembed_debug) info when running OMM_ENABLE_PRECOMPILED_SHADERS_DXIL=ON or OMM_ENABLE_PRECOMPILED_SHADERS_SPIRV=ON. Only recommended for debugging purpuses.
 
