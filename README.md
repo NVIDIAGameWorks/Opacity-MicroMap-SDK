@@ -1,5 +1,17 @@
 [![Build Opacity Micro-Map SDK](https://github.com/NVIDIAGameWorks/Opacity-MicroMap-SDK/actions/workflows/build.yml/badge.svg?branch=main&event=push)](https://github.com/NVIDIAGameWorks/Opacity-MicroMap-SDK/actions/workflows/build.yml)
 
+# New in 1.10.0: ARM64 support
+
+- Added ARM64 support.
+- Fixed shader compilation when cross-compiling.
+- Added configurable BMI2 optimizations for x86-64.
+- Improved microtriangle inlining and bounds calculation.
+- Fixed degenerate UV triangle detection and NaN/Inf handling during fast-math CPU baking.
+- Fixed GCC fast-math regressions in UV interpolation and contour intersections.
+- Added regression tests for bit operations, UV validation, degenerate triangles, and axis-aligned line rasterization.
+- Enabled fast-math optimizations for GCC.
+- Updated dependencies and raised the minimum CMake version to 4.1.
+
 # New in 1.8.0: Official DXR 1.2 support
 
 Check out the sample app at [https://github.com/NVIDIA-RTX/OMM-Samples](https://github.com/NVIDIA-RTX/OMM-Samples) for a demonstration of OMM SDK usage with DXR 1.2 and Agility SDK version 1.616.
