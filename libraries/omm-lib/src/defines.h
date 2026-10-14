@@ -10,6 +10,26 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 #pragma once
 
+#if defined(_MSC_VER)
+    #define OMM_FORCE_INLINE __forceinline
+#elif defined(__clang__) || defined(__GNUC__)
+    #define OMM_FORCE_INLINE inline __attribute__((always_inline))
+#else
+    #define OMM_FORCE_INLINE inline
+#endif
+
+// Clang's precise guard does not fully undo global fast-math assumptions.
+#if defined(_MSC_VER) && !defined(__clang__)
+    #define OMM_PRECISE_MATH_BEGIN __pragma(float_control(precise, on, push))
+    #define OMM_PRECISE_MATH_END __pragma(float_control(pop))
+#elif defined(__GNUC__) && !defined(__clang__)
+    #define OMM_PRECISE_MATH_BEGIN _Pragma("GCC push_options") _Pragma("GCC optimize(\"no-fast-math\")")
+    #define OMM_PRECISE_MATH_END _Pragma("GCC pop_options")
+#else
+    #define OMM_PRECISE_MATH_BEGIN
+    #define OMM_PRECISE_MATH_END
+#endif
+
 #define RETURN_STATUS_IF_FAILED(expr)           \
 do {                                            \
     ommResult sts##__COUNTER__ = expr;          \

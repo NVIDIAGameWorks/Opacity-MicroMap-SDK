@@ -10,11 +10,23 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 #pragma once
 
-#if __has_include(<immintrin.h>) && _WIN32
-#define IMMINTRIN_ENABLED (1)
+#if defined(__clang__) || defined(__GNUC__)
+#define OMM_USE_BUILTIN_CTZ (1)
+#elif defined(_MSC_VER) && (defined(_M_ARM64) || defined(_M_ARM64EC))
+#define OMM_USE_MSVC_ARM64_CTZ (1)
+#elif defined(_MSC_VER)
+#define OMM_USE_MSVC_CTZ (1)
+#endif
+
+#if OMM_USE_MSVC_ARM64_CTZ || OMM_USE_MSVC_CTZ
+#include <intrin.h>
+#endif
+
+#if defined(OMM_ENABLE_BMI2) && !defined(_M_ARM64EC) && \
+    (defined(_M_IX86) || defined(_M_X64) || defined(__i386__) || defined(__x86_64__)) && \
+    (defined(__BMI2__) || (defined(_MSC_VER) && !defined(__clang__)))
+#define OMM_USE_BMI2 (1)
 #include <immintrin.h>
-#else
-#define IMMINTRIN_ENABLED (0)
 #endif
 
 #include "math.h"
@@ -63,60 +75,37 @@ namespace omm
         return z;
     }
 
-    inline uint32_t ctz_slow(uint32_t n) {
-        if (n == 0) {
+    inline uint32_t ctz(uint32_t value)
+    {
+#if OMM_USE_BUILTIN_CTZ
+        return value ? static_cast<uint32_t>(__builtin_ctz(value)) : 32u;
+#elif OMM_USE_MSVC_ARM64_CTZ
+        return _CountTrailingZeros(value);
+#elif OMM_USE_MSVC_CTZ
+        unsigned long index;
+        return _BitScanForward(&index, value) ? static_cast<uint32_t>(index) : 32u;
+#else
+        if (value == 0) {
             return 32;
         }
 
         uint32_t count = 0;
-        while ((n & 1) == 0) {
+        while ((value & 1) == 0) {
             count++;
-            n >>= 1;
+            value >>= 1;
         }
         return count;
-    }
-
-#if defined(_MSC_VER) && IMMINTRIN_ENABLED
-    inline uint32_t ctz_fast(uint32_t value)
-    {
-        unsigned long trailing_zero = 0;
-
-        if (_BitScanForward(&trailing_zero, value))
-        {
-            return trailing_zero;
-        }
-        else
-        {
-            // This is undefined, I better choose 32 than 0
-            return 32;
-        }
-    }
-
-    inline uint32_t ctz(uint32_t value)
-    {
-        return ctz_fast(value);
-    }
-
-    inline uint2 ctz(uint2 value)
-    {
-        return uint2(ctz_fast(value.x), ctz_fast(value.y));
-    }
-#else
-    inline uint32_t ctz(uint32_t value)
-    {
-        return ctz_slow(value);
-    }
-
-    inline uint2 ctz(uint2 value)
-    {
-        return uint2(ctz_slow(value.x), ctz_slow(value.y));
-    }
 #endif
+    }
+
+    inline uint2 ctz(uint2 value)
+    {
+        return uint2(ctz(value.x), ctz(value.y));
+    }
 
     inline uint32_t bit_interleave(uint32_t x, uint32_t y)
     {
-#if IMMINTRIN_ENABLED
-        // Significantly faster than _morton_bit_interleave_sw
+#if OMM_USE_BMI2
         return _pdep_u32(x, 0x55555555) | _pdep_u32(y, 0xaaaaaaaa);
 #else
         return _bit_interleave_sw(x, y);
