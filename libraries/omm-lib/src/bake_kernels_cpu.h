@@ -62,6 +62,8 @@ static ommOpacityState GetStateFromCoverage(ommFormat vmFormat, ommUnknownStateP
 
 // ~~~~~~ LevelLineIntersectionKernel ~~~~~~ 
 // 
+// Preserve rounding when testing intersections at alpha-cutoff boundaries.
+OMM_PRECISE_MATH_BEGIN
 struct LevelLineIntersectionKernel
 {
     struct Params {
@@ -398,6 +400,8 @@ public:
         }
     }
 };
+
+OMM_PRECISE_MATH_END
 
 // ~~~~~~ ConservativeBilinearKernel ~~~~~~ 
 // 
