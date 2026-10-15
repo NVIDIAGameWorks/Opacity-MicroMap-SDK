@@ -885,7 +885,10 @@ namespace Cpu
                                             // This is only correct for bilinear version, nearest sampling should map exactly to the source alpha texture.
                                             float2 pixelOffset = -float2(0.5, 0.5);
 
-                                            if (desc.alphaCutoff < texture->Bilinear(eTextureAddressMode, subTri.p0, mipIt))
+                                            const float alpha = texture->SizeIsPow2(mipIt)
+                                                ? texture->Bilinear<eFormat, eTilingMode, eTextureAddressMode, true>(subTri.p0, mipIt, desc.runtimeSamplerDesc.borderAlpha)
+                                                : texture->Bilinear<eFormat, eTilingMode, eTextureAddressMode, false>(subTri.p0, mipIt, desc.runtimeSamplerDesc.borderAlpha);
+                                            if (desc.alphaCutoff < alpha)
                                                 vmCoverage.numAboveAlpha++;
                                             else
                                                 vmCoverage.numBelowAlpha++;
