@@ -830,7 +830,7 @@ namespace Cpu
 
                 // 3.1 Rasterize...
                 {
-                    #pragma omp parallel for if(options.enableInternalThreads)
+                    #pragma omp parallel for schedule(dynamic, 1) if(options.enableInternalThreads)
                     for (int32_t workItemIt = 0; workItemIt < numWorkItems; ++workItemIt) {
                         auto kernel = &LevelLineIntersectionKernel::run<eFormat, eTextureAddressMode, eTilingMode, eTriangleClass, bTexIsPow2>;
 
