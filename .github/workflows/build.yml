@@ -79,11 +79,11 @@ jobs:
           sudo apt update
           sudo apt install -y libwayland-dev wayland-protocols libxkbcommon-dev \
             libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev vulkan-sdk
-      - name: CMake Generate
+      - name: CMake Generate (fast math OFF)
         env:
           BUILD_ARCH: ${{ matrix.arch }}
         run: |
-          cmake_args=(-DOMM_VIEWER_INSTALL=OFF)
+          cmake_args=(-DOMM_VIEWER_INSTALL=OFF -DOMM_ENABLE_FAST_MATH=OFF)
           # Exercise the ARM64 CPU SDK without graphics dependencies or shader compilers.
           if [[ "$BUILD_ARCH" == "ARM64" ]]; then
             cmake_args+=(
@@ -97,13 +97,17 @@ jobs:
             )
           fi
           cmake -S . -B build ${{ matrix.cmake-args }} "${cmake_args[@]}"
-      - name: Build Debug
+      - name: Build Debug (fast math OFF)
         run: cmake --build build --config Debug --parallel
-      - name: Build Release
+      - name: Build Release (fast math OFF)
         run: cmake --build build --config Release --parallel
-      - name: Test Release
+      - name: Test Release (fast math OFF)
         working-directory: build/bin/Release
         run: ${{ matrix.test-command }}
+      - name: Enable fast math for publishing
+        run: cmake -S . -B build -DOMM_ENABLE_FAST_MATH=ON
+      - name: Build Release (fast math ON)
+        run: cmake --build build --config Release --parallel
       - name: Install Release
         run: cmake --install build --config Release
       - name: Upload Artifact
