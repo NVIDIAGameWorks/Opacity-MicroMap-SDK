@@ -160,6 +160,10 @@ if (OMM_ENABLE_FAST_MATH)
     # Preserve operation order in UV interpolation and contour intersections.
     list(APPEND OMM_COMPILER_COMPILE_OPTIONS_GCC -ffast-math -fno-associative-math)
     # Clang fast math regresses CPU baking performance.
+else()
+    # Keep multiplication and addition rounding separate when fast math is disabled.
+    list(APPEND OMM_COMPILER_COMPILE_OPTIONS_GCC -ffp-contract=off)
+    list(APPEND OMM_COMPILER_COMPILE_OPTIONS_CLANG -ffp-contract=off)
 endif()
 
 list(APPEND OMM_COMPILER_COMPILE_OPTIONS_CLANG -Wno-missing-braces -Wno-return-type-c-linkage)
