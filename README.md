@@ -1,5 +1,9 @@
 [![Build Opacity Micro-Map SDK](https://github.com/NVIDIAGameWorks/Opacity-MicroMap-SDK/actions/workflows/build.yml/badge.svg?branch=main&event=push)](https://github.com/NVIDIAGameWorks/Opacity-MicroMap-SDK/actions/workflows/build.yml)
 
+# New in 1.10.1
+
+- Fixed fast-math CPU baking differences caused by floating-point contraction in UV interpolation and boundary tests.
+
 # New in 1.10.0: ARM64 support
 
 - Added ARM64 support.
