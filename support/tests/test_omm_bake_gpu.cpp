@@ -1538,7 +1538,7 @@ namespace {
 
 	const auto kTestConfigurations = ::testing::Values(
 #if !OMM_ENABLE_PRECISE_GPU_MATH
-		// Hardware rasterization is outside the precise test contract.
+		// Hardware rasterization is outside the reference test contract.
 		TestSuiteConfig::None,
 		TestSuiteConfig::EnablePostDispatchInfoStats,
 		TestSuiteConfig::DisableSpecialIndices,

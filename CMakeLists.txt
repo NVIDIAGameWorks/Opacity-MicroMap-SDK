@@ -47,14 +47,8 @@ else()
 endif()
 
 option(OMM_GPU_REFERENCE_MODE "Use precise, unoptimized software GPU math and sampling" OFF)
-option(OMM_ENABLE_PRECISE_GPU_MATH "Compile GPU baker shaders with IEEE strictness (-Gis)" OFF)
-option(OMM_DISABLE_GPU_SHADER_OPTIMIZATIONS "Disable GPU shader optimizations (-Od), including the DXIL driver optimization flag" OFF)
-
-if (OMM_GPU_REFERENCE_MODE)
-    # Resolve effective settings once, without changing the cached preferences.
-    set(OMM_ENABLE_PRECISE_GPU_MATH ON)
-    set(OMM_DISABLE_GPU_SHADER_OPTIMIZATIONS ON)
-endif()
+set(OMM_ENABLE_PRECISE_GPU_MATH ${OMM_GPU_REFERENCE_MODE})
+set(OMM_DISABLE_GPU_SHADER_OPTIMIZATIONS ${OMM_GPU_REFERENCE_MODE})
 
 set (CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")

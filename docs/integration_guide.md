@@ -383,7 +383,7 @@ Left animation flips throuhg each mip level from 0 -> 5 individually baked. Righ
 First initialize the library by creating a ``Baker`` instance handle. Here the baker type is decided, as well as an optional memory allocation callbacks if the engine prefers to use it's own system for memory tracking.
 
 ```cpp
-enum class BakerType : uint8_t 
+enum class BakerType
 {
     GPU,
     CPU,
@@ -394,11 +394,11 @@ enum class BakerType : uint8_t
 struct BakerCreationDesc
 {
     BakerType                   type                        = BakerType::MAX_NUM;
-    bool                        enableValidation            = false;
-    MemoryAllocatorInterface    memoryAllocatorInterface;
+    MemoryAllocatorInterface    memoryAllocatorInterface    = {};
+    MessageInterface            messageInterface            = {};
 };
 ...
-OMM_API Result OMM_CALL CreateOpacityMicromapBaker(const BakerCreationDesc& bakeCreationDesc, Baker* outBaker);
+static inline Result CreateBaker(const BakerCreationDesc& bakeCreationDesc, Baker* outBaker);
 ```
 # CPU Baker
 
@@ -756,9 +756,9 @@ A few resources must be read back to CPU for BLAS and OMMArray PreBuild info: ``
 
 ## GPU determinism
 
-Compute-only GPU tests have one ground truth. Enable `OMM_GPU_REFERENCE_MODE` explicitly to use software square roots, division, and texture sampling, precise shader arithmetic, and disabled shader optimizations. This CMake option defaults to `OFF` and does not overwrite cached standalone library preferences. GPU tests can run without reference mode, but CMake warns and the dedicated `GpuTest.ReferenceMode` test fails with instructions to enable it. The remaining tests still execute with the selected settings. Each compute fixture uses one fixed set of expected opacity counts, with no GPU, driver, or compilation-mode selection. Unit tests are disabled by default; enable `OMM_ENABLE_TESTS` to build them.
+Compute-only GPU tests have one ground truth. Enable `OMM_GPU_REFERENCE_MODE` explicitly to use software square roots, division, and texture sampling, precise shader arithmetic (`-Gis`), and disabled shader optimizations (`-Od`). This single GPU math setting defaults to `OFF`, which uses native math, hardware sampling, and optimized shaders. GPU tests can run without reference mode, but CMake warns and the dedicated `GpuTest.ReferenceMode` test fails with instructions to enable it. The remaining tests still execute with the selected settings. Each compute fixture uses one fixed set of expected opacity counts, with no GPU, driver, or compilation-mode selection. Unit tests are disabled by default; enable `OMM_ENABLE_TESTS` to build them.
 
-GPU bake tests register only compute configurations when precise GPU math is enabled. Reference mode enables precise math automatically. Otherwise, graphics and compute configurations are registered. Graphics coverage and interpolation can vary across devices, so precise builds exclude graphics bake tests. The SDK graphics baking API remains available in either configuration.
+GPU bake tests register only compute configurations when `OMM_GPU_REFERENCE_MODE` is `ON`. With reference mode `OFF`, graphics and compute configurations are registered. Graphics coverage and interpolation can vary across devices, so reference builds exclude graphics bake tests. The SDK graphics baking API remains available in either configuration.
 
 ```powershell
 cmake -S . -B build -DOMM_ENABLE_TESTS=ON -DOMM_ENABLE_GPU_TESTS=ON -DOMM_GPU_REFERENCE_MODE=ON -DOMM_TEST_USE_WARP=OFF
@@ -785,7 +785,7 @@ Software sampling supports the GPU baker's Wrap, Mirror, Clamp, and Border modes
 
 Every unit-test build includes CPU tests that call the shared integer square-root/division utility directly, even when GPU tests are disabled. Scalar tests need no HLSL adaptation or GPU dispatch. Small input tables cover ordinary values, signed zero, infinities, NaNs, subnormals, and extreme finite values. Expected results come from CPU `std::sqrt(float)` and `float` division, with reference NaNs canonicalized before exact bit comparisons. Each test saves and restores the floating-point environment, selecting nearest-even rounding and gradual underflow for its references. Separate CPU sampling tests exercise the actual HLSL sampling header through a small compatibility shim, using small expected-value tables and a constant-color regression. The math and sampling test sources use `/fp:strict` on MSVC or `-fno-fast-math -ffp-contract=off -frounding-math` elsewhere, independently of the SDK's CPU fast-math preference. These tests run without a graphics device and can be selected with `--gtest_filter="CpuMathTest.*"`.
 
-Test startup prints the C++ compiler and, for GPU-enabled builds, the actual DXC version queried from the compiler executable. The compute-reference compiler version is recorded in `support/tests/util/test_build_info.h.in` and printed alongside it. Creating a GPU baker in a precise shader build also reports a `PerfWarning` through the SDK log callback, including when reference mode enables precise math.
+Test startup prints the C++ compiler and, for GPU-enabled builds, the actual DXC version queried from the compiler executable. The compute-reference compiler version is recorded in `support/tests/util/test_build_info.h.in` and printed alongside it. Creating a GPU baker with `OMM_GPU_REFERENCE_MODE=ON` reports a `PerfWarning` through the supplied SDK message callback because software math and disabled shader optimizations can reduce GPU baking performance.
 
 On the RTX 5090 (Windows driver 32.0.16.1088) and D3D12 WARP (10.0.26100.9549), all eight asserted opacity counts agree in all 644 executed compute cases, covering 5,152 fields per device. Another 16 cases are intentionally skipped and five GPU API checks run. Histogram validation and GPU statistics versus decoded-output checks remain enabled. All 48 embedded DXIL/SPIR-V payloads match byte-for-byte between the captured libraries. These captures used DXC 1.8.2505; CI uses the project's default compiler selection. The same assertions are expected to hold across compiler versions, drivers, and devices.
 
@@ -797,13 +797,13 @@ With reference mode enabled, the background-optimization policy calls `ID3D12Dev
 
 WARP uses the adapter returned by [IDXGIFactory4::EnumWarpAdapter](https://learn.microsoft.com/en-us/windows/win32/api/dxgi1_4/nf-dxgi1_4-idxgifactory4-enumwarpadapter) with `D3D12CreateDevice` at feature level 12_0. It identifies itself as Microsoft Basic Render Driver and supports [native ARM64 execution](https://learn.microsoft.com/en-us/windows/win32/direct3darticles/directx-warp#warp-architecture-and-performance). Windows x64 and ARM64 Actions jobs enable Graphics Tools and Developer Mode, then run all applicable CPU tests, GPU API checks, and compute bake tests on WARP with the same fixed reference configuration. Reference mode excludes graphics bake configurations from registration. The ARM64 Windows job uses native ARM64 DXC and builds D3D12 without the viewer, SPIR-V shaders, or Vulkan SDK; Linux ARM64 runs CPU tests only. The local hardware/WARP comparison above was captured on x64.
 
-GPU reference mode affects the library's embedded shaders, including other applications built in that tree. Disabling `OMM_GPU_REFERENCE_MODE` restores the cached standalone precise-math and optimization preferences. Disabling GPU tests alone leaves reference mode unchanged. The publishing step disables both GPU tests and reference mode, and enables CPU fast math:
+GPU reference mode affects the library's embedded shaders, including other applications built in that tree. Disabling `OMM_GPU_REFERENCE_MODE` selects native math, hardware sampling, and optimized shaders. Disabling GPU tests alone leaves reference mode unchanged. The publishing step disables both GPU tests and reference mode, and enables CPU fast math:
 
 ```powershell
 cmake -S . -B build -DOMM_ENABLE_GPU_TESTS=OFF -DOMM_GPU_REFERENCE_MODE=OFF -DOMM_ENABLE_FAST_MATH=ON
 ```
 
-CPU `OMM_ENABLE_FAST_MATH` is configured separately. Standalone SDK builds and GPU tests can select their compilation settings. The checked-in compute expectations assume reference mode is enabled.
+CPU `OMM_ENABLE_FAST_MATH` is independent of GPU reference mode. The checked-in compute expectations assume reference mode is enabled.
 
 The broader audit identified these remaining sources of uncertainty outside the validated fixtures:
 
