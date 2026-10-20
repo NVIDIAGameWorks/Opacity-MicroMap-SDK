@@ -352,6 +352,7 @@ namespace {
 				m_commandList->beginTrackingBufferState(res.ommPostDispatchInfoBuffer, nvrhi::ResourceStates::Common);
 
 				input.operation = omm::GpuBakeNvrhi::Operation::Bake;
+				input.maxOutOmmArraySize = postDispatchInfo.ommArrayBufferSize;
 
 				if (p.poisonOmmArray)
 					m_commandList->clearBufferUInt(res.ommArrayBuffer, 0xFFFFFFFF);

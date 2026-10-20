@@ -21,12 +21,5 @@ void main(uint3 tid : SV_DispatchThreadID)
 	if (tid.x >= g_LocalConstants.NumElements)
 		return;
 
-	// Bake-only output may be smaller than the conservative pre-dispatch estimate.
-	uint bufferByteSize;
-	u_targetBuffer.GetDimensions(bufferByteSize);
-	if (g_LocalConstants.BufferOffset >= bufferByteSize ||
-		tid.x >= (bufferByteSize - g_LocalConstants.BufferOffset) / 4)
-		return;
-
 	u_targetBuffer.Store(g_LocalConstants.BufferOffset + 4 * tid.x, g_LocalConstants.ClearValue);
 }
