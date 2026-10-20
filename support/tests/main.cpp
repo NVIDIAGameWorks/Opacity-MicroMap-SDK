@@ -10,7 +10,6 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 #include <gtest/gtest.h>
 #include <cstdio>
-#include "test_build_info.h"
 #if OMM_ENABLE_GPU_TESTS
 #include "nvrhi/nvrhi_environment.h"
 #endif
@@ -18,10 +17,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 int main(int argc, char** argv) {
 	::testing::InitGoogleTest(&argc, argv);
 
-	std::printf("[ OMM TEST ] C++ compiler: %s\n", test_build_info::kCxxCompiler);
 #if OMM_ENABLE_GPU_TESTS
-	std::printf("[ OMM GPU  ] Shader compiler: %s\n", test_build_info::kShaderCompiler);
-	std::printf("[ OMM GPU  ] Compute reference compiler: %s\n", test_build_info::kComputeReferenceCompiler);
 	std::printf("[ OMM GPU  ] Precise math: %s\n",
 		OMM_ENABLE_PRECISE_GPU_MATH ? "ON (-Gis)" : "OFF");
 	std::printf("[ OMM GPU  ] Shader optimizations: %s\n",

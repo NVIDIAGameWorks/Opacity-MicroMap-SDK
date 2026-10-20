@@ -570,6 +570,7 @@ namespace {
 			return RunOmmBake(p);
 		}
 
+		// Fixed compute references were captured with DXC v1.8.2505 (1.8.2505.28, commit 9efbb6c32).
 		void ExpectEqual(const omm::Debug::Stats& stats, const omm::Debug::Stats& expectedStats) {
 			EXPECT_EQ(stats.totalOpaque, expectedStats.totalOpaque);
 			EXPECT_EQ(stats.totalTransparent, expectedStats.totalTransparent);
