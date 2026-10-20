@@ -29,11 +29,12 @@ namespace omm
 
    enum class MessageSeverity
    {
-       Info,
-       Warning,
-       PerfWarning,
-       Fatal,
-       MAX_NUM,
+       Info = ommMessageSeverity_Info,
+       PerfWarning = ommMessageSeverity_PerfWarning,
+       Warning = PerfWarning,
+       Error = ommMessageSeverity_Error,
+       Fatal = ommMessageSeverity_Fatal,
+       MAX_NUM = ommMessageSeverity_MAX_NUM,
    };
 
    enum class OpacityState

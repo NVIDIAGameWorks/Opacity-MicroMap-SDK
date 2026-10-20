@@ -45,6 +45,14 @@ else()
 endif()
 
 option(OMM_GPU_REFERENCE_MODE "Use precise, unoptimized software GPU math and sampling" OFF)
+option(OMM_ENABLE_PRECISE_GPU_MATH "Compile GPU baker shaders with IEEE strictness (-Gis)" OFF)
+option(OMM_DISABLE_GPU_SHADER_OPTIMIZATIONS "Disable GPU shader optimizations (-Od), including the DXIL driver optimization flag" OFF)
+
+if (OMM_GPU_REFERENCE_MODE)
+    # Resolve effective settings once, without changing the cached preferences.
+    set(OMM_ENABLE_PRECISE_GPU_MATH ON)
+    set(OMM_DISABLE_GPU_SHADER_OPTIMIZATIONS ON)
+endif()
 
 set (CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
@@ -82,7 +90,7 @@ if (OMM_ENABLE_TESTS AND OMM_ENABLE_GPU_TESTS)
             message(WARNING
                 "GPU tests are enabled without OMM_GPU_REFERENCE_MODE. "
                 "Enable OMM_GPU_REFERENCE_MODE for accurate comparison with the fixed compute reference values. "
-                "Tests will run with the selected shader settings.")
+                "The GpuTest.ReferenceMode check will fail; remaining tests will run with the selected shader settings.")
         endif()
         set(OMM_ENABLE_PRECOMPILED_SHADERS_DXIL ON)
     endif()

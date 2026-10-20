@@ -1536,51 +1536,55 @@ namespace {
 		return str;
 	}
 
-	INSTANTIATE_TEST_SUITE_P(OMMTestGPU, OMMBakeTestGPU, 
-		::testing::Values(	
-							    TestSuiteConfig::None,
-							    TestSuiteConfig::EnablePostDispatchInfoStats,
-							    TestSuiteConfig::DisableSpecialIndices,
-							    TestSuiteConfig::DisableSpecialIndices | TestSuiteConfig::EnablePostDispatchInfoStats,
-							    TestSuiteConfig::Force32BitIndices,
-							    TestSuiteConfig::DisableTexCoordDeduplication,
-							    TestSuiteConfig::RedChannel,
-							    TestSuiteConfig::BlueChannel,
-							    TestSuiteConfig::GreenChannel,
-							    TestSuiteConfig::Enable16BitInputIndexBuffer,
+	const auto kTestConfigurations = ::testing::Values(
+#if !OMM_ENABLE_PRECISE_GPU_MATH
+		// Hardware rasterization is outside the precise test contract.
+		TestSuiteConfig::None,
+		TestSuiteConfig::EnablePostDispatchInfoStats,
+		TestSuiteConfig::DisableSpecialIndices,
+		TestSuiteConfig::DisableSpecialIndices | TestSuiteConfig::EnablePostDispatchInfoStats,
+		TestSuiteConfig::Force32BitIndices,
+		TestSuiteConfig::DisableTexCoordDeduplication,
+		TestSuiteConfig::RedChannel,
+		TestSuiteConfig::BlueChannel,
+		TestSuiteConfig::GreenChannel,
+		TestSuiteConfig::Enable16BitInputIndexBuffer,
 
-							    TestSuiteConfig::SetupBeforeBuild,
-							    TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::EnablePostDispatchInfoStats,
-							    TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::DisableSpecialIndices,
-							    TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::DisableSpecialIndices | TestSuiteConfig::EnablePostDispatchInfoStats,
-							    TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::Force32BitIndices,
-							    TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::DisableTexCoordDeduplication,
-							    TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::RedChannel,
-							    TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::BlueChannel,
-							    TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::GreenChannel,
-							    TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::Enable16BitInputIndexBuffer,
-								
-							    TestSuiteConfig::ComputeOnly,
-							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::EnablePostDispatchInfoStats,
-							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::DisableSpecialIndices, 
-							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::DisableSpecialIndices | TestSuiteConfig::EnablePostDispatchInfoStats,
-							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::Force32BitIndices,
-							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::DisableTexCoordDeduplication,
-							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::RedChannel,
-							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::BlueChannel,
-							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::GreenChannel,
-							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::Enable16BitInputIndexBuffer,
-								
-							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild,
-							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::EnablePostDispatchInfoStats,
-							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::DisableSpecialIndices,
-							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::DisableSpecialIndices | TestSuiteConfig::EnablePostDispatchInfoStats,
-							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::Force32BitIndices,
-							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::DisableTexCoordDeduplication,
-							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::RedChannel,
-							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::BlueChannel,
-							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::GreenChannel,
-							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::Enable16BitInputIndexBuffer
-						), CustomParamName);
+		TestSuiteConfig::SetupBeforeBuild,
+		TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::EnablePostDispatchInfoStats,
+		TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::DisableSpecialIndices,
+		TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::DisableSpecialIndices | TestSuiteConfig::EnablePostDispatchInfoStats,
+		TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::Force32BitIndices,
+		TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::DisableTexCoordDeduplication,
+		TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::RedChannel,
+		TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::BlueChannel,
+		TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::GreenChannel,
+		TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::Enable16BitInputIndexBuffer,
+#endif
+
+		TestSuiteConfig::ComputeOnly,
+		TestSuiteConfig::ComputeOnly | TestSuiteConfig::EnablePostDispatchInfoStats,
+		TestSuiteConfig::ComputeOnly | TestSuiteConfig::DisableSpecialIndices,
+		TestSuiteConfig::ComputeOnly | TestSuiteConfig::DisableSpecialIndices | TestSuiteConfig::EnablePostDispatchInfoStats,
+		TestSuiteConfig::ComputeOnly | TestSuiteConfig::Force32BitIndices,
+		TestSuiteConfig::ComputeOnly | TestSuiteConfig::DisableTexCoordDeduplication,
+		TestSuiteConfig::ComputeOnly | TestSuiteConfig::RedChannel,
+		TestSuiteConfig::ComputeOnly | TestSuiteConfig::BlueChannel,
+		TestSuiteConfig::ComputeOnly | TestSuiteConfig::GreenChannel,
+		TestSuiteConfig::ComputeOnly | TestSuiteConfig::Enable16BitInputIndexBuffer,
+
+		TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild,
+		TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::EnablePostDispatchInfoStats,
+		TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::DisableSpecialIndices,
+		TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::DisableSpecialIndices | TestSuiteConfig::EnablePostDispatchInfoStats,
+		TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::Force32BitIndices,
+		TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::DisableTexCoordDeduplication,
+		TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::RedChannel,
+		TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::BlueChannel,
+		TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::GreenChannel,
+		TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::Enable16BitInputIndexBuffer
+	);
+
+	INSTANTIATE_TEST_SUITE_P(OMMTestGPU, OMMBakeTestGPU, kTestConfigurations, CustomParamName);
 
 }  // namespace

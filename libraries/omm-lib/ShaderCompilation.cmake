@@ -15,10 +15,10 @@ function(compile_shaders)
     # Apply to every shader stage and both backends. CPU fast math is configured
     # separately by OMM_ENABLE_FAST_MATH.
     set(SHADERMAKE_COMPILER_OPTIONS "")
-    if (OMM_ENABLE_PRECISE_GPU_MATH OR OMM_GPU_REFERENCE_MODE)
+    if (OMM_ENABLE_PRECISE_GPU_MATH)
         list(APPEND SHADERMAKE_COMPILER_OPTIONS --compilerOptions=-Gis)
     endif()
-    if (OMM_DISABLE_GPU_SHADER_OPTIMIZATIONS OR OMM_GPU_REFERENCE_MODE)
+    if (OMM_DISABLE_GPU_SHADER_OPTIMIZATIONS)
         # -Od also sets DXIL's DisableOptimizations shader flag for the driver.
         # Optimization level zero (-O0) does not set that flag.
         list(APPEND SHADERMAKE_COMPILER_OPTIONS --compilerOptions=-Od)

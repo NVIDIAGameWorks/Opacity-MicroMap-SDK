@@ -1297,6 +1297,9 @@ ommResult BakerImpl::Create(const ommBakerCreationDesc& desc)
 {
     m_bakeCreationDesc = desc;
     m_log = Logger(desc.messageInterface);
+#if OMM_ENABLE_PRECISE_GPU_MATH
+    m_log.PerfWarn("[Perf Warning] - GPU baker shaders were compiled with precise math (-Gis), which may reduce GPU baking performance.");
+#endif
     return ommResult_SUCCESS;
 }
 

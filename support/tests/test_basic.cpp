@@ -50,6 +50,28 @@ namespace {
 		EXPECT_EQ(omm::DestroyBaker(baker), omm::Result::SUCCESS);
 	}
 
+	TEST(Baker, PreciseShaderMathWarning) {
+		for (const omm::BakerType type : { omm::BakerType::CPU, omm::BakerType::GPU }) {
+			int warningCount = 0;
+			omm::BakerCreationDesc desc = { .type = type };
+			desc.messageInterface = {
+				[](omm::MessageSeverity severity, const char* message, void* userArg) {
+					EXPECT_EQ(severity, omm::MessageSeverity::PerfWarning);
+					EXPECT_STREQ(message, "[Perf Warning] - GPU baker shaders were compiled with precise math (-Gis), which may reduce GPU baking performance.");
+					++*static_cast<int*>(userArg);
+				},
+				&warningCount
+			};
+
+			omm::Baker baker = nullptr;
+			ASSERT_EQ(omm::CreateBaker(desc, &baker), omm::Result::SUCCESS);
+			const bool expectWarning = type == omm::BakerType::GPU
+				&& OMM_ENABLE_PRECISE_GPU_MATH;
+			EXPECT_EQ(warningCount, expectWarning ? 1 : 0);
+			EXPECT_EQ(omm::DestroyBaker(baker), omm::Result::SUCCESS);
+		}
+	}
+
 	TEST(Baker, StaticDataGPU) {
 		{
 			size_t byteSize = 0;
@@ -85,6 +107,13 @@ namespace {
 		void TestShaders(omm::Gpu::RenderAPI api, bool expectingShaders);
 		omm::Baker _baker = 0;
 	};
+
+#if OMM_ENABLE_GPU_TESTS
+	TEST_F(GpuTest, ReferenceMode) {
+		EXPECT_TRUE(OMM_GPU_REFERENCE_MODE)
+			<< "Enable OMM_GPU_REFERENCE_MODE (-DOMM_GPU_REFERENCE_MODE=ON) for accurate GPU test references.";
+	}
+#endif
 
 	TEST_F(GpuTest, Pipeline) {
 
