@@ -136,6 +136,8 @@ jobs:
         run: cmake --build build --config Release --parallel
       - name: Test Release (${{ matrix.gpu-tests && 'CPU + GPU' || 'CPU only' }} tests, precise math)
         working-directory: build/bin/Release
+        env:
+          OMM_ALLOW_GPU_REFERENCE_MODE: '1'
         run: ${{ matrix.test-command }}
       - name: Configure fast CPU/GPU math for publishing
         run: cmake -S . -B build -DOMM_ENABLE_GPU_TESTS=OFF -DOMM_GPU_REFERENCE_MODE=OFF -DOMM_ENABLE_FAST_MATH=ON

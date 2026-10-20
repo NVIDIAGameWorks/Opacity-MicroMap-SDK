@@ -19,6 +19,8 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 #include <array>
 #include <algorithm>
+#include <cstdlib>
+#include <cstring>
 #include <optional>
 
 // SHADERS DEFINITIONS =================================================================================
@@ -1298,6 +1300,12 @@ ommResult BakerImpl::Create(const ommBakerCreationDesc& desc)
     m_bakeCreationDesc = desc;
     m_log = Logger(desc.messageInterface);
 #if OMM_GPU_REFERENCE_MODE
+    const char* allowReferenceMode = std::getenv("OMM_ALLOW_GPU_REFERENCE_MODE");
+    if (allowReferenceMode == nullptr || std::strcmp(allowReferenceMode, "1") != 0)
+    {
+        m_log.Error("[Error] - The SDK was compiled with OMM_GPU_REFERENCE_MODE=ON. Set OMM_ALLOW_GPU_REFERENCE_MODE=1 to allow GPU baker creation for testing.");
+        return ommResult_FAILURE;
+    }
     m_log.PerfWarn("[Perf Warning] - The SDK was compiled with OMM_GPU_REFERENCE_MODE=ON. GPU baking uses software math and sampling with shader optimizations disabled, which may reduce performance.");
 #endif
     return ommResult_SUCCESS;

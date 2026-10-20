@@ -760,9 +760,12 @@ Compute-only GPU tests have one ground truth. Enable `OMM_GPU_REFERENCE_MODE` ex
 
 GPU bake tests register only compute configurations when `OMM_GPU_REFERENCE_MODE` is `ON`. With reference mode `OFF`, graphics and compute configurations are registered. Graphics coverage and interpolation can vary across devices, so reference builds exclude graphics bake tests. The SDK graphics baking API remains available in either configuration.
 
+Reference-mode GPU baker creation requires the environment variable `OMM_ALLOW_GPU_REFERENCE_MODE=1`. Otherwise, `CreateBaker` returns `FAILURE`, leaves the baker null, and reports an error through the supplied SDK message callback. CPU baker creation and builds without reference mode do not require this opt-in.
+
 ```powershell
 cmake -S . -B build -DOMM_ENABLE_TESTS=ON -DOMM_ENABLE_GPU_TESTS=ON -DOMM_GPU_REFERENCE_MODE=ON -DOMM_TEST_USE_WARP=OFF
 cmake --build build --config RelWithDebInfo --target tests
+$env:OMM_ALLOW_GPU_REFERENCE_MODE = "1"
 .\build\bin\RelWithDebInfo\tests.exe --gtest_filter="*OMMBakeTestGPU.*/*ComputeOnly*"
 ```
 

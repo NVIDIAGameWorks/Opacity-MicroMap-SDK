@@ -53,7 +53,8 @@ namespace {
 			nvrhi::CommandListHandle initialization = s_device->createCommandList();
 			ASSERT_NE(initialization.Get(), nullptr);
 			initialization->open();
-			s_bake = std::make_unique<omm::GpuBakeNvrhi>(s_device, initialization, true /*enable debug*/);
+			s_bake = omm::GpuBakeNvrhi::Create(s_device, initialization, true /*enable debug*/);
+			ASSERT_NE(s_bake.get(), nullptr);
 			initialization->close();
 			s_device->executeCommandList(initialization);
 			s_device->waitForIdle();
