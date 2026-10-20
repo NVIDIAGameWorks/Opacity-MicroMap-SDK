@@ -46,14 +46,14 @@ namespace raster
 #if defined(OMM_GPU_REFERENCE_MODE) && OMM_GPU_REFERENCE_MODE
         return OmmSoftwareGather(t_alphaTexture, texCoord, uint2(g_GlobalConstants.TexSize),
             g_GlobalConstants.TextureAddressMode, IN_ALPHA_TEXTURE_CHANNEL, g_GlobalConstants.BorderAlpha);
+#elif IN_ALPHA_TEXTURE_CHANNEL == 0
+        return t_alphaTexture.GatherRed(s_samplers[g_GlobalConstants.SamplerIndex], texCoord, 0);
+#elif IN_ALPHA_TEXTURE_CHANNEL == 1
+        return t_alphaTexture.GatherGreen(s_samplers[g_GlobalConstants.SamplerIndex], texCoord, 0);
+#elif IN_ALPHA_TEXTURE_CHANNEL == 2
+        return t_alphaTexture.GatherBlue(s_samplers[g_GlobalConstants.SamplerIndex], texCoord, 0);
 #else
-        switch (IN_ALPHA_TEXTURE_CHANNEL)
-        {
-        case 0: return t_alphaTexture.GatherRed(s_samplers[g_GlobalConstants.SamplerIndex], texCoord, 0);
-        case 1: return t_alphaTexture.GatherGreen(s_samplers[g_GlobalConstants.SamplerIndex], texCoord, 0);
-        case 2: return t_alphaTexture.GatherBlue(s_samplers[g_GlobalConstants.SamplerIndex], texCoord, 0);
-        default: return t_alphaTexture.GatherAlpha(s_samplers[g_GlobalConstants.SamplerIndex], texCoord, 0);
-        }
+        return t_alphaTexture.GatherAlpha(s_samplers[g_GlobalConstants.SamplerIndex], texCoord, 0);
 #endif
     }
 #if defined(OMM_GPU_REFERENCE_MODE) && OMM_GPU_REFERENCE_MODE
