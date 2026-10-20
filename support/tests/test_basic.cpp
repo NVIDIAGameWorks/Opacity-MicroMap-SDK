@@ -11,10 +11,39 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include <gtest/gtest.h>
 #include <omm.h>
 #include <algorithm>
+#include <cstdlib>
+#include <string>
 
 #include "util/omm.h"
 
 namespace {
+
+	class ScopedEnvironmentVariable {
+	public:
+		explicit ScopedEnvironmentVariable(const char* name) : m_name(name) {
+			if (const char* value = std::getenv(name)) {
+				m_wasSet = true;
+				m_previousValue = value;
+			}
+		}
+
+		~ScopedEnvironmentVariable() {
+			EXPECT_EQ(Set(m_wasSet ? m_previousValue.c_str() : nullptr), 0);
+		}
+
+		int Set(const char* value) {
+#if defined(_WIN32)
+			return _putenv_s(m_name, value ? value : "");
+#else
+			return value ? setenv(m_name, value, 1) : unsetenv(m_name);
+#endif
+		}
+
+	private:
+		const char* m_name;
+		std::string m_previousValue;
+		bool m_wasSet = false;
+	};
 
 	TEST(Lib, VersionCheck) {
 
@@ -48,6 +77,44 @@ namespace {
 		EXPECT_EQ(omm::CreateBaker({ .type = omm::BakerType::GPU }, &baker), omm::Result::SUCCESS);
 		EXPECT_NE(baker, nullptr);
 		EXPECT_EQ(omm::DestroyBaker(baker), omm::Result::SUCCESS);
+	}
+
+	TEST(Baker, GPUReferenceModeEnvironment) {
+		ScopedEnvironmentVariable environment("OMM_ALLOW_GPU_REFERENCE_MODE");
+		const char* values[] = { nullptr, "", "0", "invalid", "1" };
+		for (const char* value : values) {
+			SCOPED_TRACE(value ? value : "<unset>");
+			ASSERT_EQ(environment.Set(value), 0);
+
+			std::string error;
+			omm::BakerCreationDesc desc = { .type = omm::BakerType::GPU };
+			desc.messageInterface = {
+				[](omm::MessageSeverity severity, const char* message, void* userArg) {
+					if (severity == omm::MessageSeverity::Error)
+						*static_cast<std::string*>(userArg) = message;
+				}, &error
+			};
+
+			omm::Baker baker = reinterpret_cast<omm::Baker>(1);
+			const bool allowed = !OMM_GPU_REFERENCE_MODE || (value && std::string(value) == "1");
+			EXPECT_EQ(omm::CreateBaker(desc, &baker), allowed ? omm::Result::SUCCESS : omm::Result::FAILURE);
+			if (allowed) {
+				EXPECT_NE(baker, nullptr);
+				EXPECT_EQ(omm::DestroyBaker(baker), omm::Result::SUCCESS);
+				EXPECT_TRUE(error.empty());
+			} else {
+				EXPECT_EQ(baker, nullptr);
+				EXPECT_NE(error.find("OMM_ALLOW_GPU_REFERENCE_MODE"), std::string::npos);
+			}
+
+			error.clear();
+			desc.type = omm::BakerType::CPU;
+			baker = nullptr;
+			EXPECT_EQ(omm::CreateBaker(desc, &baker), omm::Result::SUCCESS);
+			EXPECT_NE(baker, nullptr);
+			EXPECT_EQ(omm::DestroyBaker(baker), omm::Result::SUCCESS);
+			EXPECT_TRUE(error.empty());
+		}
 	}
 
 	TEST(Baker, StaticDataGPU) {
@@ -85,6 +152,13 @@ namespace {
 		void TestShaders(omm::Gpu::RenderAPI api, bool expectingShaders);
 		omm::Baker _baker = 0;
 	};
+
+#if OMM_ENABLE_GPU_TESTS
+	TEST_F(GpuTest, ReferenceMode) {
+		EXPECT_TRUE(OMM_GPU_REFERENCE_MODE)
+			<< "Enable OMM_GPU_REFERENCE_MODE (-DOMM_GPU_REFERENCE_MODE=ON) for accurate GPU test references.";
+	}
+#endif
 
 	TEST_F(GpuTest, Pipeline) {
 

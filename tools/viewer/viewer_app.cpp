@@ -104,12 +104,10 @@ static void Log(omm::MessageSeverity severity, const char* message, void* userAr
     case omm::MessageSeverity::Info:
         donutSeverity = donut::log::Severity::Info;
         break;
-    case omm::MessageSeverity::Warning:
-        donutSeverity = donut::log::Severity::Warning;
-        break;
     case omm::MessageSeverity::PerfWarning:
         donutSeverity = donut::log::Severity::Warning;
         break;
+    case omm::MessageSeverity::Error:
     case omm::MessageSeverity::Fatal:
         donutSeverity = donut::log::Severity::Error;
         break;

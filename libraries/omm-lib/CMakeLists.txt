@@ -20,6 +20,7 @@ option(OMM_STATIC_LIBRARY "build static lib" OFF)
 option(OMM_SHADER_DEBUG_INFO "enable embedded shader debug info" OFF)
 option(OMM_LIB_INSTALL "Generate install rules for OMM" ON)
 option(OMM_ENABLE_FAST_MATH "Enable fast math optimizations" ON)
+
 option(OMM_ENABLE_BMI2 "Enable BMI2 optimizations" ON)
 
 if (OMM_ENABLE_OPENMP)
@@ -125,6 +126,7 @@ endif()
 if (OMM_ENABLE_PRECOMPILED_SHADERS_SPIRV)
     target_compile_definitions(${OMM_LIB_TARGET_NAME} PRIVATE OMM_ENABLE_PRECOMPILED_SHADERS_SPIRV)
 endif()
+target_compile_definitions(${OMM_LIB_TARGET_NAME} PRIVATE OMM_GPU_REFERENCE_MODE=$<BOOL:${OMM_GPU_REFERENCE_MODE}>)
 
 if(WIN32)
     target_compile_definitions(${OMM_LIB_TARGET_NAME} PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX _CRT_SECURE_NO_WARNINGS _UNICODE UNICODE)

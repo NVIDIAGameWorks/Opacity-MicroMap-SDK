@@ -9,6 +9,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 */
 
 #include <algorithm>
+#include <memory>
 
 #include "gtest/gtest.h"
 #include "util/omm_histogram.h"
@@ -40,20 +41,52 @@ namespace {
 	};
 
 	class OMMBakeTestGPU : public ::testing::TestWithParam<TestSuiteConfig> {
-	protected:
-		void SetUp() override {
+	public:
+		static void SetUpTestSuite() {
 			ASSERT_NE(g_nvrhiEnvironment, nullptr);
 			NVRHIContext* nvrhiContext = g_nvrhiEnvironment->GetContext();
 			ASSERT_NE(nvrhiContext, nullptr);
-			m_device = nvrhiContext->CreateDevice();
+			s_device = nvrhiContext->CreateDevice();
+			ASSERT_NE(s_device.Get(), nullptr);
+
+			// Compile pipelines once, especially for WARP's expensive reference shaders.
+			nvrhi::CommandListHandle initialization = s_device->createCommandList();
+			ASSERT_NE(initialization.Get(), nullptr);
+			initialization->open();
+			s_bake = omm::GpuBakeNvrhi::Create(s_device, initialization, true /*enable debug*/);
+			ASSERT_NE(s_bake.get(), nullptr);
+			initialization->close();
+			s_device->executeCommandList(initialization);
+			s_device->waitForIdle();
+		}
+
+		static void TearDownTestSuite() {
+			if (s_device)
+				s_device->waitForIdle();
+			s_bake.reset();
+			s_device = nullptr;
+		}
+
+	protected:
+		void SetUp() override {
+			m_device = s_device;
 			ASSERT_NE(m_device.Get(), nullptr);
+			ASSERT_NE(s_bake.get(), nullptr);
 
 			m_commandList = m_device->createCommandList();
 			ASSERT_NE(m_commandList.Get(), nullptr);
 		}
 
 		void TearDown() override {
+			if (m_device)
+			{
+				m_device->waitForIdle();
+				if (s_bake)
+					s_bake->Clear();
+			}
 			m_commandList = nullptr;
+			if (m_device)
+				m_device->runGarbageCollection();
 			m_device = nullptr;
 		}
 
@@ -116,6 +149,7 @@ namespace {
 			void* texCoords = nullptr;
 			uint32_t texCoordBufferSize = 0;
 			uint32_t maxOutOmmArraySize = 0xFFFFFFFF;
+			bool poisonOmmArray = false;
 			std::function<float(int i, int j)> texCb;
 			omm::Format format = omm::Format::OC1_4_State;
 
@@ -207,8 +241,7 @@ namespace {
 				m_commandList->writeBuffer(vb, p.texCoords, p.texCoordBufferSize);
 			}
 
-			// Upload index buffer
-			omm::GpuBakeNvrhi bake(m_device, m_commandList, true /*enable debug*/);
+			omm::GpuBakeNvrhi& bake = *s_bake;
 
 			omm::GpuBakeNvrhi::Input input;
 			input.alphaTexture = alphaTexture;
@@ -319,6 +352,10 @@ namespace {
 				m_commandList->beginTrackingBufferState(res.ommPostDispatchInfoBuffer, nvrhi::ResourceStates::Common);
 
 				input.operation = omm::GpuBakeNvrhi::Operation::Bake;
+				input.maxOutOmmArraySize = postDispatchInfo.ommArrayBufferSize;
+
+				if (p.poisonOmmArray)
+					m_commandList->clearBufferUInt(res.ommArrayBuffer, 0xFFFFFFFF);
 
 				bake.Dispatch(
 					m_commandList,
@@ -347,6 +384,9 @@ namespace {
 				m_commandList->beginTrackingBufferState(res.ommDescArrayHistogramBuffer, nvrhi::ResourceStates::Common);
 				m_commandList->beginTrackingBufferState(res.ommIndexHistogramBuffer, nvrhi::ResourceStates::Common);
 				m_commandList->beginTrackingBufferState(res.ommPostDispatchInfoBuffer, nvrhi::ResourceStates::Common);
+
+				if (p.poisonOmmArray)
+					m_commandList->clearBufferUInt(res.ommArrayBuffer, 0xFFFFFFFF);
 
 				bake.Dispatch(
 					m_commandList,
@@ -530,6 +570,7 @@ namespace {
 			return RunOmmBake(p);
 		}
 
+		// Fixed compute references were captured with DXC v1.8.2505 (1.8.2505.28, commit 9efbb6c32).
 		void ExpectEqual(const omm::Debug::Stats& stats, const omm::Debug::Stats& expectedStats) {
 			EXPECT_EQ(stats.totalOpaque, expectedStats.totalOpaque);
 			EXPECT_EQ(stats.totalTransparent, expectedStats.totalTransparent);
@@ -542,10 +583,29 @@ namespace {
 		}
 
 	private:
+		inline static nvrhi::DeviceHandle s_device;
+		inline static std::unique_ptr<omm::GpuBakeNvrhi> s_bake;
 		nvrhi::DeviceHandle m_device;
 		nvrhi::CommandListHandle m_commandList;
 	};
 
+
+	TEST_P(OMMBakeTestGPU, TransparentOutputIgnoresPreviousContents) {
+		if (!ComputeOnly() || EnableSpecialIndices())
+			GTEST_SKIP() << "Tests compute output initialization without special-index promotion.";
+
+		OmmBakeParams p = OmmBakeParams::InitQuad();
+		// Deduplication makes split setup/bake allocate a compact output buffer.
+		uint32_t triangleIndices[] = { 0, 1, 2, 0, 1, 2 };
+		p.triangleIndices = triangleIndices;
+		p.indexBufferSize = sizeof(triangleIndices);
+		p.subdivisionLevel = 4;
+		p.texSize = { 16, 16 };
+		p.poisonOmmArray = true;
+		p.texCb = [](int, int)->float { return 0.f; };
+
+		ExpectEqual(RunOmmBake(p), { .totalTransparent = 512 });
+	}
 
 	TEST_P(OMMBakeTestGPU, AllOpaque4) {
 
@@ -1086,12 +1146,7 @@ namespace {
 
 		if (ComputeOnly())
 		{
-			ExpectEqual(stats, {
-				.totalOpaque = 522,
-				.totalTransparent = 286,
-				.totalUnknownTransparent = 0,
-				.totalUnknownOpaque = 216,
-							});
+			ExpectEqual(stats, { .totalOpaque = 521, .totalTransparent = 287, .totalUnknownOpaque = 216 });
 		}
 		else
 		{
@@ -1142,12 +1197,7 @@ namespace {
 
 		if (ComputeOnly())
 		{
-			ExpectEqual(stats, {
-			.totalOpaque = 164039,
-			.totalTransparent = 91321,
-			.totalUnknownTransparent = 0,
-			.totalUnknownOpaque = 6784,
-							});
+			ExpectEqual(stats, { .totalOpaque = 164040, .totalTransparent = 91320, .totalUnknownOpaque = 6784 });
 		}
 		else
 		{
@@ -1201,12 +1251,7 @@ namespace {
 
 		if (ComputeOnly())
 		{
-			ExpectEqual(stats, {
-				.totalOpaque = 254728,
-				.totalTransparent = 4300,
-				.totalUnknownTransparent = 0,
-				.totalUnknownOpaque = 3116,
-				});
+			ExpectEqual(stats, { .totalOpaque = 254735, .totalTransparent = 4295, .totalUnknownOpaque = 3114 });
 		}
 		else
 		{
@@ -1244,12 +1289,7 @@ namespace {
 
 		if (ComputeOnly())
 		{
-			ExpectEqual(stats, {
-				.totalOpaque = 0,
-				.totalTransparent = 4300,
-				.totalUnknownTransparent = 0,
-				.totalUnknownOpaque = 3116 + 254728,
-				});
+			ExpectEqual(stats, { .totalTransparent = 4295, .totalUnknownOpaque = 257849 });
 		}
 		else
 		{
@@ -1289,12 +1329,7 @@ namespace {
 
 		if (ComputeOnly())
 		{
-			ExpectEqual(stats, {
-				.totalOpaque = 0,
-				.totalTransparent = 4300,
-				.totalUnknownTransparent = 0,
-				.totalUnknownOpaque = 3116 + 254728,
-				});
+			ExpectEqual(stats, { .totalTransparent = 4295, .totalUnknownOpaque = 257849 });
 		}
 		else
 		{
@@ -1332,12 +1367,7 @@ namespace {
 
 		if (ComputeOnly())
 		{
-			ExpectEqual(stats, {
-				.totalOpaque = 4300,
-				.totalTransparent = 254728,
-				.totalUnknownTransparent = 3116,
-				.totalUnknownOpaque = 0,
-				});
+			ExpectEqual(stats, { .totalOpaque = 4295, .totalTransparent = 254735, .totalUnknownTransparent = 3114 });
 		}
 		else
 		{
@@ -1366,12 +1396,7 @@ namespace {
 
 		if (ComputeOnly())
 		{
-			ExpectEqual(stats, {
-				.totalOpaque = 254747,
-				.totalTransparent = 4304,
-				.totalUnknownTransparent = 0,
-				.totalUnknownOpaque = 3093,
-				});
+			ExpectEqual(stats, { .totalOpaque = 254748, .totalTransparent = 4294, .totalUnknownOpaque = 3102 });
 		}
 		else
 		{
@@ -1400,12 +1425,7 @@ namespace {
 
 		if (ComputeOnly())
 		{
-			ExpectEqual(stats, {
-				.totalOpaque = 254741,
-				.totalTransparent = 4312,
-				.totalUnknownTransparent = 0,
-				.totalUnknownOpaque = 3091,
-				});
+			ExpectEqual(stats, { .totalOpaque = 254741, .totalTransparent = 4303, .totalUnknownOpaque = 3100 });
 		}
 		else
 		{
@@ -1430,12 +1450,7 @@ namespace {
 
 		if (ComputeOnly())
 		{
-			ExpectEqual(stats, {
-				.totalOpaque = 509456,
-				.totalTransparent = 8600,
-				.totalUnknownTransparent = 0,
-				.totalUnknownOpaque = 6232,
-				});
+			ExpectEqual(stats, { .totalOpaque = 509470, .totalTransparent = 8590, .totalUnknownOpaque = 6228 });
 		}
 		else
 		{
@@ -1476,9 +1491,9 @@ namespace {
 		{
 			ExpectEqual(stats, {
 			.totalOpaque = 5132,
-			.totalTransparent = 2394,
+			.totalTransparent = 2393,
 			.totalUnknownTransparent = 0,
-			.totalUnknownOpaque = 666,
+			.totalUnknownOpaque = 667,
 							});
 		}
 		else
@@ -1524,51 +1539,55 @@ namespace {
 		return str;
 	}
 
-	INSTANTIATE_TEST_SUITE_P(OMMTestGPU, OMMBakeTestGPU, 
-		::testing::Values(	
-							    TestSuiteConfig::None,
-							    TestSuiteConfig::EnablePostDispatchInfoStats,
-							    TestSuiteConfig::DisableSpecialIndices,
-							    TestSuiteConfig::DisableSpecialIndices | TestSuiteConfig::EnablePostDispatchInfoStats,
-							    TestSuiteConfig::Force32BitIndices,
-							    TestSuiteConfig::DisableTexCoordDeduplication,
-							    TestSuiteConfig::RedChannel,
-							    TestSuiteConfig::BlueChannel,
-							    TestSuiteConfig::GreenChannel,
-							    TestSuiteConfig::Enable16BitInputIndexBuffer,
+	const auto kTestConfigurations = ::testing::Values(
+#if !OMM_ENABLE_PRECISE_GPU_MATH
+		// Hardware rasterization is outside the reference test contract.
+		TestSuiteConfig::None,
+		TestSuiteConfig::EnablePostDispatchInfoStats,
+		TestSuiteConfig::DisableSpecialIndices,
+		TestSuiteConfig::DisableSpecialIndices | TestSuiteConfig::EnablePostDispatchInfoStats,
+		TestSuiteConfig::Force32BitIndices,
+		TestSuiteConfig::DisableTexCoordDeduplication,
+		TestSuiteConfig::RedChannel,
+		TestSuiteConfig::BlueChannel,
+		TestSuiteConfig::GreenChannel,
+		TestSuiteConfig::Enable16BitInputIndexBuffer,
 
-							    TestSuiteConfig::SetupBeforeBuild,
-							    TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::EnablePostDispatchInfoStats,
-							    TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::DisableSpecialIndices,
-							    TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::DisableSpecialIndices | TestSuiteConfig::EnablePostDispatchInfoStats,
-							    TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::Force32BitIndices,
-							    TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::DisableTexCoordDeduplication,
-							    TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::RedChannel,
-							    TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::BlueChannel,
-							    TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::GreenChannel,
-							    TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::Enable16BitInputIndexBuffer,
-								
-							    TestSuiteConfig::ComputeOnly,
-							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::EnablePostDispatchInfoStats,
-							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::DisableSpecialIndices, 
-							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::DisableSpecialIndices | TestSuiteConfig::EnablePostDispatchInfoStats,
-							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::Force32BitIndices,
-							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::DisableTexCoordDeduplication,
-							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::RedChannel,
-							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::BlueChannel,
-							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::GreenChannel,
-							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::Enable16BitInputIndexBuffer,
-								
-							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild,
-							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::EnablePostDispatchInfoStats,
-							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::DisableSpecialIndices,
-							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::DisableSpecialIndices | TestSuiteConfig::EnablePostDispatchInfoStats,
-							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::Force32BitIndices,
-							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::DisableTexCoordDeduplication,
-							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::RedChannel,
-							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::BlueChannel,
-							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::GreenChannel,
-							    TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::Enable16BitInputIndexBuffer
-						), CustomParamName);
+		TestSuiteConfig::SetupBeforeBuild,
+		TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::EnablePostDispatchInfoStats,
+		TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::DisableSpecialIndices,
+		TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::DisableSpecialIndices | TestSuiteConfig::EnablePostDispatchInfoStats,
+		TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::Force32BitIndices,
+		TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::DisableTexCoordDeduplication,
+		TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::RedChannel,
+		TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::BlueChannel,
+		TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::GreenChannel,
+		TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::Enable16BitInputIndexBuffer,
+#endif
+
+		TestSuiteConfig::ComputeOnly,
+		TestSuiteConfig::ComputeOnly | TestSuiteConfig::EnablePostDispatchInfoStats,
+		TestSuiteConfig::ComputeOnly | TestSuiteConfig::DisableSpecialIndices,
+		TestSuiteConfig::ComputeOnly | TestSuiteConfig::DisableSpecialIndices | TestSuiteConfig::EnablePostDispatchInfoStats,
+		TestSuiteConfig::ComputeOnly | TestSuiteConfig::Force32BitIndices,
+		TestSuiteConfig::ComputeOnly | TestSuiteConfig::DisableTexCoordDeduplication,
+		TestSuiteConfig::ComputeOnly | TestSuiteConfig::RedChannel,
+		TestSuiteConfig::ComputeOnly | TestSuiteConfig::BlueChannel,
+		TestSuiteConfig::ComputeOnly | TestSuiteConfig::GreenChannel,
+		TestSuiteConfig::ComputeOnly | TestSuiteConfig::Enable16BitInputIndexBuffer,
+
+		TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild,
+		TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::EnablePostDispatchInfoStats,
+		TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::DisableSpecialIndices,
+		TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::DisableSpecialIndices | TestSuiteConfig::EnablePostDispatchInfoStats,
+		TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::Force32BitIndices,
+		TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::DisableTexCoordDeduplication,
+		TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::RedChannel,
+		TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::BlueChannel,
+		TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::GreenChannel,
+		TestSuiteConfig::ComputeOnly | TestSuiteConfig::SetupBeforeBuild | TestSuiteConfig::Enable16BitInputIndexBuffer
+	);
+
+	INSTANTIATE_TEST_SUITE_P(OMMTestGPU, OMMBakeTestGPU, kTestConfigurations, CustomParamName);
 
 }  // namespace

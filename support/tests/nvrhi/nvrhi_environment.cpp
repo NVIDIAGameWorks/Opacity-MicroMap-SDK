@@ -18,6 +18,8 @@ void nvrhi_environment::SetUp()
 	params.api = nvrhi::GraphicsAPI::D3D12;
 	params.enableDebugRuntime = true;
 	params.enableNvrhiValidationLayer = true;
+	params.disableDriverBackgroundOptimizations = OMM_GPU_REFERENCE_MODE != 0;
+	params.useWarp = OMM_TEST_USE_WARP != 0;
 	m_context = NVRHIContext::Init(params);
 	EXPECT_NE(m_context.get(), nullptr);
 }
