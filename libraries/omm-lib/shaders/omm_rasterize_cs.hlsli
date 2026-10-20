@@ -379,7 +379,7 @@ void main(uint3 tid : SV_DispatchThreadID)
     bool isOpaque = false;
     bool isTransparent = false;
     {
-        const PRECISE float4 color = t_alphaTexture.SampleLevel(s_samplers[g_GlobalConstants.SamplerIndex], microTri.p[0].xy, 0);
+        const PRECISE float4 color = raster::SampleAlphaTexture(microTri.p[0].xy);
 #if IN_ALPHA_TEXTURE_CHANNEL == 0
         const PRECISE float alpha = color.r;
 #elif IN_ALPHA_TEXTURE_CHANNEL == 1

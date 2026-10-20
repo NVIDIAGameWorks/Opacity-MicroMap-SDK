@@ -20,6 +20,9 @@ option(OMM_STATIC_LIBRARY "build static lib" OFF)
 option(OMM_SHADER_DEBUG_INFO "enable embedded shader debug info" OFF)
 option(OMM_LIB_INSTALL "Generate install rules for OMM" ON)
 option(OMM_ENABLE_FAST_MATH "Enable fast math optimizations" ON)
+option(OMM_ENABLE_PRECISE_GPU_MATH "Compile GPU baker shaders with IEEE strictness (-Gis)" OFF)
+option(OMM_DISABLE_GPU_SHADER_OPTIMIZATIONS "Disable GPU shader optimizations (-Od), including the DXIL driver optimization flag" OFF)
+
 option(OMM_ENABLE_BMI2 "Enable BMI2 optimizations" ON)
 
 if (OMM_ENABLE_OPENMP)

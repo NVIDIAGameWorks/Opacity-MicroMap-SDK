@@ -16,6 +16,10 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include "omm_global_cb.hlsli"
 #include "omm_global_samplers.hlsli"
 
+#if defined(OMM_GPU_REFERENCE_MODE) && OMM_GPU_REFERENCE_MODE
+#include "omm_software_divide.hlsli"
+#endif
+
 /// Unrolled version of murmur hash that takes N integers as input (up to 8)
 uint murmur_32_scramble(uint k)
 {
@@ -102,8 +106,13 @@ uint GetHash(TexCoords tex, uint subdivisionLevel)
 float2 UnpackUNORM16Pair(uint packed)
 {
     float2 data;
+#if defined(OMM_GPU_REFERENCE_MODE) && OMM_GPU_REFERENCE_MODE
+    data.x = OmmSoftwareDivide(float(packed & 0x0000FFFF), float(0xFFFF));
+    data.y = OmmSoftwareDivide(float((packed >> 16u) & 0x0000FFFF), float(0xFFFF));
+#else
 	data.x = float(packed & 0x0000FFFF) / float(0xFFFF);
     data.y = float((packed >> 16u) & 0x0000FFFF) / float(0xFFFF);
+#endif
     return data;
 }
 

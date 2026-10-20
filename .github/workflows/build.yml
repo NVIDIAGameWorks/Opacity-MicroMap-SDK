@@ -18,7 +18,7 @@ jobs:
             platform: Windows
             arch: x64
             cmake-args: -A x64
-            test-command: ./tests.exe '--gtest_filter=-*GPU*'
+            test-command: ./tests.exe
             artifact-name: Opacity Micro-Map SDK Windows
           - os: ubuntu-22.04
             platform: Linux
@@ -63,6 +63,18 @@ jobs:
           .\VulkanSDK.exe --root C:\VulkanSDK --accept-licenses --default-answer --confirm-command install
           "VULKAN_SDK=C:/VulkanSDK/" >> $env:GITHUB_ENV
           "C:/VulkanSDK/Bin" >> $env:GITHUB_PATH
+      - name: Configure Windows WARP test prerequisites
+        if: runner.os == 'Windows' && matrix.arch == 'x64'
+        shell: pwsh
+        run: |
+          $graphicsTools = Get-WindowsCapability -Online -Name 'Tools.Graphics.DirectX~~~~0.0.1.0'
+          if ($graphicsTools.State -ne 'Installed') {
+            Add-WindowsCapability -Online -Name 'Tools.Graphics.DirectX~~~~0.0.1.0'
+          }
+          # D3D12's disabled-background-optimization policy requires Developer Mode.
+          $developerModePath = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock'
+          New-Item -Path $developerModePath -Force | Out-Null
+          New-ItemProperty -Path $developerModePath -Name AllowDevelopmentWithoutDevLicense -Value 1 -PropertyType DWord -Force | Out-Null
       - name: Setup CMake
         uses: jwlawson/actions-setup-cmake@v2
         with:
@@ -83,13 +95,22 @@ jobs:
         env:
           BUILD_ARCH: ${{ matrix.arch }}
         run: |
-          cmake_args=(-DOMM_VIEWER_INSTALL=OFF -DOMM_ENABLE_FAST_MATH=OFF)
+          cmake_args=(-DOMM_VIEWER_INSTALL=OFF -DOMM_ENABLE_TESTS=ON -DOMM_ENABLE_FAST_MATH=OFF)
+          if [[ "$RUNNER_OS" == "Windows" && "$BUILD_ARCH" == "x64" ]]; then
+            cmake_args+=(
+              -DOMM_ENABLE_GPU_TESTS=ON
+              -DOMM_GPU_REFERENCE_MODE=ON
+              -DOMM_BUILD_OMM_GPU_NVRHI=ON
+              -DOMM_INTEGRATION_LAYER_NVRHI=ON
+              -DOMM_ENABLE_PRECOMPILED_SHADERS_DXIL=ON
+              -DOMM_TEST_USE_WARP=ON
+            )
+          fi
           # Exercise the ARM64 CPU SDK without graphics dependencies or shader compilers.
           if [[ "$BUILD_ARCH" == "ARM64" ]]; then
             cmake_args+=(
               -DOMM_BUILD_VIEWER=OFF
               -DOMM_BUILD_OMM_GPU_NVRHI=OFF
-              -DOMM_ENABLE_TESTS=ON
               -DOMM_ENABLE_GPU_TESTS=OFF
               -DOMM_ENABLE_PRECOMPILED_SHADERS_DXIL=OFF
               -DOMM_ENABLE_PRECOMPILED_SHADERS_SPIRV=OFF
@@ -104,8 +125,8 @@ jobs:
       - name: Test Release (fast math OFF)
         working-directory: build/bin/Release
         run: ${{ matrix.test-command }}
-      - name: Enable fast math for publishing
-        run: cmake -S . -B build -DOMM_ENABLE_FAST_MATH=ON
+      - name: Enable fast math and shader optimizations for publishing
+        run: cmake -S . -B build -DOMM_ENABLE_GPU_TESTS=OFF -DOMM_GPU_REFERENCE_MODE=OFF -DOMM_ENABLE_FAST_MATH=ON
       - name: Build Release (fast math ON)
         run: cmake --build build --config Release --parallel
       - name: Install Release

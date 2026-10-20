@@ -11,6 +11,8 @@ struct NVRHIContext
 		std::wstring adapterNameSubstring = L"";
 		bool enableDebugRuntime = true;
 		bool enableNvrhiValidationLayer = true;
+		bool disableDriverBackgroundOptimizations = false;
+		bool useWarp = false;
 	};
 
 	static std::unique_ptr<NVRHIContext> Init(const InitParams& desc);

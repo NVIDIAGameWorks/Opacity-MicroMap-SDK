@@ -1,0 +1,21 @@
+/*
+Copyright (c) 2026, NVIDIA CORPORATION. All rights reserved.
+
+NVIDIA CORPORATION and its licensors retain all intellectual property
+and proprietary rights in and to this software, related documentation
+and any modifications thereto. Any use, reproduction, disclosure or
+distribution of this software and related documentation without an express
+license agreement from NVIDIA CORPORATION is strictly prohibited.
+*/
+
+#pragma once
+
+namespace test_build_info
+{
+    inline constexpr char kCxxCompiler[] = "@CMAKE_CXX_COMPILER_ID@ @CMAKE_CXX_COMPILER_VERSION@";
+    inline constexpr char kShaderCompiler[] = R"(@OMM_TEST_SHADER_COMPILER@)";
+
+    // Compiler used to generate the fixed compute references in test_omm_bake_gpu.cpp.
+    // Update this provenance when regenerating those reference values.
+    inline constexpr char kComputeReferenceCompiler[] = "DXC v1.8.2505 (1.8.2505.28, commit 9efbb6c32)";
+}

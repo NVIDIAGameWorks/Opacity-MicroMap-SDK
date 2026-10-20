@@ -100,7 +100,7 @@ Requires CMake 4.1 or newer.
 
 7. Build the solution with Visual Studio 
 
-8. Either run the `INSTALL` project to generate header and binaries that can be linked to your project, or run `Tests` to run the unit tests.
+8. Either run the `INSTALL` project to generate header and binaries that can be linked to your project, or configure with `OMM_ENABLE_TESTS=ON` and run `Tests` to run the unit tests.
 
 9. If running ``INSTALL`` the following binaries will be generated in the cmake output folder which can be used to link to the client application.
 ```
@@ -124,7 +124,19 @@ Requires CMake 4.1 or newer.
 
 `-DOMM_ENABLE_BMI2=ON` - Enable BMI2 optimizations for x86-64 targets.
 
-`-DOMM_ENABLE_FAST_MATH=ON` - Enable fast math optimizations.
+`-DOMM_ENABLE_FAST_MATH=ON` - Enable CPU fast math optimizations.
+
+`-DOMM_ENABLE_TESTS=ON` - Build unit tests (disabled by default), including direct CPU tests of the shared `omm_software_math.h` integer square-root/division utility. CPU tests also exercise the actual HLSL sampling helper through a small compatibility shim. These tests use strict floating-point settings and run without a GPU.
+
+`-DOMM_ENABLE_GPU_TESTS=ON` - Include GPU tests when unit tests are enabled. Enable `OMM_GPU_REFERENCE_MODE` for accurate compute-test comparisons. GPU tests can run without reference mode; CMake warns because the fixed expected values may differ with native arithmetic and sampling.
+
+`-DOMM_GPU_REFERENCE_MODE=ON` - Compile GPU baker shaders using software square roots, division, and sampling with precise arithmetic and shader optimizations disabled. Disabled by default and never enabled automatically by GPU tests. Reference-mode GPU tests also disable driver background optimizations. Expected values never depend on a math mode, GPU, or driver. Cached standalone library preferences remain unchanged. See [GPU determinism](docs/integration_guide.md#gpu-determinism) for instructions and remaining sources of variation.
+
+`-DOMM_ENABLE_PRECISE_GPU_MATH=ON` - Compile all GPU baker shader stages with DXC IEEE strictness (`-Gis`) for DXIL and SPIR-V. This standalone library preference is independent of CPU `OMM_ENABLE_FAST_MATH`. Reference mode enables precise arithmetic without changing the cached preference.
+
+`-DOMM_DISABLE_GPU_SHADER_OPTIMIZATIONS=ON` - Compile GPU baker shaders with `-Od`, including the DXIL driver optimization flag. Reference mode disables optimizations without changing this cached standalone library preference. Reference-mode GPU tests also require Windows Developer Mode and `ID3D12Device6` to disable D3D12 background optimizations before creating pipelines; setup fails if the policy cannot be applied.
+
+`-DOMM_TEST_USE_WARP=ON` - Run Windows GPU tests using the D3D12 WARP software adapter, including on hosts without a physical GPU. Disabled by default.
 
 `-DOMM_SHADER_DEBUG_INFO=OFF` - Will include and embed shader debug (-Zi, -Qembed_debug) info when running OMM_ENABLE_PRECOMPILED_SHADERS_DXIL=ON or OMM_ENABLE_PRECOMPILED_SHADERS_SPIRV=ON. Only recommended for debugging purpuses.
 

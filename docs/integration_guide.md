@@ -754,6 +754,72 @@ static inline Result Dispatch(Pipeline pipeline, const DispatchConfigDesc& confi
 
 A few resources must be read back to CPU for BLAS and OMMArray PreBuild info: ``OUT_OMM_DESC_ARRAY_HISTOGRAM`` and ``OUT_OMM_INDEX_HISTOGRAM`` and converted to the appropriate format defined by D3D12 and VK. The remaining buffers can be used as is for direct consumption.
 
+## GPU determinism
+
+Compute-only GPU tests have one ground truth. Enable `OMM_GPU_REFERENCE_MODE` explicitly to use software square roots, division, and texture sampling, precise shader arithmetic, and disabled shader optimizations. This CMake option defaults to `OFF` and does not overwrite cached standalone library preferences. GPU tests can run without reference mode, but CMake warns that it is needed for accurate comparisons against the expected counts. Each compute fixture uses one fixed set of expected opacity counts, with no GPU, driver, or compilation-mode selection. Unit tests are disabled by default; enable `OMM_ENABLE_TESTS` to build them.
+
+```powershell
+cmake -S . -B build -DOMM_ENABLE_TESTS=ON -DOMM_ENABLE_GPU_TESTS=ON -DOMM_GPU_REFERENCE_MODE=ON -DOMM_TEST_USE_WARP=OFF
+cmake --build build --config RelWithDebInfo --target tests
+.\build\bin\RelWithDebInfo\tests.exe --gtest_filter="*OMMBakeTestGPU.*/*ComputeOnly*"
+```
+
+Windows and the NVRHI D3D12 integration are required. Enable `OMM_BUILD_OMM_GPU_NVRHI` and `OMM_INTEGRATION_LAYER_NVRHI` if they were disabled in an existing build. Set `OMM_TEST_USE_WARP=ON` and rebuild to select WARP instead of the hardware adapter. Startup prints the API, GPU, Windows driver version, math settings, reference-mode status, and `Compute references: SOFTWARE` before test execution.
+
+The reference build applies this policy:
+
+| Behavior | Implementation |
+| --- | --- |
+| Precise arithmetic | Passes DXC `-Gis` to every embedded shader stage for DXIL and SPIR-V, preventing unsafe arithmetic refactoring and implicit multiply/add contraction. |
+| Disabled shader optimizations | Passes `-Od`, including DXIL's [DisableOptimizations shader flag](https://github.com/microsoft/DirectXShaderCompiler/blob/main/docs/DXIL.rst#shader-flags). `-O0` alone does not set this driver flag. |
+| Software square roots | Replaces the resampler's square root and three 2D length evaluations with a correctly rounded binary32 square root using 24 integer restoring steps and exact remainder rounding. |
+| Software division | Replaces five curve-intersection divisions and both UNORM16 UV decode components with correctly rounded binary32 division using 32-bit integer quotient/remainder arithmetic. |
+| Software sampling | Replaces all compute `SampleLevel` and `Gather*` calls with explicit mip-zero texel loads, integer addressing, and precise float32 interpolation. |
+| Disabled driver background optimizations | Disables D3D12 dynamic profiling and background shader recompilation before pipelines or work are created. This policy is unconditional for GPU reference tests. |
+
+Software sqrt and division share the integer implementation in `libraries/omm-lib/src/util/omm_software_math.h`, included directly by both C++ tests and HLSL wrappers. They preserve subnormal operands, signed zero, and infinities, and canonicalize NaNs. They need no native sqrt, reciprocal, floating-point division, double precision, or 64-bit integers. Division rounds to nearest, ties to even, using the exact remainder. Native reciprocal multiplication would retain implementation-dependent rounding.
+
+Software sampling supports the GPU baker's Wrap, Mirror, Clamp, and Border modes. Border alpha comes from the runtime sampler description. Nearest sampling uses `floor(uv * size)`; bilinear sampling uses `uv * size - 0.5`, full float32 weights, and explicit subtraction, multiplication, and addition in a fixed order. Difference-form interpolation preserves finite constant colors. Gathers use four loads in native component order. Hardware subtexel quantization is not emulated. Coordinates must be finite with texel indices representable as signed 32-bit integers, matching the compute rasterizer's coordinate domain. Address mode and border alpha reuse existing constant-buffer padding without changing offsets or size.
+
+Every unit-test build includes CPU tests that call the shared integer square-root/division utility directly, even when GPU tests are disabled. Scalar tests need no HLSL adaptation or GPU dispatch. Small input tables cover ordinary values, signed zero, infinities, NaNs, subnormals, and extreme finite values. Expected results come from CPU `std::sqrt(float)` and `float` division, with reference NaNs canonicalized before exact bit comparisons. Each test saves and restores the floating-point environment, selecting nearest-even rounding and gradual underflow for its references. Separate CPU sampling tests exercise the actual HLSL sampling header through a small compatibility shim, using small expected-value tables and a constant-color regression. The math and sampling test sources use `/fp:strict` on MSVC or `-fno-fast-math -ffp-contract=off -frounding-math` elsewhere, independently of the SDK's CPU fast-math preference. These tests run without a graphics device and can be selected with `--gtest_filter="CpuMathTest.*"`.
+
+Test startup prints the C++ compiler and, for GPU-enabled builds, the actual DXC version queried from the compiler executable. The compute-reference compiler version is recorded in `support/tests/util/test_build_info.h.in` and printed alongside it.
+
+On the RTX 5090 (Windows driver 32.0.16.1088) and D3D12 WARP (10.0.26100.9549), all eight asserted opacity counts agree in all 644 executed compute cases, covering 5,152 fields per device. Another 16 cases are intentionally skipped and five GPU API checks run. Histogram validation and GPU statistics versus decoded-output checks remain enabled. All 48 embedded DXIL/SPIR-V payloads match byte-for-byte between the captured libraries. These captures used DXC 1.8.2505; CI uses the project's default compiler selection. The same assertions are expected to hold across compiler versions, drivers, and devices.
+
+The determinism target is aggregate test results. Output allocation order, padding, and unused capacity may differ. Graphics-path expectations remain separate and unchanged. The compute raster bytecode contains no hardware sample/gather, native divide, sqrt/rsqrt, transcendental, mad/fma, or fast-math instructions with this configuration; six precise dot products remain. Setup shaders retain native length/sqrt and division for dynamic subdivision, which the fixtures disable.
+
+The bake test suite shares its device and compiled pipelines to avoid repeating WARP shader compilation for every parameter. Each test creates fresh command lists and input/output resources. Cleanup waits for idle, clears cached bindings, and collects completed resources; scratch buffers remain reusable as in an application. All 5,152 hardware count fields matched the original fresh-baker run after introducing reuse, and shuffled WARP repetitions found no test-order dependence.
+
+With reference mode enabled, the background-optimization policy calls `ID3D12Device6::SetBackgroundProcessingMode` with `DISABLE_PROFILING_BY_SYSTEM` and `KEEP_ALL`. Windows Developer Mode is required; reference-mode tests fail if the policy cannot be applied. The [D3D12 specification](https://microsoft.github.io/DirectX-Specs/d3d/BackgroundProcessing.html) distinguishes this dynamic policy from initial shader compilation, controlled here by `-Od`. The SDK does not apply this test-only device policy to applications.
+
+WARP uses the adapter returned by [IDXGIFactory4::EnumWarpAdapter](https://learn.microsoft.com/en-us/windows/win32/api/dxgi1_4/nf-dxgi1_4-idxgifactory4-enumwarpadapter) with `D3D12CreateDevice` at feature level 12_0. It identifies itself as Microsoft Basic Render Driver. Windows x64 Actions enables Graphics Tools and Developer Mode, then runs the full test suite, including CPU tests, GPU API checks, and compute and graphics bake tests on WARP with the same fixed reference configuration.
+
+GPU reference mode affects the library's embedded shaders, including other applications built in that tree. Disabling `OMM_GPU_REFERENCE_MODE` restores the cached standalone precise-math and optimization preferences. Disabling GPU tests alone leaves reference mode unchanged. The publishing step disables both GPU tests and reference mode, and enables CPU fast math:
+
+```powershell
+cmake -S . -B build -DOMM_ENABLE_GPU_TESTS=OFF -DOMM_GPU_REFERENCE_MODE=OFF -DOMM_ENABLE_FAST_MATH=ON
+```
+
+CPU `OMM_ENABLE_FAST_MATH` is configured separately. Standalone SDK builds and GPU tests can select their compilation settings. The checked-in compute expectations assume reference mode is enabled.
+
+The broader audit identified these remaining sources of uncertainty outside the validated fixtures:
+
+| Source | Effect and mitigation |
+| --- | --- |
+| Compound arithmetic and special values | Native dot products, NaN representation, and denormal handling have precision latitude under the [Direct3D rules](https://microsoft.github.io/DirectX-Specs/d3d/archive/D3D11_3_FunctionalSpec.htm). Precise compilation prevents refactoring; it does not implement every intrinsic in software. |
+| Native texture sampling | Standard library builds still use hardware filtering. Precise arithmetic does not control sampler precision. The software test path bypasses filtering and gather instructions. |
+| Dynamic subdivision | Its area calculation still uses native length and division. Tests use fixed subdivision levels. |
+| Graphics rasterization | Coverage and interpolation differ across hardware; the portability target is compute-only testing. |
+| Atomic allocation order | Physical offsets do not affect aggregate counts. If the output budget is exhausted, scheduling can determine which primitives receive unknown fallback states. Current budget fixtures use constant-transparent triangles. |
+| Texture-coordinate deduplication | A 32-bit hash is compared without full-key equality; collisions, a 16-probe limit, and the zero sentinel can cause scheduling-dependent reuse. Current fixtures use few triangles or exact duplicates. |
+| Concurrent non-atomic state stores | Multiple invocations can store the same state word without atomics. This is an inspected synchronization risk, not an observed mismatch in these fixtures. |
+| Host inputs and compiler versions | CPU-generated sine/fractal fixtures may change across host compilers or architectures. Preserve input bytes when diagnosing a compiler-dependent mismatch. |
+
+The compute packing shader uses atomic OR, so output data is cleared before each compute bake, including a bake after a separate setup pass. A regression prefills output with all-one bits before baking transparent states. Fresh allocations must never be assumed to contain zero.
+
+Native-math tracing explained why compilation controls alone were insufficient: one-ULP edge-length variation crossed a `1e-6` predicate in `Mandelbrot2`; a one-ULP division difference reconstructed `y` as zero versus a small negative value in `Julia`, changing a unit-square test. Software sqrt and division reduced the mismatch set, and adding explicit software sampling removed the remaining differences for the current fixtures.
+
 ## Resources
 ``IN_ALPHA_TEXTURE`` - The alpha texture used as resample source. Alpha channel is stored in either ``r``, ``g``, ``b``, ``a``. Channel is configured via ``alphaTextureChannel``.
 

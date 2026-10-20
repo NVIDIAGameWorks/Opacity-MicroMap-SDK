@@ -11,12 +11,16 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include "nvrhi_wrapper.h"
 
 #include <iostream>
+#include <iomanip>
+#include <sstream>
+#include <stdexcept>
 
 #include <nvrhi/nvrhi.h>
 #include <nvrhi/d3d12.h>
 #include <nvrhi/validation.h>
 
 #include <dxgi.h>
+#include <dxgi1_4.h>
 #include <d3d12.h>
 
 #include <nvrhi/validation.h>
@@ -118,6 +122,36 @@ namespace {
 		return targetAdapter;
 	}
 
+	static void PrintAdapterInfo(IDXGIAdapter* adapter)
+	{
+		std::string gpuName = "unavailable";
+		DXGI_ADAPTER_DESC adapterDesc = {};
+		if (adapter && SUCCEEDED(adapter->GetDesc(&adapterDesc)))
+		{
+			const int nameSize = WideCharToMultiByte(CP_UTF8, 0, adapterDesc.Description, -1, nullptr, 0, nullptr, nullptr);
+			if (nameSize > 0)
+			{
+				gpuName.resize(nameSize);
+				if (WideCharToMultiByte(CP_UTF8, 0, adapterDesc.Description, -1, gpuName.data(), nameSize, nullptr, nullptr) > 0)
+					gpuName.pop_back(); // Conversion size includes the terminating null.
+				else
+					gpuName = "unavailable";
+			}
+		}
+		std::cout << "[ OMM GPU  ] GPU: " << gpuName << std::endl;
+
+		LARGE_INTEGER driverVersion = {};
+		// Query IDXGIDevice rather than ID3D12Device to retrieve the UMD version.
+		if (adapter && SUCCEEDED(adapter->CheckInterfaceSupport(__uuidof(IDXGIDevice), &driverVersion)))
+		{
+			std::cout << "[ OMM GPU  ] Windows driver: "
+				<< HIWORD(driverVersion.HighPart) << '.' << LOWORD(driverVersion.HighPart) << '.'
+				<< HIWORD(driverVersion.LowPart) << '.' << LOWORD(driverVersion.LowPart) << std::endl;
+		}
+		else
+			std::cout << "[ OMM GPU  ] Windows driver: unavailable" << std::endl;
+	}
+
 	class NVRHIContextDX12 : public NVRHIContext {
 	public:
 
@@ -142,6 +176,7 @@ namespace {
 
 		NVRHIContextDX12(const NVRHIContext::InitParams& desc) :desc(desc)
 		{
+			std::cout << "[ OMM GPU  ] API: D3D12" << std::endl;
 			if (desc.enableDebugRuntime)
 			{
 				ComPtrWrapper<ID3D12Debug> debugController;
@@ -151,13 +186,64 @@ namespace {
 				}
 			}
 
-			targetAdapter = FindAdapter(desc.adapterNameSubstring);
+			if (desc.useWarp)
+			{
+				ComPtrWrapper<IDXGIFactory4> factory;
+				HRESULT warpResult = CreateDXGIFactory1(IID_PPV_ARGS(factory.GetAddressOf()));
+				if (SUCCEEDED(warpResult))
+					warpResult = factory->EnumWarpAdapter(IID_PPV_ARGS(targetAdapter.GetAddressOf()));
+				if (FAILED(warpResult))
+				{
+					std::ostringstream message;
+					message << "Explicit WARP adapter selection failed (HRESULT 0x" << std::hex << std::uppercase
+						<< std::setw(8) << std::setfill('0') << static_cast<unsigned long>(warpResult)
+						<< "). OMM_TEST_USE_WARP=ON requires IDXGIFactory4 and an available WARP adapter; hardware fallback is disabled.";
+					throw std::runtime_error(message.str());
+				}
+			}
+			else
+				targetAdapter = FindAdapter(desc.adapterNameSubstring);
+			PrintAdapterInfo(targetAdapter.Get());
 
 			HRESULT hr = D3D12CreateDevice(
 				targetAdapter.Get(),
 				D3D_FEATURE_LEVEL_12_0,
 				IID_PPV_ARGS(device12.GetAddressOf()));
-			assert(hr == S_OK);
+			if (FAILED(hr))
+			{
+				std::ostringstream message;
+				message << "D3D12CreateDevice at feature level 12_0 failed (HRESULT 0x" << std::hex << std::uppercase
+					<< std::setw(8) << std::setfill('0') << static_cast<unsigned long>(hr) << ").";
+				throw std::runtime_error(message.str());
+			}
+
+			if (desc.disableDriverBackgroundOptimizations)
+			{
+				auto CheckControlResult = [](HRESULT result, const char* operation)
+				{
+					if (FAILED(result))
+					{
+						std::ostringstream message;
+						message << operation << " failed (HRESULT 0x" << std::hex << std::uppercase
+							<< std::setw(8) << std::setfill('0') << static_cast<unsigned long>(result)
+							<< "). Disabling D3D12 driver background optimizations requires ID3D12Device6 and Windows Developer Mode. "
+							<< "Enable Windows Developer Mode before running GPU tests.";
+						throw std::runtime_error(message.str());
+					}
+				};
+
+				// Apply before creating queues or PSOs so no workload can train dynamic optimizations.
+				ComPtrWrapper<ID3D12Device6> device6;
+				CheckControlResult(device12->QueryInterface(IID_PPV_ARGS(device6.GetAddressOf())), "QueryInterface(ID3D12Device6)");
+				CheckControlResult(device6->SetBackgroundProcessingMode(
+					D3D12_BACKGROUND_PROCESSING_MODE_DISABLE_PROFILING_BY_SYSTEM,
+					D3D12_MEASUREMENTS_ACTION_KEEP_ALL, nullptr, nullptr), "SetBackgroundProcessingMode");
+				std::cout << "[ OMM GPU  ] D3D12 driver background optimizations: DISABLED" << std::endl;
+			}
+			else
+			{
+				std::cout << "[ OMM GPU  ] D3D12 driver background optimizations: DEFAULT (control disabled)" << std::endl;
+			}
 
 			if (desc.enableDebugRuntime)
 			{

@@ -733,6 +733,8 @@ ommResult PipelineImpl::InitGlobalConstants(const ommGpuDispatchConfigDesc& conf
     cbuffer.EnablePostDispatchInfoStats                = enablePostDispatchInfoStats && doBake;
     cbuffer.IndirectDispatchEntryStride                = kIndirectDispatchEntryStride;
     cbuffer.SamplerIndex                               = m_pipelineBuilder.GetStaticSamplerIndex(config.runtimeSamplerDesc);
+    cbuffer.TextureAddressMode                         = (uint32_t)config.runtimeSamplerDesc.addressingMode;
+    cbuffer.BorderAlpha                                = config.runtimeSamplerDesc.borderAlpha;
     cbuffer.BakeResultBufferSize                       = info.bakeResultBuffer.GetSize();
     cbuffer.ViewportSize                               = viewportSize;
     cbuffer.ViewportOffset                             = viewportOffset;
@@ -834,25 +836,30 @@ ommResult PipelineImpl::GetDispatchDesc(const ommGpuDispatchConfigDesc& config, 
         };
 
         auto ClearResource = [&](const char* name, const ommGpuResourceType resourceType, uint32_t byteSize) {
+            const uint32_t numElements = byteSize / 4;
+            if (numElements == 0)
+                return;
+
             SCOPED_LABEL(name);
 
-            BEGIN_PASS(name,  ommGpuDispatchType_Compute, m_pipelines.ommClearBufferBindings);
-            p.UseGlobalCbuffer();
-            p.BindResource("u_targetBuffer", resourceType);
+            // Keep each dispatch within the D3D12/Vulkan X dimension limit.
+            const uint32_t maxElementsPerDispatch = 65535u * 128u;
+            for (uint32_t elementOffset = 0; elementOffset < numElements; )
+            {
+                const uint32_t dispatchElements = std::min(numElements - elementOffset, maxElementsPerDispatch);
+                BEGIN_PASS(name, ommGpuDispatchType_Compute, m_pipelines.ommClearBufferBindings);
+                p.UseGlobalCbuffer();
+                p.BindResource("u_targetBuffer", resourceType);
 
-            OMM_ASSERT(byteSize % 4 == 0);
-            const uint32_t numElements = byteSize / 4;
-
-            const uint32_t threadGroupCountX = math::DivUp<uint32_t>(numElements, 128u);
-            OMM_ASSERT(threadGroupCountX != 0);
-
-            CBufferWriter& lCb = p.AddComputeDispatch(m_pipelines.ommClearBufferIdx, threadGroupCountX, 1);
-            lCb.WriteDW(0 /*ClearValue*/);
-            lCb.WriteDW(numElements /*NumElements*/);
-            lCb.WriteDW(0 /*BufferOffset*/);
-            for (uint32_t i = 0; i < 5u; ++i)
-                lCb.WriteDW(0u /*dummy*/);
-            END_PASS();
+                CBufferWriter& lCb = p.AddComputeDispatch(m_pipelines.ommClearBufferIdx, math::DivUp<uint32_t>(dispatchElements, 128u), 1);
+                lCb.WriteDW(0 /*ClearValue*/);
+                lCb.WriteDW(dispatchElements /*NumElements*/);
+                lCb.WriteDW(elementOffset * 4 /*BufferOffset*/);
+                for (uint32_t i = 0; i < 5u; ++i)
+                    lCb.WriteDW(0u /*dummy*/);
+                END_PASS();
+                elementOffset += dispatchElements;
+            }
         };
 
         if (info.scratchBuffer.allocator.GetCurrentReservation() != 0)
@@ -863,6 +870,10 @@ ommResult PipelineImpl::GetDispatchDesc(const ommGpuDispatchConfigDesc& config, 
             ClearBuffer("ClearScratchMemory2", &info.indArgBuffer);
         if (info.debugBuffer.allocator.GetCurrentReservation() != 0)
             ClearBuffer("ClearScratchMemory3", &info.debugBuffer);
+
+        // Compute baking assembles states with InterlockedOr and requires zeroed words.
+        if (computeOnly && doBake)
+            ClearResource("ClearOmmArray", ommGpuResourceType_OUT_OMM_ARRAY_DATA, preBuildInfo.outOmmArraySizeInBytes);
     }
 
     if (computeOnly)
