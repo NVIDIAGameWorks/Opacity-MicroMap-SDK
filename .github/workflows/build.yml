@@ -8,7 +8,7 @@ on:
       - main
 jobs:
   Build:
-    name: Build-${{ matrix.platform }}-${{ matrix.arch }}
+    name: Build-${{ matrix.platform }}-${{ matrix.arch }} (${{ matrix.gpu-tests && 'CPU + GPU' || 'CPU only' }} tests)
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -17,24 +17,28 @@ jobs:
           - os: windows-latest
             platform: Windows
             arch: x64
+            gpu-tests: true
             cmake-args: -A x64
             test-command: ./tests.exe
             artifact-name: Opacity Micro-Map SDK Windows
           - os: ubuntu-22.04
             platform: Linux
             arch: x64
+            gpu-tests: false
             cmake-args: -G "Ninja Multi-Config"
             test-command: ./tests
             artifact-name: Opacity Micro-Map SDK Linux
           - os: windows-11-arm
             platform: Windows
             arch: ARM64
+            gpu-tests: false
             cmake-args: -A ARM64
             test-command: ./tests.exe
             artifact-name: Opacity Micro-Map SDK Windows ARM64
           - os: ubuntu-24.04-arm
             platform: Linux
             arch: ARM64
+            gpu-tests: false
             cmake-args: -G "Ninja Multi-Config"
             test-command: ./tests
             artifact-name: Opacity Micro-Map SDK Linux ARM64 CPU
@@ -64,7 +68,7 @@ jobs:
           "VULKAN_SDK=C:/VulkanSDK/" >> $env:GITHUB_ENV
           "C:/VulkanSDK/Bin" >> $env:GITHUB_PATH
       - name: Configure Windows WARP test prerequisites
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && matrix.gpu-tests
         shell: pwsh
         run: |
           $graphicsTools = Get-WindowsCapability -Online -Name 'Tools.Graphics.DirectX~~~~0.0.1.0'
@@ -94,19 +98,19 @@ jobs:
       - name: CMake Generate (precise CPU/GPU math)
         env:
           BUILD_ARCH: ${{ matrix.arch }}
+          GPU_TESTS: ${{ matrix.gpu-tests && 'ON' || 'OFF' }}
         run: |
-          cmake_args=(-DOMM_VIEWER_INSTALL=OFF -DOMM_ENABLE_TESTS=ON -DOMM_ENABLE_FAST_MATH=OFF)
+          cmake_args=(-DOMM_VIEWER_INSTALL=OFF -DOMM_ENABLE_TESTS=ON -DOMM_ENABLE_FAST_MATH=OFF "-DOMM_ENABLE_GPU_TESTS=$GPU_TESTS")
           if [[ "$RUNNER_OS" == "Windows" ]]; then
             cmake_args+=(
-              -DOMM_ENABLE_GPU_TESTS=ON
               -DOMM_GPU_REFERENCE_MODE=ON
               -DOMM_BUILD_OMM_GPU_NVRHI=ON
               -DOMM_INTEGRATION_LAYER_NVRHI=ON
               -DOMM_ENABLE_PRECOMPILED_SHADERS_DXIL=ON
-              -DOMM_TEST_USE_WARP=ON
+              "-DOMM_TEST_USE_WARP=$GPU_TESTS"
             )
           fi
-          # ARM64 builds omit the viewer and SPIR-V; Windows uses D3D12 WARP.
+          # ARM64 builds omit the viewer and SPIR-V; only Windows x64 runs GPU tests on WARP.
           if [[ "$BUILD_ARCH" == "ARM64" ]]; then
             cmake_args+=(
               -DOMM_BUILD_VIEWER=OFF
@@ -120,7 +124,6 @@ jobs:
             else
               cmake_args+=(
                 -DOMM_BUILD_OMM_GPU_NVRHI=OFF
-                -DOMM_ENABLE_GPU_TESTS=OFF
                 -DOMM_ENABLE_PRECOMPILED_SHADERS_DXIL=OFF
                 -DSHADERMAKE_FIND_COMPILERS=OFF
               )
@@ -131,7 +134,7 @@ jobs:
         run: cmake --build build --config Debug --parallel
       - name: Build Release (precise CPU/GPU math)
         run: cmake --build build --config Release --parallel
-      - name: Test Release (precise CPU/GPU math)
+      - name: Test Release (${{ matrix.gpu-tests && 'CPU + GPU' || 'CPU only' }} tests, precise math)
         working-directory: build/bin/Release
         run: ${{ matrix.test-command }}
       - name: Configure fast CPU/GPU math for publishing

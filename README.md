@@ -152,7 +152,7 @@ to omit the tool.
 
 `-DOMM_GPU_REFERENCE_MODE=ON` - Select software square roots, division, and sampling with precise arithmetic (`-Gis`) and disabled shader optimizations (`-Od`, including the DXIL driver optimization flag) for all GPU baker shader stages. This single GPU math setting defaults to `OFF`, which uses native math, hardware sampling, and optimized shaders. GPU tests never enable it automatically. GPU baker creation reports a `PerfWarning` through the supplied SDK message callback when this mode is enabled. Reference-mode GPU tests also require Windows Developer Mode and `ID3D12Device6` to disable driver background optimizations before creating pipelines; setup fails if the policy cannot be applied. CPU `OMM_ENABLE_FAST_MATH` is independent. See [GPU determinism](docs/integration_guide.md#gpu-determinism) for instructions and remaining sources of variation.
 
-`-DOMM_TEST_USE_WARP=ON` - Run Windows GPU tests using the D3D12 WARP software adapter, including on hosts without a physical GPU. Disabled by default. Windows x64 and ARM64 Actions jobs run all applicable CPU, GPU API, and compute bake tests on WARP with reference mode enabled; Linux ARM64 runs CPU tests.
+`-DOMM_TEST_USE_WARP=ON` - Run Windows GPU tests using the D3D12 WARP software adapter, including on hosts without a physical GPU. Disabled by default.
 
 `-DOMM_SHADER_DEBUG_INFO=OFF` - Will include and embed shader debug (-Zi, -Qembed_debug) info when running OMM_ENABLE_PRECOMPILED_SHADERS_DXIL=ON or OMM_ENABLE_PRECOMPILED_SHADERS_SPIRV=ON. Only recommended for debugging purpuses.
 
