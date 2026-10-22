@@ -11,6 +11,8 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #ifndef PLATFORM_HLSLI
 #define PLATFORM_HLSLI
 
+#include "omm_index_buffer.hlsli"
+
 #ifdef __spirv__
 #define ALLOW_UAV_CONDITION
 #define VK_PUSH_CONSTANT [[vk::push_constant]]

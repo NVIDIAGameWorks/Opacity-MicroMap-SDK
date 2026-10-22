@@ -142,6 +142,8 @@ to omit the tool.
 
 `-DOMM_ENABLE_PRECOMPILED_SHADERS_SPIRV=ON` - Enable this when using the GPU baker with precompiled shaders in Vulkan. The SPIRV will be part of the generated library files (.dll) and can be used direct to create the nessesary pipeline state objects at runtime. This may get disabled if Vulkan SDK is not found on the system.
 
+`-DOMM_USE_RAW_INDEX_BUFFER=ON` - Use a raw `ByteAddressBuffer` for GPU input indices, with software unpacking of 8-bit, 16-bit, and 32-bit indices. Defaults to `OFF`, which uses a typed `Buffer<uint>`. Applies to embedded DXIL and SPIR-V shaders and their resource descriptions. See [GPU input index buffers](docs/integration_guide.md#gpu-input-index-buffers) for custom shader integration.
+
 `-DOMM_ENABLE_BMI2=ON` - Enable BMI2 optimizations for x86-64 targets.
 
 `-DOMM_ENABLE_FAST_MATH=ON` - Enable CPU fast math optimizations.

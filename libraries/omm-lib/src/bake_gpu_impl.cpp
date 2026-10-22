@@ -39,6 +39,17 @@ namespace omm
 namespace Gpu
 {
 
+static uint32_t GetInputIndexSize(ommIndexFormat format)
+{
+    switch (format)
+    {
+    case ommIndexFormat_UINT_8: return 1;
+    case ommIndexFormat_UINT_16: return 2;
+    case ommIndexFormat_UINT_32: return 4;
+    default: return 0;
+    }
+}
+
 // OmmStaticBuffersImpl =================================================================================
 
 static inline constexpr uint32_t ComputeStaticIndexBufferSize(uint32_t maxSubdivisionLevel) {
@@ -604,6 +615,24 @@ ommResult PipelineImpl::GetPreDispatchInfo(const ommGpuDispatchConfigDesc& confi
     if (!outPreBuildInfo)
         return m_log.InvalidArg("[Invalid Arg] - preBuildInfo is null");
 
+    const uint32_t inputIndexSize = GetInputIndexSize(config.indexFormat);
+    if (inputIndexSize == 0)
+        return m_log.InvalidArg("[Invalid Arg] - indexFormat must be UINT_8, UINT_16, or UINT_32");
+#if OMM_USE_RAW_INDEX_BUFFER
+    const uint32_t inputIndexStride = config.indexStrideInBytes == 0 ? inputIndexSize : config.indexStrideInBytes;
+    if (inputIndexStride < inputIndexSize)
+        return m_log.InvalidArg("[Invalid Arg] - indexStrideInBytes is smaller than the index element size");
+    if (inputIndexStride % inputIndexSize != 0)
+        return m_log.InvalidArg("[Invalid Arg] - indexStrideInBytes must be a multiple of the index element size");
+#else
+    const uint32_t inputIndexStride = inputIndexSize;
+#endif
+    const uint64_t firstIndexOffset = uint64_t(config.indexOffset) * inputIndexSize;
+    const uint64_t indexAddressRange = uint64_t(std::numeric_limits<uint32_t>::max()) + 1;
+    if (firstIndexOffset >= indexAddressRange || (config.indexCount != 0 &&
+        uint64_t(config.indexCount - 1) * inputIndexStride + inputIndexSize > indexAddressRange - firstIndexOffset))
+        return m_log.InvalidArg("[Invalid Arg] - input index byte offsets exceed the 32-bit shader address range");
+
     constexpr uint32_t kNumSpecialIndices = 4;
 
     const uint32_t primitiveCount       = config.indexCount / 3;
@@ -726,12 +755,7 @@ ommResult PipelineImpl::InitGlobalConstants(const ommGpuDispatchConfigDesc& conf
 
     cbuffer = {0, };
     cbuffer.IndexCount                                 = config.indexCount;
-    if (config.indexFormat == ommIndexFormat_UINT_8)
-        cbuffer.IndexOffset                            = config.indexOffset;
-    else if (config.indexFormat == ommIndexFormat_UINT_16)
-        cbuffer.IndexOffset                            = 2 * config.indexOffset;
-    else
-        cbuffer.IndexOffset                            = 4 * config.indexOffset;
+    cbuffer.IndexOffset                                = config.indexOffset;
     cbuffer.PrimitiveCount                             = primitiveCount;
     cbuffer.MaxBatchCount                              = info.MaxBatchCount;
     cbuffer.MaxOutOmmArraySize                         = preBuildInfo.outOmmArraySizeInBytes;
@@ -757,15 +781,10 @@ ommResult PipelineImpl::InitGlobalConstants(const ommGpuDispatchConfigDesc& conf
     cbuffer.TexCoordFormat                             = (uint32_t)config.texCoordFormat;
     cbuffer.TexCoordOffset                             = config.texCoordOffsetInBytes;
     cbuffer.TexCoordStride                             = config.texCoordStrideInBytes == 0 ? GetTexCoordFormatSize(config.texCoordFormat) : config.texCoordStrideInBytes;
-    cbuffer.InputIndexFormat                           = (uint32_t)config.indexFormat;
-    if (config.indexStrideInBytes != 0)
-        cbuffer.InputIndexStride                       = config.indexStrideInBytes;
-    else if (config.indexFormat == ommIndexFormat_UINT_8)
-        cbuffer.InputIndexStride                       = 1;
-    else if (config.indexFormat == ommIndexFormat_UINT_16)
-        cbuffer.InputIndexStride                       = 2;
-    else
-        cbuffer.InputIndexStride                       = 4;
+    cbuffer.InputIndexSize                             = GetInputIndexSize(config.indexFormat);
+#if OMM_USE_RAW_INDEX_BUFFER
+    cbuffer.InputIndexStride                           = config.indexStrideInBytes == 0 ? cbuffer.InputIndexSize : config.indexStrideInBytes;
+#endif
     cbuffer.AlphaCutoff                                = config.alphaCutoff;
     cbuffer.AlphaCutoffGreater                         = (uint32_t)config.alphaCutoffGreater;
     cbuffer.AlphaCutoffLessEqual                       = (uint32_t)config.alphaCutoffLessEqual;

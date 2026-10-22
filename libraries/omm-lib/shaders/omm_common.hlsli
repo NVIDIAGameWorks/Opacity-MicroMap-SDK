@@ -123,26 +123,33 @@ float2 UnpackFP16Pair(uint packed)
     return f16tof32(data);
 }
 
-uint FetchInputIndex(ByteAddressBuffer indexBuffer, uint index)
+uint FetchInputIndex(OMM_INDEX_BUFFER_TYPE indexBuffer, uint index)
 {
-	const OmmIndexFormat indexFormat = (OmmIndexFormat)g_GlobalConstants.InputIndexFormat;
-	const uint indexOffsetInBytes = g_GlobalConstants.IndexOffset + index * g_GlobalConstants.InputIndexStride;
+#if OMM_USE_RAW_INDEX_BUFFER
+	const uint indexSize = g_GlobalConstants.InputIndexSize;
+	const uint indexOffsetInBytes = g_GlobalConstants.IndexOffset * indexSize + index * g_GlobalConstants.InputIndexStride;
+	// Naturally aligned indices never cross a DWORD boundary.
+	const uint alignedOffset = indexOffsetInBytes & ~3u;
+	const uint shift = (indexOffsetInBytes & 3u) << 3u;
+	const uint raw = indexBuffer.Load(alignedOffset);
 
-	if (indexFormat == OmmIndexFormat::UINT_8)
+	if (indexSize == 1u)
 	{
-		const uint raw = indexBuffer.Load(indexOffsetInBytes & ~3u);
-		return (raw >> ((indexOffsetInBytes & 3u) << 3u)) & 0xFFu;
+		return (raw >> shift) & 0xFFu;
 	}
-	else if (indexFormat == OmmIndexFormat::UINT_16)
+	else if (indexSize == 2u)
 	{
-		const uint raw = indexBuffer.Load(indexOffsetInBytes & ~3u);
-		return (raw >> ((indexOffsetInBytes & 2u) << 3u)) & 0xFFFFu;
+		return (raw >> shift) & 0xFFFFu;
 	}
 
-	return indexBuffer.Load(indexOffsetInBytes);
+	return raw;
+#else
+	// The typed view performs the 8/16/32-bit conversion to uint in hardware.
+	return indexBuffer[g_GlobalConstants.IndexOffset + index];
+#endif
 }
 
-TexCoords FetchTexCoords(ByteAddressBuffer indexBuffer, ByteAddressBuffer texCoordBuffer, uint primitiveIndex)
+TexCoords FetchTexCoords(OMM_INDEX_BUFFER_TYPE indexBuffer, ByteAddressBuffer texCoordBuffer, uint primitiveIndex)
 {
 	uint3 indices;
 	indices.x		= FetchInputIndex(indexBuffer, primitiveIndex * 3 + 0);
