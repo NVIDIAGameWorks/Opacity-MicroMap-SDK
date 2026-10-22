@@ -9,6 +9,12 @@ endif()
 
 if (OMM_ENABLE_GPU_TESTS)
 
+    if (OMM_USE_RAW_INDEX_BUFFER)
+        message(WARNING
+            "GPU tests use the typed-buffer NVRHI integration and require OMM_USE_RAW_INDEX_BUFFER=OFF. "
+            "GPU tests remain enabled with the selected settings.")
+    endif()
+
     if (NOT OMM_ENABLE_PRECOMPILED_SHADERS_DXIL)
         message(FATAL_ERROR "GPU tests require embedded DXIL shaders")
     endif()

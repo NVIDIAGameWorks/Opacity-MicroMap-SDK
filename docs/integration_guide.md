@@ -595,6 +595,29 @@ RHI must have the ability to do the following:
 ## Variant 2:  White-box library (using the application-side Render Hardware Interface)
 Logically it's close to the Method 1, but the integration takes place in the full source code (only the OMM project is needed). In this case OMM shaders are handled by the application shader compilation pipeline. The application should still use OMM via OMM API to preserve forward compatibility.
 
+## GPU input index buffers
+
+GPU shaders use a typed `Buffer<uint>` for `IN_INDEX_BUFFER` by default (`OMM_USE_RAW_INDEX_BUFFER=0`). Bind an unsigned integer buffer view matching `indexFormat`; the hardware converts each 8-bit, 16-bit, or 32-bit element to `uint`.
+
+Set `OMM_USE_RAW_INDEX_BUFFER=1` to use a raw `ByteAddressBuffer` and unpack indices in the shader. Bind a raw buffer view in this mode. For black-box integration, configure the SDK with `-DOMM_USE_RAW_INDEX_BUFFER=ON`; this sets the mode for the embedded DXIL and SPIR-V shaders and the SDK's resource descriptions. The CMake option defaults to `OFF`.
+
+The supplied `omm-gpu-nvrhi` integration uses typed index buffers and requires `OMM_USE_RAW_INDEX_BUFFER=OFF`. Enabling GPU tests with a raw-mode SDK emits a CMake warning and leaves the tests enabled. Raw-mode applications must bind the SDK resources through their own integration.
+
+`indexOffset` is a base offset in index elements. Typed buffers read consecutive elements at `indexOffset + i` and ignore `indexStrideInBytes`.
+
+For raw buffers, index `i` starts at byte offset `indexOffset * indexElementSize + i * effectiveStrideInBytes`; `indexStrideInBytes=0` selects tightly packed indices. A nonzero stride must be at least the index element size and a multiple of it. For example, 16-bit indices may use a six-byte stride; DWORD-aligned strides are not required for smaller formats. These naturally aligned indices never cross a DWORD boundary. Create raw buffers with raw-view support and DWORD-aligned view offsets, and pad their allocation and exposed view size to a multiple of four bytes, so the final aligned 32-bit load stays in bounds. Use the SDK's returned resource descriptions to select `BufferRead` or `RawBufferRead` bindings.
+
+For a custom engine shader pipeline, define the same numeric value before including any OMM shader or resource headers, including when supplying all binding macros yourself with `COMPILER_DXC=0` and `COMPILER_FXC=0`:
+
+```hlsl
+#define OMM_USE_RAW_INDEX_BUFFER 1
+// Define the engine's OMM binding macros, then include the OMM shader.
+```
+
+Compile the SDK host code with the same `OMM_USE_RAW_INDEX_BUFFER` value so its resource descriptions agree with the shaders. When using CMake, select the matching option there as well. This setting applies to GPU input indices; it does not change the CPU baker or the OMM output index buffer.
+
+In the shader cbuffer, `IndexOffset` is a base offset in index elements in both modes. `InputIndexSize` is the precomputed index element size in bytes, and `InputIndexStride` is the byte stride; both are used only by raw buffers.
+
 ## HOW TO RUN BAKING?
 
 *OMM SDK* doesn't make any graphics API calls. The application is supposed to invoke a set of compute Dispatch(), DispatchIndirect(), DrawIndexedIndirect() (optional) calls to perform the build. Refer to ``omm-sdk-nvrhi`` for and example integration using a low level RHI.

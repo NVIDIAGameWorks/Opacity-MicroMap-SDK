@@ -14,7 +14,6 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include "omm_platform.hlsli"
 #include "omm.hlsli"
 #include "omm_global_cb.hlsli"
-#include "omm_global_samplers.hlsli"
 
 #if defined(OMM_GPU_REFERENCE_MODE) && OMM_GPU_REFERENCE_MODE
 #include "omm_software_divide.hlsli"
@@ -124,12 +123,38 @@ float2 UnpackFP16Pair(uint packed)
     return f16tof32(data);
 }
 
-TexCoords FetchTexCoords(Buffer<uint> indexBuffer, ByteAddressBuffer texCoordBuffer, uint primitiveIndex)
+uint FetchInputIndex(OMM_INDEX_BUFFER_TYPE indexBuffer, uint index)
+{
+#if OMM_USE_RAW_INDEX_BUFFER
+	const uint indexSize = g_GlobalConstants.InputIndexSize;
+	const uint indexOffsetInBytes = g_GlobalConstants.IndexOffset * indexSize + index * g_GlobalConstants.InputIndexStride;
+	// Naturally aligned indices never cross a DWORD boundary.
+	const uint alignedOffset = indexOffsetInBytes & ~3u;
+	const uint shift = (indexOffsetInBytes & 3u) << 3u;
+	const uint raw = indexBuffer.Load(alignedOffset);
+
+	if (indexSize == 1u)
+	{
+		return (raw >> shift) & 0xFFu;
+	}
+	else if (indexSize == 2u)
+	{
+		return (raw >> shift) & 0xFFFFu;
+	}
+
+	return raw;
+#else
+	// The typed view performs the 8/16/32-bit conversion to uint in hardware.
+	return indexBuffer[g_GlobalConstants.IndexOffset + index];
+#endif
+}
+
+TexCoords FetchTexCoords(OMM_INDEX_BUFFER_TYPE indexBuffer, ByteAddressBuffer texCoordBuffer, uint primitiveIndex)
 {
 	uint3 indices;
-	indices.x		= indexBuffer[g_GlobalConstants.IndexOffset + primitiveIndex * 3 + 0];
-	indices.y		= indexBuffer[g_GlobalConstants.IndexOffset + primitiveIndex * 3 + 1];
-	indices.z		= indexBuffer[g_GlobalConstants.IndexOffset + primitiveIndex * 3 + 2];
+	indices.x		= FetchInputIndex(indexBuffer, primitiveIndex * 3 + 0);
+	indices.y		= FetchInputIndex(indexBuffer, primitiveIndex * 3 + 1);
+	indices.z		= FetchInputIndex(indexBuffer, primitiveIndex * 3 + 2);
 
 	float2 vertexUVs[3];
 	

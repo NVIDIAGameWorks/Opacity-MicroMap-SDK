@@ -23,7 +23,6 @@
 #include "omm_platform.hlsli"
 #include "omm.hlsli"
 #include "omm_global_cb.hlsli"
-#include "omm_global_samplers.hlsli"
 #include "omm_rasterize.cs.resources.hlsli"
 
 OMM_DECLARE_GLOBAL_CONSTANT_BUFFER

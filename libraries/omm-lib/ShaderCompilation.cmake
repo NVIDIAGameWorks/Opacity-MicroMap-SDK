@@ -14,7 +14,7 @@ function(compile_shaders)
 
     # Apply to every shader stage and both backends. CPU fast math is configured
     # separately by OMM_ENABLE_FAST_MATH.
-    set(SHADERMAKE_COMPILER_OPTIONS "")
+    set(SHADERMAKE_COMPILER_OPTIONS --compilerOptions=-DOMM_USE_RAW_INDEX_BUFFER=$<BOOL:${OMM_USE_RAW_INDEX_BUFFER}>)
     if (OMM_ENABLE_PRECISE_GPU_MATH)
         list(APPEND SHADERMAKE_COMPILER_OPTIONS --compilerOptions=-Gis)
     endif()
