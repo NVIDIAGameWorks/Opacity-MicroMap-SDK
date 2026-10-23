@@ -33,7 +33,7 @@ OMM_CONSTANTS_START(GlobalConstants)							\
 																\
 	OMM_CONSTANT(uint, OMMFormat)								\
 	OMM_CONSTANT(uint, TexCoordHashTableEntryCount)				\
-	OMM_CONSTANT(float, DynamicSubdivisionScale)				\
+	OMM_CONSTANT(float, TargetEdgeLengthInTexels)				\
 	OMM_CONSTANT(float, BorderAlpha)							\
 																\
 	OMM_CONSTANT(uint, TexCoordFormat)							\
@@ -74,5 +74,10 @@ OMM_CONSTANTS_START(GlobalConstants)							\
 	OMM_CONSTANT(uint, TempOmmBakeScheduleTrackerBufferOffset)	\
 	OMM_CONSTANT(uint, AssertBufferOffset)						\
 	OMM_CONSTANT(uint, IndirectDispatchEntryStride)				\
+																\
+	OMM_CONSTANT(uint, SubdivisionMode)						\
+	OMM_CONSTANT(float, TargetAreaInSquareTexels)				\
+	OMM_CONSTANT(uint, PadSubdivision0)						\
+	OMM_CONSTANT(uint, PadSubdivision1)						\
 																\
 OMM_CONSTANTS_END(GlobalConstants, 0)

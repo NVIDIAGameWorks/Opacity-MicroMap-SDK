@@ -17,6 +17,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include "util/parse.h"
 
 #include <algorithm>
+#include <limits>
 #include <random>
 
 namespace {
@@ -248,9 +249,129 @@ namespace {
 			EXPECT_EQ(omm::Cpu::DestroyBakeResult(res), omm::Result::SUCCESS);
 		}
 
+		omm::Cpu::BakeInputDesc SubdivisionInput()
+		{
+			std::vector<uint8_t> alpha(64 * 64, 255);
+			omm::Cpu::TextureMipDesc mip;
+			mip.width = 64;
+			mip.height = 64;
+			mip.rowPitch = 64;
+			mip.textureData = alpha.data();
+			omm::Cpu::TextureDesc texture;
+			texture.format = omm::Cpu::TextureFormat::UNORM8;
+			texture.mips = &mip;
+			texture.mipCount = 1;
+			texture.alphaCutoff = 0.5f;
+			static uint32_t indices[] = { 0, 1, 2, 3, 4, 5 };
+			static float uvs[] = {
+				0.f, 0.5f, 0.5f, 0.5f, 1.f, 0.5f,
+				0.125f, 0.125f, 0.875f, 0.125f, 0.5f, 0.75f
+			};
+			omm::Cpu::BakeInputDesc input;
+			input.texture = CreateTexture(texture);
+			input.alphaMode = omm::AlphaMode::Test;
+			input.runtimeSamplerDesc.addressingMode = omm::TextureAddressMode::Clamp;
+			input.runtimeSamplerDesc.filter = omm::TextureFilterMode::Linear;
+			input.indexFormat = omm::IndexFormat::UINT_32;
+			input.indexBuffer = indices;
+			input.indexCount = 6;
+			input.texCoordFormat = omm::TexCoordFormat::UV32_FLOAT;
+			input.texCoords = uvs;
+			input.maxSubdivisionLevel = 6;
+			input.bakeFlags = omm::Cpu::BakeFlags::DisableSpecialIndices;
+			return input;
+		}
+
+		void ExpectSubdivisionLevels(const omm::Cpu::BakeInputDesc& input, const std::vector<int32_t>& expected)
+		{
+			omm::Cpu::BakeResult result = nullptr;
+			ASSERT_EQ(omm::Cpu::Bake(_baker, input, &result), omm::Result::SUCCESS);
+			const omm::Cpu::BakeResultDesc* desc = nullptr;
+			const auto status = omm::Cpu::GetBakeResultDesc(result, &desc);
+			EXPECT_EQ(status, omm::Result::SUCCESS);
+			std::vector<int32_t> actual;
+			if (status == omm::Result::SUCCESS)
+			{
+				EXPECT_EQ(desc->indexCount, expected.size());
+				for (uint32_t i = 0; i < desc->indexCount; ++i)
+					actual.push_back(omm::parse::GetTriangleStates(i, *desc, nullptr));
+			}
+			EXPECT_EQ(omm::Cpu::DestroyBakeResult(result), omm::Result::SUCCESS);
+			EXPECT_EQ(actual, expected);
+		}
+
 		std::vector< omm::Cpu::Texture> _textures;
 		omm::Baker _baker = 0;
 	};
+
+	TEST_F(BakeSubDiv, SubdivisionModesUseTexelTargets) {
+		auto input = SubdivisionInput();
+		const float nan = std::numeric_limits<float>::quiet_NaN();
+		input.dynamicSubdivisionScale = nan;
+		input.bakeFlags = static_cast<omm::Cpu::BakeFlags>(static_cast<uint32_t>(input.bakeFlags) | (1u << 11u));
+		input.subdivision = { omm::SubdivisionMode::Area, 4.f, 8.f };
+		ExpectSubdivisionLevels(input, { 3, 4 });
+		input.subdivision.targetEdgeLengthInTexels = 16.f;
+		ExpectSubdivisionLevels(input, { 2, 4 });
+		input.subdivision = { omm::SubdivisionMode::Area, 16.f, 8.f };
+		ExpectSubdivisionLevels(input, { 3, 3 });
+		input.subdivision = { omm::SubdivisionMode::Edge, nan, 8.f };
+		ExpectSubdivisionLevels(input, { 3, 3 });
+		input.subdivision.targetEdgeLengthInTexels = 16.f;
+		ExpectSubdivisionLevels(input, { 2, 2 });
+		input.maxSubdivisionLevel = 2;
+		input.subdivision.targetEdgeLengthInTexels = 8.f;
+		ExpectSubdivisionLevels(input, { 2, 2 });
+		input.subdivision = { omm::SubdivisionMode::Fixed, nan, nan };
+		ExpectSubdivisionLevels(input, { 2, 2 });
+		input.maxSubdivisionLevel = 6;
+		input.subdivision = { omm::SubdivisionMode::Area, std::numeric_limits<float>::min(), std::numeric_limits<float>::min() };
+		ExpectSubdivisionLevels(input, { 6, 6 });
+		input.subdivision = { omm::SubdivisionMode::Edge, nan, std::numeric_limits<float>::max() };
+		ExpectSubdivisionLevels(input, { 0, 0 });
+	}
+
+	TEST_F(BakeSubDiv, SubdivisionLegacyAndPerTriangleOverrides) {
+		auto input = SubdivisionInput();
+		input.dynamicSubdivisionScale = 2.f;
+		ExpectSubdivisionLevels(input, { 5, 4 });
+		input.bakeFlags = static_cast<omm::Cpu::BakeFlags>(static_cast<uint32_t>(input.bakeFlags) | (1u << 11u));
+		ExpectSubdivisionLevels(input, { 5, 5 });
+		input.dynamicSubdivisionScale = 0.f;
+		input.maxSubdivisionLevel = 2;
+		ExpectSubdivisionLevels(input, { 2, 2 });
+		uint8_t levels[] = { 1, 2 };
+		input.subdivisionLevels = levels;
+		input.subdivision = { omm::SubdivisionMode::Fixed, 4.f, 8.f };
+		input.maxSubdivisionLevel = 0;
+		ExpectSubdivisionLevels(input, { 1, 2 });
+	}
+
+	TEST_F(BakeSubDiv, SubdivisionRejectsInvalidActiveTargets) {
+		auto input = SubdivisionInput();
+		const float invalid[] = { 0.f, -1.f, std::numeric_limits<float>::infinity(), std::numeric_limits<float>::quiet_NaN() };
+		for (float value : invalid)
+		{
+			const omm::SubdivisionDesc settings[] = {
+				{ omm::SubdivisionMode::Area, value, 8.f },
+				{ omm::SubdivisionMode::Area, 4.f, value },
+				{ omm::SubdivisionMode::Edge, 4.f, value },
+			};
+			for (const auto& subdivision : settings)
+			{
+				input.subdivision = subdivision;
+				omm::Cpu::BakeResult result = nullptr;
+				EXPECT_EQ(omm::Cpu::Bake(_baker, input, &result), omm::Result::INVALID_ARGUMENT);
+				if (result)
+					omm::Cpu::DestroyBakeResult(result);
+			}
+		}
+		input.subdivision.mode = omm::SubdivisionMode::MAX_NUM;
+		omm::Cpu::BakeResult result = nullptr;
+		EXPECT_EQ(omm::Cpu::Bake(_baker, input, &result), omm::Result::INVALID_ARGUMENT);
+		if (result)
+			omm::Cpu::DestroyBakeResult(result);
+	}
 
 	TEST_F(BakeSubDiv, Mixed) {
 		BakeMixedSubDivs(

@@ -15,6 +15,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include "util/math.h"
 #include "util/bird.h"
 #include "util/cpu_raster.h"
+#include "util/subdivision.h"
 #include "util/util.h"
 
 #include <array>
@@ -270,6 +271,9 @@ ommResult  PipelineImpl::Validate(const ommGpuDispatchConfigDesc& config) const
     const bool doSetup                      = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_PerformSetup) == (uint32_t)ommGpuBakeFlags_PerformSetup);
     const bool doBake                       = (((uint32_t)config.bakeFlags & (uint32_t)ommGpuBakeFlags_PerformBake) == (uint32_t)ommGpuBakeFlags_PerformBake);
     
+    if (const char* error = ValidateSubdivision(config.subdivision, config.dynamicSubdivisionScale))
+        return m_log.InvalidArgf("[Invalid Argument] - %s", error);
+
     if (config.indexCount == 0)
         return m_log.InvalidArg("[Invalid Arg] - indexCount must be non-zero");
     if (config.indexCount % 3 != 0)
@@ -633,6 +637,9 @@ ommResult PipelineImpl::GetPreDispatchInfo(const ommGpuDispatchConfigDesc& confi
         uint64_t(config.indexCount - 1) * inputIndexStride + inputIndexSize > indexAddressRange - firstIndexOffset))
         return m_log.InvalidArg("[Invalid Arg] - input index byte offsets exceed the 32-bit shader address range");
 
+    if (const char* error = ValidateSubdivision(config.subdivision, config.dynamicSubdivisionScale))
+        return m_log.InvalidArgf("[Invalid Argument] - %s", error);
+
     constexpr uint32_t kNumSpecialIndices = 4;
 
     const uint32_t primitiveCount       = config.indexCount / 3;
@@ -774,7 +781,12 @@ ommResult PipelineImpl::InitGlobalConstants(const ommGpuDispatchConfigDesc& conf
     cbuffer.MaxSubdivisionLevel                        = config.maxSubdivisionLevel;
     cbuffer.OMMFormat                                   = (uint32_t)config.globalFormat;
     cbuffer.TexCoordHashTableEntryCount                = hashTableEntryCount;
-    cbuffer.DynamicSubdivisionScale                    = config.dynamicSubdivisionScale;
+    cbuffer.SubdivisionMode                            = (uint32_t)(config.subdivision.mode == ommSubdivisionMode_Legacy && config.dynamicSubdivisionScale <= 0.f
+        ? ommSubdivisionMode_Fixed : config.subdivision.mode);
+    cbuffer.TargetAreaInSquareTexels                    = config.subdivision.targetAreaInSquareTexels;
+    // Legacy stores its scale as the edge target and squares it in the shader for the area target.
+    cbuffer.TargetEdgeLengthInTexels                    = config.subdivision.mode == ommSubdivisionMode_Legacy
+        ? config.dynamicSubdivisionScale : config.subdivision.targetEdgeLengthInTexels;
     cbuffer.TexSize                                    = float2(config.alphaTextureWidth, config.alphaTextureHeight);
     static_assert(sizeof(float2) == sizeof(float) * 2);
     cbuffer.InvTexSize                                 = 1.f / cbuffer.TexSize;

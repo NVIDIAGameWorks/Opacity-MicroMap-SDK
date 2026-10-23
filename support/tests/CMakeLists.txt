@@ -51,7 +51,7 @@ target_compile_definitions(tests PRIVATE
     OMM_DISABLE_GPU_SHADER_OPTIMIZATIONS=$<BOOL:${OMM_DISABLE_GPU_SHADER_OPTIMIZATIONS}>)
 include_directories(tests  ${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/libraries/omm-lib/src)
 
-target_link_libraries(tests gtest gtest_main stb_lib ${OMM_LIB_TARGET_NAME} ${OMM_GPU_LIBS})
+target_link_libraries(tests gtest gtest_main stb_lib xxHash::xxhash ${OMM_LIB_TARGET_NAME} ${OMM_GPU_LIBS})
 
 set_target_properties(tests  PROPERTIES FOLDER "Support/Tests")
 

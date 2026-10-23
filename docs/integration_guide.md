@@ -144,7 +144,49 @@ Subdivision level 0 to 8 visualized (0 to 65536 micro-triangles). Blue = Transpa
 
 What is a suitable subdivision level? Eventually a high subdivision level yeilds diminishing returns where the amount of memory consumed grows while the coverage (C) doesn't change significantly. Too low subdivision level may not be effective to capture the opacity states at all. To further complicate things, having a global setting may not be effective on a mesh with varying triangle sizes.
 
-The SDK contains a heuristic to compute a suitable subdivision level controlled via ``float dynamicSubidivisionScale``. This controls the approximate number of texels in the alpha texutre that each each micro-triangle will cover. That way the texel size and triangle size are both used as a resolution guide. Setting ``dynamicSubidivisionScale = 0`` will force the max subdivision level if a uniform global subdivision level is required.
+Both bakers use a shared `omm::SubdivisionDesc` (`ommSubdivisionDesc` in the C API) to select an explicit mode and texture-space targets. Set `input.subdivision.mode` to `Fixed`, `Area`, or `Edge`. The viewer exposes these choices under **Bake Settings**, together with controls labeled in square texels or texels. Smaller targets give finer subdivision and typically larger OMMs; larger targets give coarser subdivision.
+
+| Mode | Interpretation |
+|---|---|
+| `Fixed` | Use `maxSubdivisionLevel` uniformly. |
+| `Area` | Choose subdivision from `targetAreaInSquareTexels`, the target microtriangle area. Use `targetEdgeLengthInTexels` for degenerate UV triangles. |
+| `Edge` | Choose subdivision from `targetEdgeLengthInTexels`, the target longest microtriangle edge. |
+| `Legacy` | Preserve the deprecated scale for existing callers and serialized inputs. This is the default during migration. |
+
+The same explicit settings work on `omm::Cpu::BakeInputDesc`, `omm::Gpu::DispatchConfigDesc`, and the NVRHI example's `omm::GpuBakeNvrhi::Input`. The NVRHI example uses `SubdivisionDesc` directly and does not expose the deprecated scale:
+
+```cpp
+// Area-based subdivision, targeting 4 square texels per microtriangle.
+input.subdivision.mode = omm::SubdivisionMode::Area;
+input.subdivision.targetAreaInSquareTexels = 4.f;
+input.subdivision.targetEdgeLengthInTexels = 8.f; // Degenerate-UV fallback.
+
+// Edge-based subdivision, targeting an 8-texel longest microtriangle edge.
+input.subdivision.mode = omm::SubdivisionMode::Edge;
+input.subdivision.targetEdgeLengthInTexels = 8.f;
+
+// Fixed subdivision, with no adaptive selection.
+input.subdivision.mode = omm::SubdivisionMode::Fixed;
+input.maxSubdivisionLevel = 3;
+```
+
+In the C API the corresponding mode values are `ommSubdivisionMode_Fixed`, `ommSubdivisionMode_Area`, and `ommSubdivisionMode_Edge`. Area mode requires both targets to be finite and positive, because the edge target defines its degenerate-UV fallback. Edge mode requires only the edge target; Fixed mode ignores both targets. Explicit modes ignore `dynamicSubdivisionScale`.
+
+Targets are measured after scaling UV coordinates by the texture width and height. Setting `targetEdgeLengthInTexels = 8.f` means the longest edge of each microtriangle will cover approximately 8 texels of the alpha texture. Setting `targetAreaInSquareTexels = 8.f` means each microtriangle will cover approximately 8 square texels, rather than an 8-by-8-texel region. Each subdivision level halves every edge, quarters the area, and creates four times as many microtriangles. For example, an 8-texel edge target on a triangle whose longest edge spans 64 texels selects level 3, producing 64 microtriangles. Discrete levels make the targets approximate. Doubling the edge target or quadrupling the area target usually drops one subdivision level and quarters the microtriangle count until a level limit is reached.
+
+`maxSubdivisionLevel` applies to every mode. Fixed uses that level uniformly; Area and Edge use it as an upper limit on automatic selection, which can prevent reaching the target. Legacy uses it uniformly when `dynamicSubdivisionScale <= 0`, otherwise as an upper limit. Explicit CPU per-triangle subdivision levels take precedence over both the global mode and this limit.
+
+Edge mode is recommended for better results on long, thin UV triangles. Their small area can cause Area mode to choose coarse subdivision even when an edge spans many texels. By targeting the longest edge, Edge mode better preserves opacity detail along their length. This can increase microtriangle counts, bake time, and output memory; `maxSubdivisionLevel` can limit the benefit. Area and Edge measure different properties, so similar output memory does not guarantee equivalent opacity coverage. In Area mode, both CPU and GPU bakers use the independent edge target for degenerate UV triangles. Explicit CPU per-triangle subdivision levels override all global modes. GPU bake-only dispatches reuse the subdivision levels chosen during setup.
+
+`dynamicSubdivisionScale` is deprecated with `OMM_DEPRECATED_MSG` in the C++ API (`omm.hpp`) and remains functional in `Legacy` mode. The C API field is retained as a legacy setting without a deprecation annotation. To migrate a positive legacy scale `s`, select Area, set `targetAreaInSquareTexels = s * s`, and set `targetEdgeLengthInTexels = s` for degenerate UV triangles. Thus the legacy default scale of 2 maps to area 4 and edge length 2. A nonpositive legacy scale maps to Fixed. Preserve CPU per-triangle overrides and `maxSubdivisionLevel` when migrating. Select Edge to use longest-edge subdivision explicitly.
+
+Existing serialized inputs load in Legacy mode. Newly serialized inputs store the explicit descriptor in an updated serialization format; older SDK versions cannot read the new format. Adding the descriptor expands the CPU/GPU input layouts, so rebuild applications and integrations against the updated headers and library. New subdivision algorithms can be introduced as additional modes without changing the meaning or units of Area and Edge targets.
+
+Both benchmarks expose `--target-area N`, `--target-edge N`, and `--subdivision N` for explicit experiments. For example:
+
+```powershell
+omm-gpu-benchmark.exe --input "E:\OpacityMicroMap_Data" --limit 100 --selection random --seed 42 --target-edge 8
+```
 
 It might make sense to scale the subdivision scale in proportion to the size of the triangle in world space (not texture space) the thinking is that the UV space coverage should be proportional to the WS size. If that is not the case, or when explicit control of the subdivision level per triangle is desired for other reasons detailed control is exposed via ``uint8_t* subdivisionLevels`` and ``IN_SUBDIVISION_LEVEL_BUFFER``.
 
@@ -811,7 +853,7 @@ Software sampling supports the GPU baker's Wrap, Mirror, Clamp, and Border modes
 
 Every unit-test build includes CPU tests that call the shared integer square-root/division utility directly, even when GPU tests are disabled. Scalar tests need no HLSL adaptation or GPU dispatch. Small input tables cover ordinary values, signed zero, infinities, NaNs, subnormals, and extreme finite values. Expected results come from CPU `std::sqrt(float)` and `float` division, with reference NaNs canonicalized before exact bit comparisons. Each test saves and restores the floating-point environment, selecting nearest-even rounding and gradual underflow for its references. Separate CPU sampling tests exercise the actual HLSL sampling header through a small compatibility shim, using small expected-value tables and a constant-color regression. The math and sampling test sources use `/fp:strict` on MSVC or `-fno-fast-math -ffp-contract=off -frounding-math` elsewhere, independently of the SDK's CPU fast-math preference. These tests run without a graphics device and can be selected with `--gtest_filter="CpuMathTest.*"`.
 
-The compute-reference compiler version is recorded alongside `ExpectEqual` in `support/tests/test_omm_bake_gpu.cpp`. Creating a GPU baker with `OMM_GPU_REFERENCE_MODE=ON` reports a `PerfWarning` through the supplied SDK message callback because software math and disabled shader optimizations can reduce GPU baking performance.
+Creating a GPU baker with `OMM_GPU_REFERENCE_MODE=ON` reports a `PerfWarning` through the supplied SDK message callback because software math and disabled shader optimizations can reduce GPU baking performance.
 
 On the RTX 5090 (Windows driver 32.0.16.1088) and D3D12 WARP (10.0.26100.9549), all eight asserted opacity counts agree in all 644 executed compute cases, covering 5,152 fields per device. Another 16 cases are intentionally skipped and five GPU API checks run. Histogram validation and GPU statistics versus decoded-output checks remain enabled. All 48 embedded DXIL/SPIR-V payloads match byte-for-byte between the captured libraries. These captures used DXC 1.8.2505; CI uses the project's default compiler selection. The same assertions are expected to hold across compiler versions, drivers, and devices.
 

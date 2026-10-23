@@ -737,7 +737,7 @@ omm::Gpu::DispatchConfigDesc GpuBakeNvrhiImpl::GetConfig(const GpuBakeNvrhi::Inp
 	config.maxScratchMemorySize					= params.minimalMemoryMode ? Gpu::ScratchMemoryBudget::MB_4 : Gpu::ScratchMemoryBudget::MB_256;
 	config.maxOutOmmArraySize				    = params.maxOutOmmArraySize;
 	config.maxSubdivisionLevel					= params.maxSubdivisionLevel;
-	config.dynamicSubdivisionScale				= params.dynamicSubdivisionScale;
+	config.subdivision							= params.subdivision;
 	return config;
 }
 

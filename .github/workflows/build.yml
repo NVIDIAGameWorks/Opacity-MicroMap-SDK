@@ -104,6 +104,7 @@ jobs:
           if [[ "$RUNNER_OS" == "Windows" ]]; then
             cmake_args+=(
               -DOMM_GPU_REFERENCE_MODE=ON
+              -DOMM_BUILD_GPU_BENCHMARK=OFF
               -DOMM_BUILD_OMM_GPU_NVRHI=ON
               -DOMM_INTEGRATION_LAYER_NVRHI=ON
               -DOMM_ENABLE_PRECOMPILED_SHADERS_DXIL=ON
@@ -140,7 +141,7 @@ jobs:
           OMM_ALLOW_GPU_REFERENCE_MODE: '1'
         run: ${{ matrix.test-command }}
       - name: Configure fast CPU/GPU math for publishing
-        run: cmake -S . -B build -DOMM_ENABLE_GPU_TESTS=OFF -DOMM_GPU_REFERENCE_MODE=OFF -DOMM_ENABLE_FAST_MATH=ON
+        run: cmake -S . -B build -DOMM_ENABLE_GPU_TESTS=OFF -DOMM_GPU_REFERENCE_MODE=OFF -DOMM_ENABLE_FAST_MATH=ON -DOMM_BUILD_GPU_BENCHMARK=ON
       - name: Build Release (fast CPU/GPU math)
         run: cmake --build build --config Release --parallel
       - name: Install Release

@@ -253,6 +253,17 @@ namespace raster
 
                 const PRECISE float4 gatherAlpha = GatherAlphaTexture(texCoord.xy);
 
+                // Bilinear interpolation stays within the four gathered alpha values.
+                // Ordered comparisons keep cells containing NaNs on the intersection path.
+                const bool cellIsOpaque = all(gatherAlpha > g_GlobalConstants.AlphaCutoff);
+                const bool cellIsTransparent = all(gatherAlpha <= g_GlobalConstants.AlphaCutoff);
+                if (cellIsOpaque || cellIsTransparent)
+                {
+                    IsOpaque |= cellIsOpaque;
+                    IsTransparent |= cellIsTransparent;
+                    return;
+                }
+
                 // ~~~ Look for internal extremes ~~~ 
                 if (true)
                 {
@@ -315,9 +326,6 @@ namespace raster
                     //      |
                     //      |
                     // 3<---2
-
-                    const PRECISE float min_a = min(gatherAlphaSwizzled.x, min(gatherAlphaSwizzled.y, min(gatherAlphaSwizzled.z, gatherAlphaSwizzled.w)));
-                    const PRECISE float max_a = max(gatherAlphaSwizzled.x, max(gatherAlphaSwizzled.y, max(gatherAlphaSwizzled.z, gatherAlphaSwizzled.w)));
 
                     // Intersections with level lines is loosley based on
                     // "Extraction of the Level Lines of a Bilinear Image"

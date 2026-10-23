@@ -1138,6 +1138,25 @@ void ImGui_CheckBoxFlag(const char* name, uint32_t ID, T& flags, T origFlags, T 
     }
 }
 
+static omm::SubdivisionDesc GetEffectiveSubdivision(const omm::Cpu::BakeInputDesc& input)
+{
+    auto subdivision = input.subdivision;
+    if (subdivision.mode == omm::SubdivisionMode::Legacy)
+    {
+        if (input.dynamicSubdivisionScale <= 0.f)
+            subdivision.mode = omm::SubdivisionMode::Fixed;
+        else
+        {
+            constexpr uint32_t internalCpuEdgeHeuristic = 1u << 11;
+            subdivision.mode = (uint32_t(input.bakeFlags) & internalCpuEdgeHeuristic)
+                ? omm::SubdivisionMode::Edge : omm::SubdivisionMode::Area;
+            subdivision.targetAreaInSquareTexels = input.dynamicSubdivisionScale * input.dynamicSubdivisionScale;
+            subdivision.targetEdgeLengthInTexels = input.dynamicSubdivisionScale;
+        }
+    }
+    return subdivision;
+}
+
 template<class T>
 void ImGui_SliderInt(const char* name, uint32_t ID, T& value, T origValue, int min, int max)
 {
@@ -1692,27 +1711,48 @@ protected:
 
                 ImGui_SliderInt<uint8_t>("Max Subdivision Level", id++, m_ui.input->maxSubdivisionLevel, input.maxSubdivisionLevel, 0, 12);
                 {
-                    ImGui::BeginDisabled(input.dynamicSubdivisionScale == m_ui.input->dynamicSubdivisionScale);
-
+                    // Display legacy inputs in explicit units without modifying their saved behavior.
+                    auto subdivision = GetEffectiveSubdivision(*m_ui.input);
+                    const auto& original = input.subdivision;
+                    const auto& current = m_ui.input->subdivision;
+                    ImGui::BeginDisabled(current.mode == original.mode
+                        && current.targetAreaInSquareTexels == original.targetAreaInSquareTexels
+                        && current.targetEdgeLengthInTexels == original.targetEdgeLengthInTexels);
                     ImGui::PushID(id++);
                     if (ImGui::Button("Reset"))
                     {
-                        m_ui.input->dynamicSubdivisionScale = input.dynamicSubdivisionScale;
+                        m_ui.input->subdivision = original;
+                        subdivision = GetEffectiveSubdivision(input);
                     }
                     ImGui::PopID();
                     ImGui::EndDisabled();
-
-                    ImGui::PushID(id++);
                     ImGui::SameLine();
-                    if (ImGui::Button("-1.f"))
+
+                    int mode = int(subdivision.mode) - int(omm::SubdivisionMode::Fixed);
+                    bool changed = ImGui::Combo("Subdivision Mode", &mode, "Fixed\0Area\0Edge\0");
+                    if (changed)
+                        subdivision.mode = omm::SubdivisionMode(mode + int(omm::SubdivisionMode::Fixed));
+                    if (ImGui::IsItemHovered())
                     {
-                        m_ui.input->dynamicSubdivisionScale = -1.f;
+                        ImGui::SetTooltip("Fixed uses Max Subdivision Level uniformly.\n"
+                            "Area targets microtriangle area; Edge targets the longest microtriangle edge.\n"
+                            "Adaptive modes stop at Max Subdivision Level. Per-triangle levels take precedence.");
                     }
-                    ImGui::PopID();
-
-                    ImGui::SameLine();
-
-                    ImGui::SliderFloat("Dynamic Subdivision Scale", &m_ui.input->dynamicSubdivisionScale, 0.f, 100.f, "%.3f", ImGuiSliderFlags_Logarithmic);
+                    if (subdivision.mode == omm::SubdivisionMode::Area)
+                        changed |= ImGui::SliderFloat("Target Area (square texels)", &subdivision.targetAreaInSquareTexels,
+                            0.001f, 1000000.f, "%.3f", ImGuiSliderFlags_Logarithmic);
+                    if (subdivision.mode == omm::SubdivisionMode::Area || subdivision.mode == omm::SubdivisionMode::Edge)
+                    {
+                        changed |= ImGui::SliderFloat(subdivision.mode == omm::SubdivisionMode::Area
+                            ? "Degenerate Edge Target (texels)" : "Target Edge Length (texels)",
+                            &subdivision.targetEdgeLengthInTexels, 0.001f, 10000.f, "%.3f", ImGuiSliderFlags_Logarithmic);
+                        if (ImGui::IsItemHovered())
+                            ImGui::SetTooltip("Smaller targets give finer subdivision. Lengths are measured in the alpha texture.\n"
+                                "Area mode uses this edge target for degenerate UV triangles.\n"
+                                "Each subdivision level halves edges; the maximum level may prevent reaching the target.");
+                    }
+                    if (changed)
+                        m_ui.input->subdivision = subdivision;
                 }
 
                 {
@@ -1785,16 +1825,14 @@ protected:
                 ImGui_ValueUInt64("Max Workload Size", id++, m_ui.input->maxWorkloadSize, input.maxWorkloadSize);
                 ImGui::SeparatorText("Unofficial Bake Settings");
 
-                constexpr uint32_t kEnableAABBTesting = 1u << 6u;
-                constexpr uint32_t kDisableLevelLineIntersection = 1u << 7u;
-                constexpr uint32_t kDisableFineClassification = 1u << 8u;
-                constexpr uint32_t kEnableNearDuplicateDetectionBruteForce = 1u << 9u;
-                constexpr uint32_t kEdgeHeuristic = 1u << 10u;
+                constexpr uint32_t kEnableAABBTesting = 1u << 7u;
+                constexpr uint32_t kDisableLevelLineIntersection = 1u << 8u;
+                constexpr uint32_t kDisableFineClassification = 1u << 9u;
+                constexpr uint32_t kEnableNearDuplicateDetectionBruteForce = 1u << 10u;
                 ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Enable AABB Testing", id++, m_ui.input->bakeFlags, input.bakeFlags, (omm::Cpu::BakeFlags)kEnableAABBTesting);
                 ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Disable Level Line Intersection", id++, m_ui.input->bakeFlags, input.bakeFlags, (omm::Cpu::BakeFlags)kDisableLevelLineIntersection);
                 ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Disable Fine Classification", id++, m_ui.input->bakeFlags, input.bakeFlags, (omm::Cpu::BakeFlags)kDisableFineClassification);
                 ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Enable Near-Duplicate Detection Brute-Force", id++, m_ui.input->bakeFlags, input.bakeFlags, (omm::Cpu::BakeFlags)kEnableNearDuplicateDetectionBruteForce);
-                ImGui_CheckBoxFlag<omm::Cpu::BakeFlags>("Edge Heuristic", id++, m_ui.input->bakeFlags, input.bakeFlags, (omm::Cpu::BakeFlags)kEdgeHeuristic);
 
                 ImGui::Separator();
 

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 4.1)
 
-option(OMM_BUILD_BENCHMARK "Build the CPU bake benchmark" ON)
+option(OMM_BUILD_BENCHMARK "Build the bake benchmark tools" ON)
 
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/external/gtest)
 	option(OMM_ENABLE_TESTS "Enable unit test" OFF)

@@ -200,6 +200,16 @@ float GetArea2D(float2 p0, float2 p1, float2 p2) {
 	return 0.5f * length(cross(float3(v0, 0), float3(v1, 0)));
 }
 
+bool IsDegenerate(TexCoords tex)
+{
+	// Match the CPU's UV-space area threshold without requiring double precision.
+	// Keep the determinant unfused so equal products cancel to zero.
+	const precise float2 edge0 = tex.p1 - tex.p0;
+	const precise float2 edge1 = tex.p2 - tex.p0;
+	const precise float area = 0.5f * abs(edge0.x * edge1.y - edge0.y * edge1.x);
+	return area < 1e-9f;
+}
+
 uint GetLog2(uint v) { // V must be power of 2.
 	const unsigned int b[5] = { 0xAAAAAAAA, 0xCCCCCCCC, 0xF0F0F0F0,
 									 0xFF00FF00, 0xFFFF0000 };
@@ -211,21 +221,44 @@ uint GetLog2(uint v) { // V must be power of 2.
 	return r;
 };
 
-uint GetDynamicSubdivisionLevel(TexCoords tex, float scale)
+uint GetAreaSubdivisionLevel(TexCoords tex)
 {
 	const float pixelUvArea = GetArea2D(tex.p0 * g_GlobalConstants.TexSize, tex.p1 * g_GlobalConstants.TexSize, tex.p2 * g_GlobalConstants.TexSize);
 
 	// Solves the following eqn:
 	// targetPixelArea / (4^N) = pixelUvArea 
 
-	const float targetPixelArea = scale * scale;
-	const uint ratio			= pixelUvArea / targetPixelArea;
+	// Retain the shader-side legacy multiplication to preserve existing rounding.
+	const bool legacy = (SubdivisionMode)g_GlobalConstants.SubdivisionMode == SubdivisionMode::Legacy;
+	const float edgeTarget = g_GlobalConstants.TargetEdgeLengthInTexels;
+	const float targetPixelArea = legacy ? edgeTarget * edgeTarget : g_GlobalConstants.TargetAreaInSquareTexels;
+	const float areaRatio = pixelUvArea / targetPixelArea;
+	// Bound explicit targets before conversion, including ratios overflowing floating point.
+	if (!legacy && areaRatio >= (float)(1u << (2u * g_GlobalConstants.MaxSubdivisionLevel)))
+		return g_GlobalConstants.MaxSubdivisionLevel;
+	const uint ratio			= areaRatio;
 	const uint ratioNextPow2	= GetNextPow2(ratio);
 	const uint log2_ratio		= GetLog2(ratioNextPow2);
 
 	const uint SubdivisionLevel = log2_ratio >> 1u; // log2(ratio) / log2(4)
 
 	return min(SubdivisionLevel, g_GlobalConstants.MaxSubdivisionLevel);
+}
+
+uint GetEdgeSubdivisionLevel(TexCoords tex)
+{
+	// Match the CPU edge heuristic: choose a level from the longest edge in texel space.
+	const float2 edge0 = g_GlobalConstants.TexSize * (tex.p1 - tex.p0);
+	const float2 edge1 = g_GlobalConstants.TexSize * (tex.p2 - tex.p0);
+	const float2 edge2 = g_GlobalConstants.TexSize * (tex.p2 - tex.p1);
+	const float maxEdgeSquared = max(dot(edge0, edge0), max(dot(edge1, edge1), dot(edge2, edge2)));
+	// Preserve the legacy scale expression; explicit targets use texel units directly.
+	float level;
+	if ((SubdivisionMode)g_GlobalConstants.SubdivisionMode == SubdivisionMode::Legacy)
+		level = maxEdgeSquared < 1e-6f ? 0.f : 0.5f * log2(maxEdgeSquared) - log2(g_GlobalConstants.TargetEdgeLengthInTexels);
+	else
+		level = maxEdgeSquared <= 0.f ? 0.f : 0.5f * log2(maxEdgeSquared) - log2(g_GlobalConstants.TargetEdgeLengthInTexels);
+	return (uint)clamp(ceil(level), 0.f, (float)g_GlobalConstants.MaxSubdivisionLevel);
 }
 
 uint InterlockedAdd(RWByteAddressBuffer buffer, uint offset, uint increment)
@@ -261,16 +294,12 @@ uint GetMaxItemsPerBatch(uint subdivisionLevel)
 
 uint GetSubdivisionLevel(TexCoords texCoords)
 {
-	const bool bEnableDynamicSubdivisionLevel = g_GlobalConstants.DynamicSubdivisionScale > 0.f;
-
-	if (bEnableDynamicSubdivisionLevel)
-	{
-		return GetDynamicSubdivisionLevel(texCoords, g_GlobalConstants.DynamicSubdivisionScale);
-	}
-	else
-	{
+	const SubdivisionMode subdivisionMode = (SubdivisionMode)g_GlobalConstants.SubdivisionMode;
+	if (subdivisionMode == SubdivisionMode::Fixed)
 		return g_GlobalConstants.MaxSubdivisionLevel;
-	}
+	if (subdivisionMode == SubdivisionMode::Edge || IsDegenerate(texCoords))
+		return GetEdgeSubdivisionLevel(texCoords);
+	return GetAreaSubdivisionLevel(texCoords);
 }
 
 int GetOmmDescOffset(ByteAddressBuffer ommIndexBuffer, uint primitiveIndex)

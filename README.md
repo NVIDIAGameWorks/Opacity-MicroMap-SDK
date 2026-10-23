@@ -117,9 +117,7 @@ Requires CMake 4.1 or newer.
 
 ## CPU bake benchmark
 
-The `omm-cpu-benchmark` command-line tool bakes the bundled
-`assets/omm_example_data/leaves.bin` using its serialized settings. It requires
-only the CPU SDK library and can be built with the viewer and tests disabled.
+The `omm-cpu-benchmark` command-line tool bakes the bundled `assets/omm_example_data/leaves.bin` using its serialized settings. It requires only the CPU SDK library and can be built with the viewer and tests disabled.
 
 ```powershell
 cmake -S . -B build -DOMM_BUILD_BENCHMARK=ON
@@ -127,13 +125,49 @@ cmake --build build --config Release --target omm-cpu-benchmark
 .\build\bin\Release\omm-cpu-benchmark.exe --iterations 5 --warmup 1
 ```
 
-Each iteration bakes every input in the blob. The tool prints individual times
-and minimum, median, mean, and maximum bake time. File loading, deserialization,
-warmup, and result destruction are excluded from the measurements. Use
-`--threads on` or `--threads off` to override internal threading, or `--input PATH`
-to benchmark another serialized blob. Otherwise the saved bake settings are
-preserved. Run `--help` for all options. Build with `-DOMM_BUILD_BENCHMARK=OFF`
-to omit the tool.
+Each iteration bakes every input in the blob. The tool prints individual times and minimum, median, mean, and maximum bake time. File loading, deserialization, warmup, and result destruction are excluded from the measurements. Use `--threads on` or `--threads off` to override internal threading, or `--input PATH` to benchmark another serialized blob. Otherwise the saved bake settings are preserved. Run `--help` for all options. Build with `-DOMM_BUILD_BENCHMARK=OFF` to omit the tool.
+
+Use `--subdivision N` (0 through 12) to force a uniform subdivision level for an experiment. This overrides the saved subdivision cap, disables dynamic level selection and ignores saved per-triangle subdivision levels. The source blob is unchanged. Each additional level quadruples the number of microtriangles.
+
+Use `--target-area N` to select area mode with a target of `N` square texels per microtriangle, or `--target-edge N` to select edge mode with a target longest microtriangle edge of `N` texture texels. Targets must be finite and positive. These options preserve the saved maximum level and CPU per-triangle overrides and are mutually exclusive with each other and `--subdivision`. Area mode retains the saved effective edge target for degenerate UV triangles.
+
+## GPU bake benchmark
+
+The `omm-gpu-benchmark` command-line tool uses the SDK's NVRHI integration to bake the same serialized inputs on a Direct3D 12 hardware adapter. It is built alongside the CPU benchmark on Windows when `omm-gpu-nvrhi`, `nvrhi_d3d12` and embedded DXIL shaders are available. It runs without a window or the viewer. The GPU benchmark requires `OMM_GPU_REFERENCE_MODE=OFF`; the build asserts this setting.
+
+```powershell
+cmake -S . -B build -DOMM_BUILD_BENCHMARK=ON
+cmake --build build --config Release --target omm-gpu-benchmark
+.\build\bin\Release\omm-gpu-benchmark.exe --iterations 5 --warmup 1
+.\build\bin\Release\omm-gpu-benchmark.exe --input "E:\OpacityMicroMap_Data" --iterations 5 --warmup 1
+.\build\bin\Release\omm-gpu-benchmark.exe --input "E:\OpacityMicroMap_Data" --limit 20 --selection strided
+.\build\bin\Release\omm-gpu-benchmark.exe --input "E:\OpacityMicroMap_Data" --limit 20 --selection random --seed 42
+.\build\bin\Release\omm-gpu-benchmark.exe --input "E:\OpacityMicroMap_Data" --limit 20 --selection random --seed 42 --target-edge 8
+```
+
+For a build without the viewer or tests, configure with `-DOMM_BUILD_VIEWER=OFF -DOMM_ENABLE_TESTS=OFF -DOMM_INTEGRATION_LAYER_NVRHI=ON -DOMM_BUILD_OMM_GPU_NVRHI=ON -DOMM_ENABLE_PRECOMPILED_SHADERS_DXIL=ON`. The `external/donut/nvrhi` submodule must be present. Set `-DOMM_BUILD_GPU_BENCHMARK=OFF` to build only the CPU benchmark, or `-DOMM_BUILD_BENCHMARK=OFF` to omit both tools. Configurations without the GPU dependencies skip the GPU target and retain the CPU benchmark.
+
+Each iteration bakes every input in the blob and sums GPU timestamp durations around the full `SetupAndBake` dispatch. The tool prints the selected GPU, individual iterations, minimum, median, mean and maximum times, and output micromap and array byte counts. Device creation, deserialization, input uploads, resource allocation on the CPU, command recording, waiting and output readback are excluded. Resources are reused across iterations; these measurements do not include building a hardware opacity micromap or acceleration structure.
+
+Use `--input PATH` to select a serialized `.bin` file or a directory. Directory inputs recursively discover `.bin` files (case-insensitive extension) into a stable, sorted path list before selection. A batch reuses one GPU device and loads and releases one file at a time. Each file gets its own warmup and measured iterations and results. The batch summary reports the sum of per-file median GPU times; this is not a measured median of complete batch runs. Failed files are reported and processing continues; any failure makes the command exit with a nonzero code.
+
+Use `--limit N` to cap the selected files; the default is all files. Failed files still count toward the limit. `--selection first|strided|random` controls selection:
+
+- `first` (default) takes files from the start of the sorted list.
+- `strided` selects evenly spaced files across the entire sorted list, including the first and last when selecting more than one file, or the middle file when selecting one. Without a limit, it selects all files.
+- `random` shuffles the sorted list and selects files without replacement. Its seed defaults to zero; use `--seed N` with `--selection random` to change it. The same file list and seed produce the same selection.
+
+Selection applies to the whole discovered list. Select a project subdirectory, such as `E:\OpacityMicroMap_Data\AW2`, to restrict the input project.
+
+The benchmark uses compute shaders throughout by default. Use `--subdivision N` to force uniform subdivision (0 through 12), or `--graphics` to select the graphics/compute path (subdivision 0 through 9). `--debug` enables D3D12 and NVRHI validation for diagnosis and affects performance. Run `--help` for all options.
+
+Use `--target-area N` or `--target-edge N` to choose explicit subdivision targets in square texels or texels, respectively. Smaller targets give finer subdivision and typically larger OMMs; larger targets give coarser subdivision. The saved maximum level still applies. For example, `--target-edge 8` requests a longest microtriangle edge of 8 texture texels: a 64-texel parent edge requires level 3, giving 64 microtriangles. There is no implicit multiplier. Doubling an edge target usually removes one level and quarters the microtriangle count until a level limit is reached. The target options are mutually exclusive with each other and `--subdivision`.
+
+Without an override, the benchmark preserves the serialized subdivision mode and settings. The deprecated `dynamicSubdivisionScale` is used only in `Legacy` mode; see [Subdivision Level](docs/integration_guide.md#subdivision-level) for migration examples.
+
+Area mode targets microtriangle area in square texels and uses its independent edge target for degenerate UV triangles. Edge mode targets the longest microtriangle edge and is recommended for better results on long, thin UV triangles: it preserves opacity detail along their length even when their area is small. This may increase bake time and output memory. Triangle shape can produce different levels in the two modes, so similar output memory does not imply equivalent opacity coverage.
+
+The GPU baker supports a single texture mip and alpha testing. Unsupported saved settings, including per-triangle formats or subdivision levels, are reported as errors; `--subdivision` replaces saved subdivision levels. CPU-only settings that cannot be applied are reported as warnings. GPU and CPU baking use different algorithms and may produce different outputs, including different unknown-state promotion and deduplication results. Timing comparisons should account for those differences.
 
 ## CMake options
 `-DOMM_STATIC_LIBRARY=ON` - Will configure the omm-sdk project as either a SHARED (OFF) or STATIC (ON) target in CMake. 

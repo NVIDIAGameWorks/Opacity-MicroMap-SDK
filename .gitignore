@@ -22,6 +22,10 @@ omm-lib/shaders.cfg
 # VS Code
 .vscode/
 
+# Local tooling
+.claude/
+NUL
+
 # Shaders
 *.dxbc
 *.dxil

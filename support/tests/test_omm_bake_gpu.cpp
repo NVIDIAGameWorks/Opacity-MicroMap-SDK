@@ -9,6 +9,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 */
 
 #include <algorithm>
+#include <limits>
 #include <memory>
 
 #include "gtest/gtest.h"
@@ -140,6 +141,7 @@ namespace {
 			omm::OpacityState alphaCutoffGT = omm::OpacityState::Opaque;
 			omm::OpacityState alphaCutoffLE = omm::OpacityState::Transparent;
 			uint32_t subdivisionLevel = 5;
+			omm::SubdivisionDesc subdivision = { omm::SubdivisionMode::Fixed };
 			int2 texSize = { 1024, 1024 };
 			uint32_t indexBufferSize = 0;
 			uint32_t numIndices = 0;
@@ -166,7 +168,8 @@ namespace {
 			}
 		};
 
-		omm::Debug::Stats RunOmmBake(const OmmBakeParams& p) 
+		omm::Debug::Stats RunOmmBake(const OmmBakeParams& p,
+			std::vector<uint32_t>* outSubdivisionLevels = nullptr)
 		{
 			const uint32_t alphaTextureChannel = GetAlphaChannelIndex();
 
@@ -257,7 +260,7 @@ namespace {
 			input.numIndices = p.numIndices == 0 ? numIndices : p.numIndices;
 			input.maxSubdivisionLevel = p.subdivisionLevel;
 			input.format = p.format == omm::Format::OC1_2_State ? nvrhi::rt::OpacityMicromapFormat::OC1_2_State : nvrhi::rt::OpacityMicromapFormat::OC1_4_State;
-			input.dynamicSubdivisionScale = 0.f;
+			input.subdivision = p.subdivision;
 			input.enableStats = EnablePostDispatchInfoStats();
 			input.enableSpecialIndices = EnableSpecialIndices();
 			input.force32BitIndices = Force32BitIndices();
@@ -484,6 +487,13 @@ namespace {
 			resDesc.indexHistogram = (const omm::Cpu::OpacityMicromapUsageCount*)ommIndexHistogramData.data();
 			resDesc.indexHistogramCount = (uint32_t)(ommIndexHistogramData.size() / sizeof(omm::Cpu::OpacityMicromapUsageCount));
 
+			if (outSubdivisionLevels)
+			{
+				outSubdivisionLevels->clear();
+				for (uint32_t i = 0; i < resDesc.descArrayCount; ++i)
+					outSubdivisionLevels->push_back(resDesc.descArray[i].subdivisionLevel);
+			}
+
 			omm::Test::ValidateHistograms(&resDesc);
 
 			omm::GpuBakeNvrhi::Stats stats = bake.GetStats(resDesc);
@@ -605,6 +615,85 @@ namespace {
 		p.texCb = [](int, int)->float { return 0.f; };
 
 		ExpectEqual(RunOmmBake(p), { .totalTransparent = 512 });
+	}
+
+	TEST_P(OMMBakeTestGPU, DegenerateUVUsesEdgeHeuristic) {
+		uint32_t triangleIndices[] = { 0, 1, 2, 3, 4, 5 };
+		float texCoords[] = {
+			0.f, 0.5f, 0.5f, 0.5f, 1.f, 0.5f,
+			0.125f, 0.125f, 0.875f, 0.125f, 0.5f, 0.75f
+		};
+
+		OmmBakeParams p;
+		p.subdivisionLevel = 6;
+		p.subdivision = { omm::SubdivisionMode::Area, 4.f, 2.f };
+		p.texSize = { 64, 64 };
+		p.triangleIndices = triangleIndices;
+		p.indexBufferSize = sizeof(triangleIndices);
+		p.texCoords = texCoords;
+		p.texCoordBufferSize = sizeof(texCoords);
+		p.texCb = [](int, int)->float { return 1.f; };
+
+		std::vector<uint32_t> subdivisionLevels;
+		RunOmmBake(p, &subdivisionLevels);
+		ASSERT_EQ(subdivisionLevels.size(), 2u);
+		// Descriptor allocation order may vary. The 64-texel line uses fallback edge level 5;
+		// the normal triangle's 960-texel area uses area level 4.
+		std::sort(subdivisionLevels.begin(), subdivisionLevels.end());
+		EXPECT_EQ(subdivisionLevels[0], 4u);
+		EXPECT_EQ(subdivisionLevels[1], 5u);
+	}
+
+	TEST_P(OMMBakeTestGPU, SubdivisionModesUseTexelTargets) {
+		uint32_t triangleIndices[] = { 0, 1, 2, 3, 4, 5 };
+		float texCoords[] = {
+			0.f, 0.5f, 0.5f, 0.5f, 1.f, 0.5f,
+			0.125f, 0.125f, 0.875f, 0.125f, 0.5f, 0.75f
+		};
+		const float nan = std::numeric_limits<float>::quiet_NaN();
+		struct Case {
+			omm::SubdivisionMode mode;
+			float area;
+			float edge;
+			uint32_t cap;
+			uint32_t firstLevel;
+			uint32_t secondLevel;
+		};
+		const Case cases[] = {
+			// Legacy uses the SDK's default scale of 2 and ignores the explicit targets.
+			{ omm::SubdivisionMode::Legacy, nan, nan, 6, 4, 5 },
+			{ omm::SubdivisionMode::Legacy, nan, nan, 2, 2, 2 },
+			{ omm::SubdivisionMode::Area, 4.f, 8.f, 6, 3, 4 },
+			{ omm::SubdivisionMode::Area, 4.f, 16.f, 6, 2, 4 },
+			{ omm::SubdivisionMode::Area, 16.f, 8.f, 6, 3, 3 },
+			{ omm::SubdivisionMode::Edge, nan, 8.f, 6, 3, 3 },
+			{ omm::SubdivisionMode::Edge, nan, 16.f, 6, 2, 2 },
+			{ omm::SubdivisionMode::Edge, nan, 8.f, 2, 2, 2 },
+			{ omm::SubdivisionMode::Fixed, nan, nan, 2, 2, 2 },
+			{ omm::SubdivisionMode::Area, std::numeric_limits<float>::min(), std::numeric_limits<float>::min(), 6, 6, 6 },
+			{ omm::SubdivisionMode::Edge, nan, std::numeric_limits<float>::max(), 6, 0, 0 },
+		};
+		for (const auto& test : cases)
+		{
+			SCOPED_TRACE(::testing::Message() << "mode=" << static_cast<int>(test.mode)
+				<< " area=" << test.area << " edge=" << test.edge << " cap=" << test.cap);
+			OmmBakeParams p;
+			p.subdivisionLevel = test.cap;
+			p.subdivision = { test.mode, test.area, test.edge };
+			p.texSize = { 64, 64 };
+			p.triangleIndices = triangleIndices;
+			p.indexBufferSize = sizeof(triangleIndices);
+			p.texCoords = texCoords;
+			p.texCoordBufferSize = sizeof(texCoords);
+			p.texCb = [](int, int)->float { return 1.f; };
+
+			std::vector<uint32_t> levels;
+			RunOmmBake(p, &levels);
+			ASSERT_EQ(levels.size(), 2u);
+			std::sort(levels.begin(), levels.end());
+			EXPECT_EQ(levels[0], test.firstLevel);
+			EXPECT_EQ(levels[1], test.secondLevel);
+		}
 	}
 
 	TEST_P(OMMBakeTestGPU, AllOpaque4) {
@@ -829,6 +918,67 @@ namespace {
 		else
 		{
 			ExpectEqual(stats, { .totalTransparent = 2 });
+		}
+	}
+
+	TEST_P(OMMBakeTestGPU, BilinearNonconstantOpaqueCells) {
+		const uint32_t subdivisionLevel = 2;
+		const auto stats = RunOmmBake(0.5f, subdivisionLevel, { 8, 8 }, [](int i, int j)->float {
+			// Every bilinear cell is opaque even though its four alpha values differ.
+			return 0.625f + 0.0625f * ((i + 2 * j) % 5);
+		});
+
+		if (EnableSpecialIndices())
+			ExpectEqual(stats, { .totalFullyOpaque = 2 });
+		else
+			ExpectEqual(stats, { .totalOpaque = 2 * omm::bird::GetNumMicroTriangles(subdivisionLevel) });
+	}
+
+	TEST_P(OMMBakeTestGPU, BilinearNonconstantTransparentCells) {
+		const uint32_t subdivisionLevel = 2;
+		const auto stats = RunOmmBake(0.5f, subdivisionLevel, { 8, 8 }, [](int i, int j)->float {
+			// Include exact cutoff values: equality belongs to the transparent side.
+			return 0.5f - 0.0625f * ((i + 2 * j) % 5);
+		});
+
+		if (EnableSpecialIndices())
+			ExpectEqual(stats, { .totalFullyTransparent = 2 });
+		else
+			ExpectEqual(stats, { .totalTransparent = 2 * omm::bird::GetNumMicroTriangles(subdivisionLevel) });
+	}
+
+	TEST_P(OMMBakeTestGPU, BilinearMixedCell) {
+		uint32_t indices[] = { 0, 1, 2 };
+		float texCoords[] = { 0.25f, 0.25f, 0.75f, 0.75f, 0.3125f, 0.25f };
+		// A bilinear saddle is opaque at all three vertices but transparent inside
+		// the triangle. Vertex samples alone cannot classify this micro triangle.
+		const auto stats = RunOmmBake(0.75f, 0, { 2, 2 }, sizeof(indices), indices,
+			texCoords, sizeof(texCoords), [](int i, int j)->float {
+				return i == j ? 1.f : 0.f;
+			});
+
+		if (EnableSpecialIndices())
+			ExpectEqual(stats, { .totalFullyUnknownOpaque = 1 });
+		else
+			ExpectEqual(stats, { .totalUnknownOpaque = 1 });
+	}
+
+	TEST_P(OMMBakeTestGPU, BilinearAccumulateOpaqueAndTransparentCells) {
+		for (bool opaqueExterior : { false, true })
+		{
+			SCOPED_TRACE(opaqueExterior ? "Opaque exterior" : "Transparent exterior");
+			// Both triangles cross an interior stripe, with uniform cells on either
+			// side. Later cells must preserve classifications found in earlier cells.
+			const auto stats = RunOmmBake(0.5f, 0, { 8, 8 }, [opaqueExterior](int i, int j)->float {
+				const bool interiorStripe = i == 2 || i == 3;
+				const bool opaque = opaqueExterior != interiorStripe;
+				return (opaque ? 0.75f : 0.125f) + 0.0625f * (j % 2);
+			});
+
+			if (EnableSpecialIndices())
+				ExpectEqual(stats, { .totalFullyUnknownOpaque = 2 });
+			else
+				ExpectEqual(stats, { .totalUnknownOpaque = 2 });
 		}
 	}
 

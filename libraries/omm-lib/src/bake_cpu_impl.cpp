@@ -11,11 +11,13 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 #include "defines.h"
 #include "bake_cpu_impl.h"
 #include "bake_kernels_cpu.h"
+#include "omm_array_data.h"
 #include "texture_impl.h"
 
 #include "util/math.h"
 #include "util/bird.h"
 #include "util/cpu_raster.h"
+#include "util/subdivision.h"
 
 #include <xxhash.h>
 
@@ -235,6 +237,9 @@ namespace Cpu
     ommResult BakeOutputImpl::ValidateDesc(const ommCpuBakeInputDesc& desc) const {
         const Options options(desc.bakeFlags);
 
+        if (const char* error = ValidateSubdivision(desc.subdivision, desc.dynamicSubdivisionScale))
+            return m_log.InvalidArgf("[Invalid Argument] - %s", error);
+
         if (desc.texture == 0)
             return m_log.InvalidArg("[Invalid Argument] - texture is not set");
         if (!GetCheckedHandleImpl<TextureImpl>(desc.texture))
@@ -344,95 +349,6 @@ namespace Cpu
         }
     };
 
-    class OmmArrayDataView
-    {
-        static void SetStateInternal(uint8_t* targetBuffer, uint32_t index, ommOpacityState state) {
-            targetBuffer[index] = (uint8_t)state;
-        }
-
-        static ommOpacityState GetStateInternal(const uint8_t* targetBuffer, uint32_t index) {
-            return (ommOpacityState)targetBuffer[index];
-        }
-
-    public:
-        OmmArrayDataView() = delete;
-        OmmArrayDataView(ommFormat format, uint8_t* data, uint8_t* data3state, size_t ommArrayDataSize)
-            : _is2State(format == ommFormat_OC1_2_State),
-             _ommArrayData4or2state(data),
-             _ommArrayData3state(data3state),
-             _ommArrayDataSize(ommArrayDataSize) 
-        {
-            OMM_ASSERT(format == ommFormat_OC1_2_State || format == ommFormat_OC1_4_State);
-        }
-
-        void SetData(uint8_t* data, uint8_t* data3state, size_t size) {
-            _ommArrayData4or2state = data;
-            _ommArrayData3state = data3state;
-            _ommArrayDataSize = size;
-        }
-
-        void SetState(uint32_t index, ommOpacityState state) {
-            SetStateInternal(_ommArrayData4or2state, index, state);
-            SetStateInternal(_ommArrayData3state, index, state == ommOpacityState_UnknownTransparent ? ommOpacityState_UnknownOpaque : state);
-        }
-
-        ommOpacityState GetState(uint32_t index) const {
-            return GetStateInternal(_ommArrayData4or2state, index);
-        }
-
-        ommOpacityState Get3State(uint32_t index) const {
-            return GetStateInternal(_ommArrayData3state, index);
-        }
-
-        uint8_t* GetOmm3StateData() const { return _ommArrayData3state; }
-        size_t GetOmm3StateDataSize() const { return _ommArrayDataSize;  }
-
-    private:
-        bool _is2State;
-        uint8_t* _ommArrayData4or2state;
-        uint8_t* _ommArrayData3state;
-        size_t _ommArrayDataSize;
-    };
-
-    class OmmArrayDataVector final : public OmmArrayDataView
-    {
-    public:
-        OmmArrayDataVector() = delete;
-        OmmArrayDataVector(const StdAllocator<uint8_t>& stdAllocator, ommFormat format, uint32_t subdivisionLevel)
-            : OmmArrayDataView(format, nullptr, nullptr, 0)
-            , data(stdAllocator.GetInterface())
-            , data3state(stdAllocator.GetInterface())
-        {
-            const size_t maxSizeInBytes = (size_t)omm::bird::GetNumMicroTriangles(subdivisionLevel);
-            data.resize(maxSizeInBytes);
-            data3state.resize(maxSizeInBytes);
-            OmmArrayDataView::SetData((uint8_t*)data.data(), data3state.data(), maxSizeInBytes);
-            Init();
-        }
-
-        void ShrinkTo(uint32_t subdivisionLevel)
-        {
-            const size_t maxSizeInBytes = (size_t)omm::bird::GetNumMicroTriangles(subdivisionLevel);
-
-            assert(maxSizeInBytes < data.size());
-            assert(maxSizeInBytes < data3state.size());
-            data.resize(maxSizeInBytes);
-            data3state.resize(maxSizeInBytes);
-        }
-
-    private:
-
-        void Init()
-        {
-            std::fill(data.begin(), data.end(), ommOpacityState_UnknownOpaque);
-            std::fill(data3state.begin(), data3state.end(), ommOpacityState_UnknownOpaque);
-        }
-
-    private:
-        vector<uint8_t> data;
-        vector<uint8_t> data3state;
-    };
-
     struct OmmWorkItem {
         uint32_t subdivisionLevel;
         ommFormat vmFormat;
@@ -467,7 +383,7 @@ namespace Cpu
         return 0.5f * length(cross(float3(v0, 0), float3(v1, 0)));
     };
 
-    static const uint32_t ComputeAreaHeuristic(const ommCpuBakeInputDesc& desc, const Triangle& uvTri, uint2 texSize)
+    static const uint32_t ComputeAreaHeuristic(const ommCpuBakeInputDesc& desc, const ResolvedSubdivision& subdivision, const Triangle& uvTri, uint2 texSize)
     {
         auto GetNextPow2 = [](uint v)->uint
         {
@@ -498,8 +414,13 @@ namespace Cpu
         // Solves the following eqn:
         // targetPixelArea / (4^N) = pixelUvArea 
 
-        const float targetPixelArea = desc.dynamicSubdivisionScale * desc.dynamicSubdivisionScale;
-        const uint ratio = uint(pixelUvArea / targetPixelArea);
+        const float targetPixelArea = subdivision.targetAreaInSquareTexels;
+        const float areaRatio = pixelUvArea / targetPixelArea;
+        // Keep legacy rounding unchanged. Bound explicit targets before float-to-integer conversion,
+        // so arbitrarily small positive targets still select the maximum supported level safely.
+        if (!subdivision.legacy && areaRatio >= float(1u << (2u * desc.maxSubdivisionLevel)))
+            return desc.maxSubdivisionLevel;
+        const uint ratio = uint(areaRatio);
         const uint ratioNextPow2 = GetNextPow2(ratio);
         const uint log2_ratio = GetLog2(ratioNextPow2);
 
@@ -508,7 +429,7 @@ namespace Cpu
         return std::min<uint>(SubdivisionLevel, desc.maxSubdivisionLevel);
     }
 
-    static const uint32_t ComputeEdgeHeuristic(const ommCpuBakeInputDesc& desc, const Triangle& uvTri, uint2 texSize)
+    static const uint32_t ComputeEdgeHeuristic(const ommCpuBakeInputDesc& desc, const ResolvedSubdivision& subdivision, const Triangle& uvTri, uint2 texSize)
     {
         // Adapted from 3.1.1 https://fileadmin.cs.lth.se/graphics/research/papers/2024/succinct_opacity_micromaps/paper-author-version.pdf
         const float2 ve0 = (float2)texSize * (uvTri.p1 - uvTri.p0);
@@ -521,21 +442,28 @@ namespace Cpu
 
         const float eMax = std::max({ le0, le1, le2 });
 
-        const float n = eMax < 1e-6 ? 0 : std::log2(eMax) / 2.f - std::log2(desc.dynamicSubdivisionScale);
+        if (subdivision.legacy)
+        {
+            // Preserve the legacy scale conversion and rounding exactly.
+            const float n = eMax < 1e-6 ? 0 : std::log2(eMax) / 2.f - std::log2(subdivision.legacyScale);
+            const int SubdivisionLevel = (int)std::ceil(n);
+            return std::clamp<int>(SubdivisionLevel, 0, desc.maxSubdivisionLevel);
+        }
 
-        const int SubdivisionLevel = (int)std::ceil(n);
-        return std::clamp<int>(SubdivisionLevel, 0, desc.maxSubdivisionLevel);
+        const float n = eMax <= 0.f ? 0.f : std::log2(eMax) / 2.f - std::log2(subdivision.targetEdgeLengthInTexels);
+        return (uint32_t)std::clamp(std::ceil(n), 0.f, (float)desc.maxSubdivisionLevel);
     }
 
     static const uint32_t CalculateSuitableSubdivisionLevel(const ommCpuBakeInputDesc& desc, const Options& options, const Triangle& uvTri, uint2 texSize)
     {
-        if (uvTri.GetIsDegenerate() || options.enableEdgeHeuristic)
+        const ResolvedSubdivision subdivision = ResolveSubdivision(desc.subdivision, desc.dynamicSubdivisionScale, options.enableEdgeHeuristic);
+        if (uvTri.GetIsDegenerate() || subdivision.mode == ommSubdivisionMode_Edge)
         {
-            return ComputeEdgeHeuristic(desc, uvTri, texSize);
+            return ComputeEdgeHeuristic(desc, subdivision, uvTri, texSize);
         }
         else
         {
-            return ComputeAreaHeuristic(desc, uvTri, texSize);
+            return ComputeAreaHeuristic(desc, subdivision, uvTri, texSize);
         }
     }
 
@@ -547,7 +475,9 @@ namespace Cpu
             return desc.subdivisionLevels[i];
         }
 
-        const bool enableDynamicSubdivisionLevel = desc.dynamicSubdivisionScale > 0;
+        const bool enableDynamicSubdivisionLevel = desc.subdivision.mode == ommSubdivisionMode_Legacy
+            ? desc.dynamicSubdivisionScale > 0.f
+            : desc.subdivision.mode != ommSubdivisionMode_Fixed;
 
         if (enableDynamicSubdivisionLevel)
         {
@@ -1038,8 +968,8 @@ namespace Cpu
 
             uint32_t dupesFound = 0;
 
-            auto CalcDigest = [&allocator](const OmmWorkItem& workItem) {
-                return XXH64((const void*)workItem.vmStates.GetOmm3StateData(), workItem.vmStates.GetOmm3StateDataSize(), 42/*seed*/);
+            auto CalcDigest = [](const OmmWorkItem& workItem) {
+                return workItem.vmStates.Compute3StateHash(42/*seed*/);
             };
 
             hash_map<uint64_t, uint32_t> digestToWorkItemIndex(allocator.GetInterface());

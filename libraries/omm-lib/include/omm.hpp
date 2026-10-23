@@ -63,6 +63,36 @@ namespace omm
       MAX_NUM     = 3,
    };
 
+   enum class SubdivisionMode
+   {
+      Legacy  = 0,
+      Fixed   = 1,
+      Area    = 2,
+      Edge    = 3,
+      MAX_NUM = 4,
+   };
+
+   struct SubdivisionDesc
+   {
+      // maxSubdivisionLevel applies to every mode: Fixed uses that level; Area and Edge cap automatic levels.
+      // Legacy uses that level when dynamicSubdivisionScale <= 0, otherwise as an upper limit.
+      // Explicit CPU per-triangle subdivisionLevels override these global settings.
+      // Edge mode is recommended for better results on long, thin UV triangles: its longest-edge target
+      // preserves opacity detail along their length, even when their area is small.
+      // Targets are approximate because subdivision levels are discrete; the level cap can prevent reaching them.
+      // Legacy preserves dynamicSubdivisionScale behavior.
+      SubdivisionMode mode                      = SubdivisionMode::Legacy;
+      // Area mode: target micro-triangle area in square texels; finite and positive.
+      // A value of 8.f means each micro-triangle will cover approximately 8 square texels of the alpha texture.
+      // Each subdivision level quarters the area. Smaller targets give finer subdivision.
+      float           targetAreaInSquareTexels  = 4.f;
+      // Edge mode, or the degenerate UV fallback in Area mode: target longest edge in texels.
+      // Must be finite and positive in either mode.
+      // A value of 8.f means the longest micro-triangle edge will cover approximately 8 texels of the alpha texture.
+      // Each subdivision level halves edge lengths. Smaller targets give finer subdivision.
+      float           targetEdgeLengthInTexels  = 8.f;
+   };
+
    enum class UnknownStatePromotion
    {
       // Will either be UO or UT depending on the coverage. If the micro-triangle is "mostly" opaque it will be UO (4-state) or O
@@ -292,10 +322,9 @@ namespace omm
          IndexFormat           indexFormat                   = IndexFormat::MAX_NUM;
          const void*           indexBuffer                   = nullptr;
          uint32_t              indexCount                    = 0;
-         // Configure the target resolution when running dynamic subdivision level.
-         // <= 0: disabled.
-         // > 0: The subdivision level be chosen such that a single micro-triangle covers approximatley a dynamicSubdivisionScale *
-         // dynamicSubdivisionScale texel area.
+         // Legacy mode only: targets approximately scale * scale square texels per micro-triangle.
+         // <= 0 uses maxSubdivisionLevel uniformly. Explicit per-triangle levels take precedence.
+         OMM_DEPRECATED_MSG("Use subdivision instead; Legacy mode retains dynamicSubdivisionScale behavior")
          float                 dynamicSubdivisionScale       = 2;
          // Rejection threshold [0,1]. Unless OMMs achive a rate of at least rejectionThreshold known states OMMs will be discarded
          // for the primitive. Use this to weed out "poor" OMMs.
@@ -335,9 +364,9 @@ namespace omm
          };
          // Micro triangle count is 4^N, where N is the subdivision level.
          // maxSubdivisionLevel level must be in range [0, 12].
-         // When dynamicSubdivisionScale is enabled maxSubdivisionLevel is the max subdivision level allowed.
-         // When dynamicSubdivisionScale is disabled maxSubdivisionLevel is the subdivision level applied uniformly to all
-         // triangles.
+         // Applies to all subdivision modes: Fixed uses this level uniformly; Area and Edge use it as the upper limit.
+         // Legacy uses it uniformly when dynamicSubdivisionScale <= 0, otherwise as the upper limit.
+         // Explicit per-triangle subdivisionLevels take precedence over this limit and subdivision.mode.
          uint8_t               maxSubdivisionLevel           = 8;
          // Max allowed size in bytes of ommCpuBakeResultDesc::arrayData
          // The baker will choose to downsample the most appropriate omm blocks (based on area, reuse, coverage and other factors)
@@ -358,6 +387,8 @@ namespace omm
          // * Subdivision level of the OMMs.
          // Configure this value when experiencing long bake times, a starting point might be maxWorkloadSize = 1 << 28 (~ processing a total of 256 1k textures)
          uint64_t              maxWorkloadSize               = 0xFFFFFFFFFFFFFFFF;
+         // Fixed, Area and Edge ignore the deprecated scale. Targets use texture-space units directly.
+         SubdivisionDesc       subdivision                   = {};
       };
 
       struct OpacityMicromapDesc
@@ -593,6 +624,7 @@ namespace omm
 
          // Allow 8-bit index format for the output OMM index buffer
          Allow8BitIndices             = 1u << 9,
+
       };
       OMM_DEFINE_ENUM_FLAG_OPERATORS(BakeFlags);
 
@@ -856,12 +888,14 @@ namespace omm
              omm::OpacityState     alphaCutoffGT;
              omm::OpacityState     alphaCutoffGreater = omm::OpacityState::Opaque;
          };
-         // Configure the target resolution when running dynamic subdivision level. <= 0: disabled. > 0: The subdivision level be
-         // chosen such that a single micro-triangle covers approximatley a dynamicSubdivisionScale * dynamicSubdivisionScale texel
-         // area.
+         // Legacy mode only: targets approximately scale * scale square texels per micro-triangle.
+         // <= 0 uses maxSubdivisionLevel uniformly.
+         OMM_DEPRECATED_MSG("Use subdivision instead; Legacy mode retains dynamicSubdivisionScale behavior")
          float               dynamicSubdivisionScale       = 2;
          // The global Format. May be overriden by the per-triangle config.
          Format              globalFormat                  = Format::OC1_4_State;
+         // Applies to all subdivision modes: Fixed uses this level uniformly; Area and Edge use it as the upper limit.
+         // Legacy uses it uniformly when dynamicSubdivisionScale <= 0, otherwise as the upper limit.
          uint8_t             maxSubdivisionLevel           = 8;
          bool                enableSubdivisionLevelBuffer  = false;
          // The SDK will try to limit the omm array size of PreDispatchInfo::outOmmArraySizeInBytes and
@@ -874,6 +908,8 @@ namespace omm
          // Target scratch memory budget, The SDK will try adjust the sum of the transient pool buffers to match this value. Higher
          // budget more efficiently executes the baking operation. May return INSUFFICIENT_SCRATCH_MEMORY if set too low.
          ScratchMemoryBudget maxScratchMemorySize          = ScratchMemoryBudget::Default;
+         // Fixed, Area and Edge ignore the deprecated scale. Affects setup; bake-only reuses setup levels.
+         SubdivisionDesc     subdivision                   = {};
       };
 
       struct PipelineInfoDesc

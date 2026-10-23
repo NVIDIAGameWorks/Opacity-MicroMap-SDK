@@ -9,6 +9,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 */
 
 #include <omm.hpp>
+#include "subdivision.h"
 
 #include <algorithm>
 #include <charconv>
@@ -31,6 +32,9 @@ namespace
         uint32_t iterations = 5;
         uint32_t warmup = 1;
         int threads = -1; // Preserve the serialized flags unless explicitly overridden.
+        int subdivision = -1;
+        float targetArea = -1.f;
+        float targetEdge = -1.f;
         bool help = false;
     };
 
@@ -41,6 +45,9 @@ namespace
             "  --iterations N   Measured iterations (default: 5)\n"
             "  --warmup N       Untimed warmup iterations (default: 1)\n"
             "  --threads on|off Override internal threading (default: serialized setting)\n"
+            "  --subdivision N Force uniform subdivision level 0..12 (default: serialized setting)\n"
+            "  --target-area N Select area mode targeting N square texels per microtriangle\n"
+            "  --target-edge N Select edge mode targeting N texels per microtriangle edge\n"
             "  --help           Show this help\n";
     }
 
@@ -64,7 +71,8 @@ namespace
                 options.help = true;
                 return options;
             }
-            if (argument != "--input" && argument != "--iterations" && argument != "--warmup" && argument != "--threads")
+            if (argument != "--input" && argument != "--iterations" && argument != "--warmup" && argument != "--threads"
+                && argument != "--subdivision" && argument != "--target-area" && argument != "--target-edge")
                 throw std::runtime_error("Unknown option: " + std::string(argument));
             if (++i == argc)
                 throw std::runtime_error("Missing value for " + std::string(argument));
@@ -75,11 +83,25 @@ namespace
                 options.iterations = ParseCount(value, false);
             else if (argument == "--warmup")
                 options.warmup = ParseCount(value, true);
+            else if (argument == "--target-area")
+                options.targetArea = omm::benchmark::ParseSubdivisionTarget(value);
+            else if (argument == "--target-edge")
+                options.targetEdge = omm::benchmark::ParseSubdivisionTarget(value);
+            else if (argument == "--subdivision")
+            {
+                const uint32_t level = ParseCount(value, true);
+                if (level > 12)
+                    throw std::runtime_error("--subdivision expects a level from 0 to 12");
+                options.subdivision = static_cast<int>(level);
+            }
             else if (value == "on" || value == "off")
                 options.threads = value == "on" ? 1 : 0;
             else
                 throw std::runtime_error("--threads expects on or off");
         }
+        if ((options.targetArea > 0.f && options.targetEdge > 0.f)
+            || (options.subdivision >= 0 && (options.targetArea > 0.f || options.targetEdge > 0.f)))
+            throw std::runtime_error("Choose one of --subdivision, --target-area, or --target-edge");
         return options;
     }
 
@@ -101,15 +123,51 @@ namespace
 
         ~Resources()
         {
+            Reset();
+        }
+
+        void Reset()
+        {
             if (result)
                 omm::Cpu::DestroyBakeResult(result);
+            result = nullptr;
             // Deserialization owns the textures and geometry referenced by the inputs.
             if (deserialized)
                 omm::Cpu::DestroyDeserializedResult(deserialized);
+            deserialized = nullptr;
             if (baker)
                 omm::DestroyBaker(baker);
+            baker = nullptr;
         }
     };
+
+    void ApplyOverrides(omm::Cpu::BakeInputDesc& input, const Options& options)
+    {
+        const auto flag = static_cast<uint32_t>(omm::Cpu::BakeFlags::EnableInternalThreads);
+        const auto flags = static_cast<uint32_t>(input.bakeFlags);
+        if (options.threads >= 0)
+            input.bakeFlags = static_cast<omm::Cpu::BakeFlags>(options.threads ? flags | flag : flags & ~flag);
+        if (options.subdivision >= 0)
+        {
+            input.maxSubdivisionLevel = static_cast<uint8_t>(options.subdivision);
+            input.subdivision.mode = omm::SubdivisionMode::Fixed;
+            input.subdivisionLevels = nullptr;
+        }
+        else if (options.targetArea > 0.f || options.targetEdge > 0.f)
+        {
+            input.subdivision = omm::benchmark::EffectiveSubdivision(input);
+            if (options.targetArea > 0.f)
+            {
+                input.subdivision.mode = omm::SubdivisionMode::Area;
+                input.subdivision.targetAreaInSquareTexels = options.targetArea;
+            }
+            else
+            {
+                input.subdivision.mode = omm::SubdivisionMode::Edge;
+                input.subdivision.targetEdgeLengthInTexels = options.targetEdge;
+            }
+        }
+    }
 
     int Run(const Options& options)
     {
@@ -151,13 +209,12 @@ namespace
         {
             auto& input = inputs[i];
             const auto threadFlag = static_cast<uint32_t>(omm::Cpu::BakeFlags::EnableInternalThreads);
-            const auto flags = static_cast<uint32_t>(input.bakeFlags);
-            if (options.threads >= 0)
-                input.bakeFlags = static_cast<omm::Cpu::BakeFlags>(options.threads ? flags | threadFlag : flags & ~threadFlag);
+            ApplyOverrides(input, options);
             triangleCount += input.indexCount / 3;
             std::cout << "  Input " << i << ": " << input.indexCount / 3 << " triangles, max subdivision "
-                << static_cast<unsigned>(input.maxSubdivisionLevel) << ", dynamic scale " << input.dynamicSubdivisionScale
-                << ", internal threading " << ((static_cast<uint32_t>(input.bakeFlags) & threadFlag) ? "on" : "off") << '\n';
+                << static_cast<unsigned>(input.maxSubdivisionLevel) << ", ";
+            omm::benchmark::PrintSubdivision(std::cout, input);
+            std::cout << ", internal threading " << ((static_cast<uint32_t>(input.bakeFlags) & threadFlag) ? "on" : "off") << '\n';
         }
         std::cout << "Warmup: " << options.warmup << ", measured iterations: " << options.iterations
             << " (bake calls only; loading and result cleanup excluded)\n" << std::flush;

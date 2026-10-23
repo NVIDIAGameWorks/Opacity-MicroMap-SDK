@@ -304,7 +304,10 @@ namespace omm
 
                     for (int i = 0; i < m_mips[mipIt].numElements; ++i)
                     {
-                        const int2 pos = From1Dto2D<TilingMode::MortonZ>(i, m_mips[mipIt].size);
+                        const uint2 pos = From1Dto2D<TilingMode::MortonZ>(i, m_mips[mipIt].size);
+                        // Morton storage pads to a square; the output contains only the mip's texels.
+                        if (pos.x >= mip.width || pos.y >= mip.height)
+                            continue;
 
                         const uint8_t* cpySrc = src + i * sizePerPixel;
                         uint8_t* cpyDst = dst + (pos.x + pos.y * desc.mips[mipIt].rowPitch) * sizePerPixel;

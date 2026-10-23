@@ -83,7 +83,7 @@ namespace Cpu
     {
         std::ostream os(&buffer);
 
-        static_assert(sizeof(ommCpuBakeInputDesc) == 136);
+        static_assert(sizeof(ommCpuBakeInputDesc) == 152);
 
         os.write(reinterpret_cast<const char*>(&inputDesc.bakeFlags), sizeof(inputDesc.bakeFlags));
 
@@ -152,6 +152,10 @@ namespace Cpu
         }
 
         os.write(reinterpret_cast<const char*>(&inputDesc.maxWorkloadSize), sizeof(inputDesc.maxWorkloadSize));
+
+        os.write(reinterpret_cast<const char*>(&inputDesc.subdivision.mode), sizeof(inputDesc.subdivision.mode));
+        os.write(reinterpret_cast<const char*>(&inputDesc.subdivision.targetAreaInSquareTexels), sizeof(inputDesc.subdivision.targetAreaInSquareTexels));
+        os.write(reinterpret_cast<const char*>(&inputDesc.subdivision.targetEdgeLengthInTexels), sizeof(inputDesc.subdivision.targetEdgeLengthInTexels));
 
         return ommResult_SUCCESS;
     }
@@ -385,7 +389,7 @@ namespace Cpu
     {
         std::istream os(&buffer);
 
-        static_assert(sizeof(ommCpuBakeInputDesc) == 136);
+        static_assert(sizeof(ommCpuBakeInputDesc) == 152);
 
         os.read(reinterpret_cast<char*>(&inputDesc.bakeFlags), sizeof(inputDesc.bakeFlags));
 
@@ -472,6 +476,14 @@ namespace Cpu
         }
 
         os.read(reinterpret_cast<char*>(&inputDesc.maxWorkloadSize), sizeof(inputDesc.maxWorkloadSize));
+
+        inputDesc.subdivision = ommSubdivisionDescDefault();
+        if (header.inputDescVersion >= 6)
+        {
+            os.read(reinterpret_cast<char*>(&inputDesc.subdivision.mode), sizeof(inputDesc.subdivision.mode));
+            os.read(reinterpret_cast<char*>(&inputDesc.subdivision.targetAreaInSquareTexels), sizeof(inputDesc.subdivision.targetAreaInSquareTexels));
+            os.read(reinterpret_cast<char*>(&inputDesc.subdivision.targetEdgeLengthInTexels), sizeof(inputDesc.subdivision.targetEdgeLengthInTexels));
+        }
 
         if (texture->HasSAT() && header.inputDescVersion < 3)
         {

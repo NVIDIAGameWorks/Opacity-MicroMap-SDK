@@ -17,6 +17,15 @@ enum class OMMFormat : uint
 	OC1_4 = 2,
 };
 
+// Values match ommSubdivisionMode.
+enum class SubdivisionMode : uint
+{
+	Legacy = 0,
+	Fixed  = 1,
+	Area   = 2,
+	Edge   = 3,
+};
+
 enum class TextureFilterMode : uint {
 	Nearest,
 	Linear,

@@ -77,7 +77,6 @@ namespace omm
 			uint32_t							maxSubdivisionLevel = 0;
 			uint32_t							maxOutOmmArraySize = 0xFFFFFFFF;
 			nvrhi::rt::OpacityMicromapFormat	format = nvrhi::rt::OpacityMicromapFormat::OC1_4_State;
-			float								dynamicSubdivisionScale = 0.5f;
 			bool								minimalMemoryMode = false;
 			bool								enableStats = false;
 			bool								enableSpecialIndices = true;
@@ -85,6 +84,8 @@ namespace omm
 			bool								enableTexCoordDeduplication = true;
 			bool								computeOnly = false;
 			bool								enableNsightDebugMode = false;
+			// Select Fixed, Area, or Edge mode and targets in texture-space units.
+			omm::SubdivisionDesc				subdivision = { omm::SubdivisionMode::Area, 0.25f, 0.5f };
 		};
 
 		struct PreDispatchInfo
